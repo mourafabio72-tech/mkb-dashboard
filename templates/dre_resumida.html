@@ -1,0 +1,905 @@
+{% extends "base.html" %}
+{% block title %}DRE — {{ mes_label(competencia) }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div>
+      <h1>DRE — {{ mes_label(competencia) }}</h1>
+      <p class="subtitle">Grupo Markbuilding</p>
+    </div>
+
+    {# ── Toggles: Tipo (Oficial/Gerencial) + Modo (Mês Único/Multi-Mês) ──────── #}
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <div class="toggle-dre-tipo">
+        <a href="{{ url_for('dre_resumida', competencia=competencia, tipo='oficial', modo='mes') }}"
+           class="btn-toggle-tipo {% if tipo == 'oficial' %}ativo{% endif %}">
+          📋 DRE Oficial
+        </a>
+        <a href="{{ url_for('dre_resumida', competencia=competencia, tipo='gerencial', modo=modo) }}"
+           class="btn-toggle-tipo {% if tipo == 'gerencial' %}ativo{% endif %}">
+          📊 DRE Gerencial
+        </a>
+      </div>
+      {% if tipo == 'gerencial' %}
+      <div class="toggle-dre-tipo">
+        <a href="{{ url_for('dre_resumida', competencia=competencia, tipo='gerencial', modo='mes') }}"
+           class="btn-toggle-tipo {% if modo != 'mensal' %}ativo{% endif %}">
+          📅 Mês Único
+        </a>
+        <a href="{{ url_for('dre_resumida', competencia=competencia, tipo='gerencial', modo='mensal') }}"
+           class="btn-toggle-tipo {% if modo == 'mensal' %}ativo{% endif %}">
+          🗓 Multi-Mês
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{# ── Seletor de mês (oculto no modo multi-mês) ───────────────────────────── #}
+{% if modo != 'mensal' %}
+<div class="mes-selector">
+  <span class="selector-label">Mês:</span>
+  {% for comp in competencias %}
+    <a href="{{ url_for('dre_resumida', competencia=comp, tipo=tipo, modo=modo) }}"
+       class="btn-mes {% if comp == competencia %}btn-mes-ativo{% endif %}">
+      {{ mes_label(comp) }}
+    </a>
+  {% endfor %}
+  <span class="sep-emp">|</span>
+  <span class="selector-label">Histórico:</span>
+  <a href="{{ url_for('dre_mensal', empresa='mkb') }}"         class="btn-mes">MKB</a>
+  <a href="{{ url_for('dre_mensal', empresa='gnileb') }}"      class="btn-mes">Gnileb</a>
+  <a href="{{ url_for('dre_mensal', empresa='consolidado') }}" class="btn-mes btn-mes-destaque">Consol.</a>
+</div>
+{% endif %}
+
+
+{# ════════════════════════════════════════════════════════════════════════════ #}
+{# MODO OFICIAL — 12 linhas simples                                            #}
+{# ════════════════════════════════════════════════════════════════════════════ #}
+{% if tipo == 'oficial' %}
+
+  {% set mkb  = dados_oficial.get('mkb',    {}) %}
+  {% set gni  = dados_oficial.get('gnileb', {}) %}
+  {% set adj  = dados_oficial.get('ajuste', {}) %}
+  {% set cons = dados_oficial.get('consolidado', {}) %}
+  {% set rob_m = (mkb.get('ROB') or 1) %}
+  {% set rob_g = (gni.get('ROB') or 1) %}
+  {% set rob_c = (cons.get('ROB') or 1) %}
+
+  <div class="card-full">
+    <div class="dre-header-line">
+      <div class="dre-info">
+        <span class="dre-period">{{ mes_label(competencia) }}</span>
+        <span class="badge-tipo-dre">12 linhas · padrão contábil</span>
+      </div>
+      <div class="dre-actions">
+        <a href="{{ url_for('dre_detalhada', competencia=competencia, empresa='mkb') }}"
+           class="btn btn-sm btn-secondary">🔍 Detalhe MKB</a>
+        <a href="{{ url_for('dre_detalhada', competencia=competencia, empresa='gnileb') }}"
+           class="btn btn-sm btn-secondary">🔍 Detalhe Gnileb</a>
+      </div>
+    </div>
+
+    <div class="table-scroll">
+    <table class="table-dre">
+      <thead>
+        <tr>
+          <th class="col-linha">Linha DRE</th>
+          <th class="num">MKB (R$)</th>
+          <th class="num pct-col">%&nbsp;RB</th>
+          <th class="num">Gnileb (R$)</th>
+          <th class="num pct-col">%&nbsp;RB</th>
+          <th class="num col-ajuste">Elim.</th>
+          <th class="num col-consol">Consolidado (R$)</th>
+          <th class="num pct-col">%&nbsp;RB</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for linha_id, label, tipo_l, _ in dre_meta_oficial %}
+          {% set v_m = mkb.get(linha_id, 0) %}
+          {% set v_g = gni.get(linha_id, 0) %}
+          {% set v_a = adj.get(linha_id, 0) %}
+          {% set v_c = cons.get(linha_id, 0) %}
+          {% if tipo_l == 'ebitda' %}
+            <tr class="dre-sep"><td colspan="8"></td></tr>
+          {% endif %}
+          <tr class="dre-row dre-{{ tipo_l }}">
+            <td class="col-linha">{{ label }}</td>
+            <td class="num {% if v_m < 0 %}text-danger{% endif %}">{{ fmt_brl(v_m) }}</td>
+            <td class="num pct-col text-muted">{{ pct_rob(v_m, rob_m) }}</td>
+            <td class="num {% if v_g < 0 %}text-danger{% endif %}">{{ fmt_brl(v_g) }}</td>
+            <td class="num pct-col text-muted">{{ pct_rob(v_g, rob_g) }}</td>
+            <td class="num col-ajuste {% if v_a != 0 %}text-ajuste{% endif %}">
+              {{ fmt_brl(v_a) if v_a != 0 else '—' }}
+            </td>
+            <td class="num col-consol {% if v_c < 0 %}text-danger{% endif %}">{{ fmt_brl(v_c) }}</td>
+            <td class="num pct-col text-muted">{{ pct_rob(v_c, rob_c) }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="notes-box">
+    <strong>DRE Oficial</strong> — 12 linhas padrão contábil. Elim. = eliminação da Equivalência Patrimonial (Gnileb).
+    Consolidado = MKB + Gnileb + Ajuste. Valores em R$ (sem centavos). % sobre Receita Bruta de cada empresa.
+    &nbsp;·&nbsp; <a href="{{ url_for('dre_resumida', competencia=competencia, tipo='gerencial') }}"
+       style="color:var(--accent)">Ver DRE Gerencial →</a>
+  </div>
+
+{# ════════════════════════════════════════════════════════════════════════════ #}
+{# MODO GERENCIAL — ~30 linhas expansíveis com drill-down CT1/CT2              #}
+{# Só renderiza quando modo=mes (não no multi-mês, que tem bloco próprio)      #}
+{# ════════════════════════════════════════════════════════════════════════════ #}
+{% elif modo != 'mensal' %}
+
+  {% set mkb    = dados.get('mkb',    {}) %}
+  {% set gnileb = dados.get('gnileb', {}) %}
+  {% set ajuste = dados.get('ajuste', {}) %}
+  {% set cons   = dados.get('consolidado', {}) %}
+  {% set rob_m  = (mkb.get('ROB') or 1) %}
+  {% set rob_g  = (gnileb.get('ROB') or 1) %}
+  {% set rob_c  = (cons.get('ROB') or 1) %}
+
+  <div class="card-full">
+    <div class="dre-header-line">
+      <div class="dre-info">
+        <span class="dre-period">{{ mes_label(competencia) }}</span>
+        {% if comp_ant %}<span class="dre-vs">vs {{ mes_label(comp_ant) }}</span>{% endif %}
+        <span class="dre-acum">Acum. {{ n_meses }} mês{{ 'es' if n_meses > 1 else '' }}</span>
+        <span class="badge-tipo-dre">Gerencial</span>
+      </div>
+      <div class="dre-actions">
+        <button class="btn btn-sm btn-secondary" onclick="expandirTodos(true)">＋ Todos</button>
+        <button class="btn btn-sm btn-secondary" onclick="expandirTodos(false)">－ Recolher</button>
+        <a href="{{ url_for('dre_detalhada', competencia=competencia, empresa='mkb') }}"
+           class="btn btn-sm btn-secondary">🔍 MKB</a>
+        <a href="{{ url_for('dre_detalhada', competencia=competencia, empresa='gnileb') }}"
+           class="btn btn-sm btn-secondary">🔍 Gnileb</a>
+      </div>
+    </div>
+
+    <div class="table-scroll">
+    <table class="table-dre table-dre-gerencial" id="tbl-dre-ger">
+      <thead>
+        <tr>
+          <th class="col-linha">Linha DRE</th>
+          <th class="num">MKB (R$)</th>
+          <th class="num pct-col">%&nbsp;RB</th>
+          <th class="num">Gnileb (R$)</th>
+          <th class="num pct-col">%&nbsp;RB</th>
+          <th class="num col-ajuste">Elim.</th>
+          <th class="num col-consol">Consol. (R$)</th>
+          <th class="num pct-col">%&nbsp;RB</th>
+          {% if comp_ant %}
+          <th class="num col-var">Δ&nbsp;R$</th>
+          <th class="num col-var pct-col">Δ&nbsp;%</th>
+          {% endif %}
+          <th class="num col-acum">YTD</th>
+          <th class="num col-media">Média</th>
+        </tr>
+      </thead>
+      <tbody>
+
+      {% set secao_atual = namespace(val='') %}
+
+      {% for linha_id, label, tipo_l, secao in dre_meta %}
+
+        {# ── Separador de seção — dispara na PRIMEIRA linha de cada seção ─────── #}
+        {% if secao != secao_atual.val %}
+          {% set secao_atual.val = secao %}
+          {% if secao == 'custo' %}
+            <tr class="dre-sec-sep dre-sec-collapsible"
+                onclick="toggleSecao('custo')"
+                title="Clique para expandir/recolher os custos">
+              <td colspan="12" class="dre-sec-label">
+                <span class="expand-icon" id="icon-sec-custo">▼</span>
+                CUSTOS OPERACIONAIS
+              </td>
+            </tr>
+          {% elif secao == 'despesa' %}
+            <tr class="dre-sec-sep dre-sec-collapsible"
+                onclick="toggleSecao('despesa')"
+                title="Clique para expandir/recolher as despesas">
+              <td colspan="12" class="dre-sec-label">
+                <span class="expand-icon" id="icon-sec-despesa">▼</span>
+                DESPESAS OPERACIONAIS
+              </td>
+            </tr>
+          {% elif secao == 'financeiro' %}
+            <tr class="dre-sec-sep"><td colspan="12" class="dre-sec-label">▸ RESULTADO FINANCEIRO E OUTROS</td></tr>
+          {% elif secao == 'resultado' %}
+            <tr class="dre-sec-sep"><td colspan="12" class="dre-sec-label">▸ RESULTADO FINAL</td></tr>
+          {% endif %}
+        {% endif %}
+        {% if tipo_l == 'ebitda' %}
+          <tr class="dre-sep"><td colspan="12"></td></tr>
+        {% endif %}
+
+        {# ── Valores ─────────────────────────────────────────────────────────── #}
+        {% set v_m   = mkb.get(linha_id, 0)    %}
+        {% set v_g   = gnileb.get(linha_id, 0) %}
+        {% set v_a   = ajuste.get(linha_id, 0) %}
+        {% set v_c   = cons.get(linha_id, 0)   %}
+        {% set v_ytd = ytd.get(linha_id, 0)    %}
+        {% set v_med = media.get(linha_id, 0)  %}
+        {% set var   = variacao.get(linha_id, (none, '—', '')) %}
+
+        {% set cls_m   = 'text-danger' if v_m < 0 else ('text-success' if v_m > 0 and tipo_l == 'grupo_pos' else '') %}
+        {% set cls_g   = 'text-danger' if v_g < 0 else '' %}
+        {% set cls_c   = 'text-danger' if v_c < 0 else ('text-success' if v_c > 0 and tipo_l == 'grupo_pos' else '') %}
+        {% set cls_var = 'text-var-pos' if var[2] == 'pos' else ('text-var-neg' if var[2] == 'neg' else '') %}
+
+        {# ── Linha principal ─────────────────────────────────────────────────── #}
+        <tr class="dre-row dre-{{ tipo_l }}"
+            {% if tipo_l in ('grupo', 'grupo_pos') %}
+              data-grupo="{{ linha_id }}"
+              data-secao="{{ secao }}"
+              onclick="toggleGrupo(this)"
+              title="Clique para ver as contas deste grupo"
+            {% endif %}>
+
+          <td class="col-linha">
+            {% if tipo_l in ('grupo', 'grupo_pos') %}
+              <span class="expand-icon" id="icon-{{ linha_id }}">▶</span>
+            {% endif %}
+            {{ label }}
+          </td>
+
+          <td class="num {{ cls_m }}">{{ fmt_brl(v_m) if v_m != 0 else '—' }}</td>
+          <td class="num pct-col text-muted">{{ pct_rob(v_m, rob_m) }}</td>
+
+          <td class="num {{ cls_g }}">{{ fmt_brl(v_g) if v_g != 0 else '—' }}</td>
+          <td class="num pct-col text-muted">{{ pct_rob(v_g, rob_g) }}</td>
+
+          <td class="num col-ajuste {% if v_a != 0 %}text-ajuste{% endif %}">
+            {{ fmt_brl(v_a) if v_a != 0 else '—' }}
+          </td>
+
+          <td class="num col-consol {{ cls_c }}">{{ fmt_brl(v_c) }}</td>
+          <td class="num pct-col text-muted">{{ pct_rob(v_c, rob_c) }}</td>
+
+          {% if comp_ant %}
+          <td class="num col-var {{ cls_var }}">
+            {% if var[0] is not none %}
+              {{ '▲' if var[2] == 'pos' else '▼' }}&nbsp;{{ fmt_brl(var[0] if var[0] >= 0 else -var[0]) }}
+            {% else %}—{% endif %}
+          </td>
+          <td class="num col-var pct-col {{ cls_var }}">{{ var[1] }}</td>
+          {% endif %}
+
+          <td class="num col-acum text-muted">{{ fmt_brl(v_ytd) if v_ytd != 0 else '—' }}</td>
+          <td class="num col-media text-muted">{{ fmt_brl(v_med) if v_med != 0 else '—' }}</td>
+        </tr>
+
+        {# ── Linhas de contas (nível 2) — ocultas por padrão ─────────────────── #}
+        {% if tipo_l in ('grupo', 'grupo_pos') %}
+          {% set contas = det_merged.get(linha_id, []) %}
+          {% if contas %}
+
+            {# Cabeçalho das colunas de conta #}
+            <tr class="dre-filha dre-filha-hdr" id="filha-hdr-{{ linha_id }}" style="display:none">
+              <th class="col-linha indent-1 text-muted" style="font-size:.7rem">
+                Conta / Descrição
+                <span class="hint-ct" title="Clique em qualquer conta para ver os lançamentos CT1/CT2">
+                  &nbsp;(clique na conta para drill-down ↓)
+                </span>
+              </th>
+              <th class="num text-muted" style="font-size:.7rem" colspan="2">MKB</th>
+              <th class="num text-muted" style="font-size:.7rem" colspan="2">Gnileb</th>
+              <th></th>
+              <th class="num text-muted" style="font-size:.7rem" colspan="2">Total</th>
+              {% if comp_ant %}<th colspan="2"></th>{% endif %}
+              <th colspan="2"></th>
+            </tr>
+
+            {% for c in contas %}
+              {% set safe_id = (c.cod ~ '-' ~ linha_id) | replace('.', '_') %}
+              {% set cls_tc  = 'text-danger' if c.total < 0 else ('text-success' if c.total > 0 and tipo_l == 'grupo_pos' else '') %}
+              <tr class="dre-filha dre-conta"
+                  id="filha-{{ safe_id }}"
+                  data-pai="{{ linha_id }}"
+                  data-conta="{{ c.cod }}"
+                  data-comp="{{ competencia }}"
+                  data-has-mkb="{{ '1' if c.mkb != 0 else '0' }}"
+                  data-has-gni="{{ '1' if c.gnileb != 0 else '0' }}"
+                  onclick="toggleConta(this)"
+                  style="display:none"
+                  title="Clique para ver lançamentos CT1/CT2">
+                <td class="col-linha indent-1">
+                  <span class="expand-icon-conta" id="icon-conta-{{ safe_id }}">▶</span>
+                  <span class="conta-cod">{{ c.cod }}</span>
+                  <span class="conta-desc">{{ c.descricao }}</span>
+                </td>
+                <td class="num {% if c.mkb < 0 %}text-danger{% elif c.mkb > 0 and tipo_l == 'grupo_pos' %}text-success{% endif %}" colspan="2">
+                  {{ fmt_brl(c.mkb) if c.mkb != 0 else '—' }}
+                </td>
+                <td class="num {% if c.gnileb < 0 %}text-danger{% endif %}" colspan="2">
+                  {{ fmt_brl(c.gnileb) if c.gnileb != 0 else '—' }}
+                </td>
+                <td></td>
+                <td class="num {{ cls_tc }}" colspan="2">{{ fmt_brl(c.total) }}</td>
+                {% if comp_ant %}<td colspan="2"></td>{% endif %}
+                <td class="num text-muted" style="font-size:.7rem" colspan="2">
+                  {{ pct_rob(c.total, rob_c) }}
+                </td>
+              </tr>
+
+              {# Placeholder para os lançamentos CT1/CT2 — preenchido via AJAX #}
+              <tr class="dre-ct-placeholder" id="ct-{{ safe_id }}" data-pai="{{ linha_id }}" style="display:none">
+                <td colspan="12" style="padding:0"></td>
+              </tr>
+            {% endfor %}
+
+          {% endif %}
+        {% endif %}
+
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>{# /table-scroll #}
+  </div>{# /card-full #}
+
+  <div class="notes-box">
+    <strong>Elim.:</strong> Eliminação da Equivalência Patrimonial.
+    {% if comp_ant %}<strong>Δ:</strong> variação vs {{ mes_label(comp_ant) }}.{% endif %}
+    <strong>YTD / Média:</strong> consolidado — {{ n_meses }} mês{{ 'es' if n_meses > 1 else '' }}.
+    Valores R$ (sem centavos). % sobre RB de cada coluna.
+    <span class="tip-expand">▶ Grupo expande contas · Conta expande lançamentos CT1/CT2.</span>
+  </div>
+
+{% endif %}{# fim if tipo == 'oficial' / gerencial mes #}
+
+
+{# ════════════════════════════════════════════════════════════════════════════ #}
+{# MODO MULTI-MÊS — todos os meses como colunas (Gerencial)                   #}
+{# ════════════════════════════════════════════════════════════════════════════ #}
+{% if tipo == 'gerencial' and modo == 'mensal' %}
+
+  <div class="card-full">
+    <div class="dre-header-line">
+      <div class="dre-info">
+        <span class="dre-period">{{ competencias | map('mesLabel') | join(' · ') if false else (competencias | length | string + ' meses') }}</span>
+        <span class="badge-tipo-dre">Multi-Mês · Gerencial</span>
+        <span class="dre-acum">Acum. {{ n_meses }} meses</span>
+      </div>
+      <div class="dre-actions">
+        <button class="btn btn-sm btn-secondary" onclick="expandirTodasColunas(true)">⊟ Expandir todos</button>
+        <button class="btn btn-sm btn-secondary" onclick="expandirTodasColunas(false)">⊞ Só Consolidado</button>
+      </div>
+    </div>
+
+    {# ── Filtro de meses: checkboxes para mostrar/ocultar colunas ───────────── #}
+    <div class="mes-filtro-bar">
+      <span class="selector-label">Mostrar meses:</span>
+      {% for comp in competencias %}
+        {% set cs = comp | replace('-', '_') %}
+        <label class="check-mes-label check-mes-ativo" id="lbl-{{ cs }}">
+          <input type="checkbox" checked
+                 onchange="toggleMesVisibility('{{ cs }}', this.checked)">
+          {{ mes_label(comp) }}
+        </label>
+      {% endfor %}
+      <span class="sep-emp">|</span>
+      <button class="btn btn-sm btn-secondary" onclick="selecionarTodosMeses(true)">✓ Todos</button>
+      <button class="btn btn-sm btn-secondary" onclick="selecionarTodosMeses(false)">✗ Nenhum</button>
+    </div>
+
+    <div class="table-scroll">
+    <table class="table-dre table-dre-mensal" id="tbl-dre-mensal">
+      <thead>
+        {# ── Linha 1: nomes dos meses ──────────────────────────────────────── #}
+        <tr class="mes-header-row">
+          <th class="col-linha" rowspan="2">Linha DRE</th>
+          {% for comp in competencias %}
+            {% set cs = comp | replace('-', '_') %}
+            {# 5 células extra (ocultas por padrão) — só para reservar espaço #}
+            <th class="mes-extra mes-extra-{{ cs }}" style="display:none"></th>
+            <th class="mes-extra mes-extra-{{ cs }}" style="display:none"></th>
+            <th class="mes-extra mes-extra-{{ cs }}" style="display:none"></th>
+            <th class="mes-extra mes-extra-{{ cs }}" style="display:none"></th>
+            <th class="mes-extra mes-extra-{{ cs }}" style="display:none"></th>
+            {# Célula principal: nome do mês + botão toggle #}
+            <th class="num mes-cons mes-cons-{{ cs }} mes-th-nome">
+              {{ mes_label(comp) }}
+              <button class="btn-toggle-mes" id="btn-{{ cs }}"
+                      onclick="toggleMesCol('{{ cs }}', event)"
+                      title="Expandir colunas MKB / Gnileb">⊞</button>
+            </th>
+            <th class="num pct-col mes-cons mes-cons-{{ cs }}"></th>
+          {% endfor %}
+          <th class="num col-acum" rowspan="2">YTD</th>
+          <th class="num pct-col" rowspan="2">%</th>
+          <th class="num col-media" rowspan="2">Média</th>
+        </tr>
+        {# ── Linha 2: sub-headers detalhados ──────────────────────────────── #}
+        <tr class="mes-subheader-row">
+          {% for comp in competencias %}
+            {% set cs = comp | replace('-', '_') %}
+            <th class="num mes-extra mes-extra-{{ cs }} col-sub" style="display:none">MKB</th>
+            <th class="num pct-col mes-extra mes-extra-{{ cs }}" style="display:none">%</th>
+            <th class="num mes-extra mes-extra-{{ cs }} col-sub" style="display:none">Gnileb</th>
+            <th class="num pct-col mes-extra mes-extra-{{ cs }}" style="display:none">%</th>
+            <th class="num mes-extra mes-extra-{{ cs }} col-ajuste col-sub" style="display:none">Elim.</th>
+            <th class="num mes-cons mes-cons-{{ cs }} col-consol col-sub">Cons.</th>
+            <th class="num pct-col mes-cons mes-cons-{{ cs }}">%</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+
+        {% set secao_men = namespace(val='') %}
+
+        {% for linha_id, label, tipo_l, secao in dre_meta %}
+
+          {# Separadores de seção #}
+          {% if secao != secao_men.val %}
+            {% set secao_men.val = secao %}
+            {% if secao == 'custo' %}
+              <tr class="dre-sec-sep"><td colspan="999" class="dre-sec-label">▸ CUSTOS OPERACIONAIS</td></tr>
+            {% elif secao == 'despesa' %}
+              <tr class="dre-sec-sep"><td colspan="999" class="dre-sec-label">▸ DESPESAS OPERACIONAIS</td></tr>
+            {% elif secao == 'financeiro' %}
+              <tr class="dre-sec-sep"><td colspan="999" class="dre-sec-label">▸ RESULTADO FINANCEIRO E OUTROS</td></tr>
+            {% elif secao == 'resultado' %}
+              <tr class="dre-sec-sep"><td colspan="999" class="dre-sec-label">▸ RESULTADO FINAL</td></tr>
+            {% endif %}
+          {% endif %}
+          {% if tipo_l == 'ebitda' %}
+            <tr class="dre-sep"><td colspan="999"></td></tr>
+          {% endif %}
+
+          {# ── Linha de dados ──────────────────────────────────────────────── #}
+          <tr class="dre-row dre-{{ tipo_l }}"
+              {% if tipo_l in ('grupo', 'grupo_pos') %}
+                data-grupo-m="{{ linha_id }}"
+                onclick="toggleGrupoMensal(this)"
+                title="Clique para ver as contas deste grupo"
+              {% endif %}>
+            <td class="col-linha">
+              {% if tipo_l in ('grupo', 'grupo_pos') %}
+                <span class="expand-icon" id="icon-m-{{ linha_id }}">▶</span>
+              {% endif %}
+              {{ label }}
+            </td>
+
+            {% for comp in competencias %}
+              {% set cs   = comp | replace('-', '_') %}
+              {% set d    = dados_mensal.get(comp, {}) %}
+              {% set mkb_ = d.get('mkb', {}) %}
+              {% set gni_ = d.get('gnileb', {}) %}
+              {% set adj_ = d.get('ajuste', {}) %}
+              {% set cns_ = d.get('consolidado', {}) %}
+              {% set rob_m_ = (mkb_.get('ROB') or 1) %}
+              {% set rob_g_ = (gni_.get('ROB') or 1) %}
+              {% set rob_c_ = (cns_.get('ROB') or 1) %}
+              {% set v_m  = mkb_.get(linha_id, 0) %}
+              {% set v_g  = gni_.get(linha_id, 0) %}
+              {% set v_a  = adj_.get(linha_id, 0) %}
+              {% set v_c  = cns_.get(linha_id, 0) %}
+
+              <td class="num mes-extra mes-extra-{{ cs }} {% if v_m < 0 %}text-danger{% endif %}"
+                  style="display:none">{{ fmt_brl(v_m) if v_m != 0 else '—' }}</td>
+              <td class="num pct-col mes-extra mes-extra-{{ cs }} text-muted"
+                  style="display:none">{{ pct_rob(v_m, rob_m_) }}</td>
+              <td class="num mes-extra mes-extra-{{ cs }} {% if v_g < 0 %}text-danger{% endif %}"
+                  style="display:none">{{ fmt_brl(v_g) if v_g != 0 else '—' }}</td>
+              <td class="num pct-col mes-extra mes-extra-{{ cs }} text-muted"
+                  style="display:none">{{ pct_rob(v_g, rob_g_) }}</td>
+              <td class="num mes-extra mes-extra-{{ cs }} col-ajuste {% if v_a != 0 %}text-ajuste{% endif %}"
+                  style="display:none">{{ fmt_brl(v_a) if v_a != 0 else '—' }}</td>
+              <td class="num mes-cons mes-cons-{{ cs }} col-consol {% if v_c < 0 %}text-danger{% elif v_c > 0 and tipo_l == 'grupo_pos' %}text-success{% endif %}">
+                {{ fmt_brl(v_c) if v_c != 0 else '—' }}
+              </td>
+              <td class="num pct-col mes-cons mes-cons-{{ cs }} text-muted">
+                {{ pct_rob(v_c, rob_c_) }}
+              </td>
+            {% endfor %}
+
+            {% set v_ytd = ytd.get(linha_id, 0) %}
+            {% set v_med = media.get(linha_id, 0) %}
+            {% set rob_ytd = ytd.get('ROB') or 1 %}
+            <td class="num col-acum text-muted">{{ fmt_brl(v_ytd) if v_ytd != 0 else '—' }}</td>
+            <td class="num pct-col text-muted">{{ pct_rob(v_ytd, rob_ytd) }}</td>
+            <td class="num col-media text-muted">{{ fmt_brl(v_med) if v_med != 0 else '—' }}</td>
+          </tr>
+
+          {# ── Sub-rows de conta (nível 2) — expansíveis ───────────────────── #}
+          {% if tipo_l in ('grupo', 'grupo_pos') %}
+            {% set contas_g = contas_meses.get(linha_id, []) %}
+            {% if contas_g %}
+
+              {# Cabeçalho das colunas de conta #}
+              <tr class="dre-filha dre-filha-hdr" id="filha-m-hdr-{{ linha_id }}" style="display:none">
+                <th class="col-linha indent-1 text-muted" style="font-size:.7rem">Conta / Descrição</th>
+                {% for comp in competencias %}
+                  {% set cs = comp | replace('-','_') %}
+                  <th class="mes-extra mes-extra-{{ cs }}" style="display:none" colspan="5"></th>
+                  <th class="num mes-cons mes-cons-{{ cs }} text-muted" style="font-size:.7rem">Cons.</th>
+                  <th class="num pct-col mes-cons mes-cons-{{ cs }} text-muted" style="font-size:.7rem">%</th>
+                {% endfor %}
+                <th class="num col-acum text-muted" style="font-size:.7rem">YTD</th>
+                <th class="num pct-col text-muted" style="font-size:.7rem">%</th>
+                <th class="num col-media text-muted" style="font-size:.7rem">Média</th>
+              </tr>
+
+              {% for conta in contas_g %}
+                {% set v_ytd_c = conta.totais.values() | sum %}
+                {% set n_c = competencias | length or 1 %}
+                <tr class="dre-filha" id="filha-m-{{ linha_id }}-{{ loop.index }}" style="display:none">
+                  <td class="col-linha indent-1">
+                    <span class="conta-cod">{{ conta.cod }}</span>
+                    <span class="conta-desc">{{ conta.descricao }}</span>
+                  </td>
+                  {% for comp in competencias %}
+                    {% set cs = comp | replace('-','_') %}
+                    {% set v  = conta.totais.get(comp, 0) %}
+                    {% set rob_c_ = (dados_mensal.get(comp, {}).get('consolidado', {}).get('ROB') or 1) %}
+                    {# 5 células extra vazias para manter alinhamento de colunas #}
+                    <td class="mes-extra mes-extra-{{ cs }}" style="display:none"></td>
+                    <td class="mes-extra mes-extra-{{ cs }}" style="display:none"></td>
+                    <td class="mes-extra mes-extra-{{ cs }}" style="display:none"></td>
+                    <td class="mes-extra mes-extra-{{ cs }}" style="display:none"></td>
+                    <td class="mes-extra mes-extra-{{ cs }}" style="display:none"></td>
+                    <td class="num mes-cons mes-cons-{{ cs }} {% if v < 0 %}text-danger{% elif v > 0 and tipo_l == 'grupo_pos' %}text-success{% endif %}">
+                      {{ fmt_brl(v) if v != 0 else '—' }}
+                    </td>
+                    <td class="num pct-col mes-cons mes-cons-{{ cs }} text-muted">
+                      {{ pct_rob(v, rob_c_) }}
+                    </td>
+                  {% endfor %}
+                  <td class="num col-acum text-muted">{{ fmt_brl(v_ytd_c) if v_ytd_c != 0 else '—' }}</td>
+                  <td class="num pct-col text-muted">{{ pct_rob(v_ytd_c, rob_ytd) }}</td>
+                  <td class="num col-media text-muted">{{ fmt_brl(v_ytd_c / n_c) if v_ytd_c != 0 else '—' }}</td>
+                </tr>
+              {% endfor %}
+
+            {% endif %}
+          {% endif %}
+
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>{# /table-scroll #}
+  </div>{# /card-full #}
+
+  <div class="notes-box">
+    <strong>Consol.:</strong> Consolidado (MKB + Gnileb com eliminação da EP).
+    <strong>YTD / Média:</strong> acumulado de {{ n_meses }} meses.
+    <strong>⊞</strong> no cabeçalho do mês expande as colunas MKB · Gnileb · Elim.
+    &nbsp;·&nbsp;
+    <a href="{{ url_for('dre_resumida', competencia=competencia, tipo='gerencial', modo='mes') }}"
+       style="color:var(--accent)">← Voltar para Mês Único com drill-down</a>
+  </div>
+
+{% endif %}{# fim modo mensal #}
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+/* ── Toggle grupo no modo Multi-Mês (nível 1 → 2) ───────────────────────── */
+function toggleGrupoMensal(row) {
+  const grupoId = row.dataset.grupoM;
+  if (!grupoId) return;
+
+  const hdr    = document.getElementById(`filha-m-hdr-${grupoId}`);
+  const filhas = document.querySelectorAll(`[id^="filha-m-${grupoId}-"]`);
+  const icon   = document.getElementById(`icon-m-${grupoId}`);
+  const abrir  = !hdr || hdr.style.display === 'none';
+
+  if (hdr) hdr.style.display = abrir ? '' : 'none';
+  filhas.forEach(r => { r.style.display = abrir ? '' : 'none'; });
+  if (icon) icon.textContent = abrir ? '▼' : '▶';
+  row.classList.toggle('grupo-expandido', abrir);
+}
+
+/* ── Toggle coluna de mês: expande MKB/Gnileb/Elim ──────────────────────── */
+function toggleMesCol(compSafe, evt) {
+  if (evt) evt.stopPropagation();
+  // Não expande se o mês está oculto pelo filtro de visibilidade
+  const lbl = document.getElementById(`lbl-${compSafe}`);
+  if (lbl && lbl.classList.contains('mes-oculto')) return;
+
+  const extras  = document.querySelectorAll(`.mes-extra-${compSafe}`);
+  const btn     = document.getElementById(`btn-${compSafe}`);
+  const fechado = extras.length > 0 && extras[0].style.display === 'none';
+  extras.forEach(c => { c.style.display = fechado ? '' : 'none'; });
+  if (btn) btn.textContent = fechado ? '⊟' : '⊞';
+}
+
+/* ── Expande ou recolhe TODAS as colunas de mês ──────────────────────────── */
+function expandirTodasColunas(expandir) {
+  document.querySelectorAll('[id^="btn-"]').forEach(btn => {
+    if (!btn.classList.contains('btn-toggle-mes')) return;
+    const cs = btn.id.replace('btn-', '');
+    const lbl = document.getElementById(`lbl-${cs}`);
+    if (lbl && lbl.classList.contains('mes-oculto')) return; // não age em ocultos
+    const extras = document.querySelectorAll(`.mes-extra-${cs}`);
+    const jaAberto = extras.length > 0 && extras[0].style.display !== 'none';
+    if (expandir && !jaAberto) toggleMesCol(cs);
+    if (!expandir && jaAberto) toggleMesCol(cs);
+  });
+}
+
+/* ── Mostrar / ocultar coluna inteira de um mês ──────────────────────────── */
+function toggleMesVisibility(compSafe, visivel) {
+  const lbl = document.getElementById(`lbl-${compSafe}`);
+
+  // Células que controlam a visibilidade do mês
+  // mes-cons sempre visível; mes-extra só se o mês estava expandido
+  const consCells  = document.querySelectorAll(`.mes-cons-${compSafe}`);
+  const extraCells = document.querySelectorAll(`.mes-extra-${compSafe}`);
+
+  if (visivel) {
+    // Reexibe: cons volta a aparecer; extra só se o mês estava expandido
+    const btn = document.getElementById(`btn-${compSafe}`);
+    const expandido = btn && btn.textContent === '⊟';
+    consCells.forEach(c  => { c.style.display = ''; });
+    extraCells.forEach(c => { c.style.display = expandido ? '' : 'none'; });
+    if (lbl) { lbl.classList.remove('mes-oculto'); lbl.classList.add('check-mes-ativo'); }
+  } else {
+    // Recolhe primeiro (para não confundir estado), depois oculta tudo
+    const btn = document.getElementById(`btn-${compSafe}`);
+    if (btn && btn.textContent === '⊟') toggleMesCol(compSafe); // fecha extras
+    consCells.forEach(c  => { c.style.display = 'none'; });
+    extraCells.forEach(c => { c.style.display = 'none'; });
+    if (lbl) { lbl.classList.add('mes-oculto'); lbl.classList.remove('check-mes-ativo'); }
+  }
+}
+
+/* ── Marcar / desmarcar todos os meses de uma vez ───────────────────────── */
+function selecionarTodosMeses(marcar) {
+  document.querySelectorAll('.mes-filtro-bar input[type="checkbox"]').forEach(cb => {
+    const cs = cb.closest('label').id.replace('lbl-', '');
+    const visivel = cb.checked;
+    if (marcar && !visivel) { cb.checked = true;  toggleMesVisibility(cs, true);  }
+    if (!marcar && visivel) { cb.checked = false; toggleMesVisibility(cs, false); }
+  });
+}
+
+/* ── helpers ──────────────────────────────────────────────────────────────── */
+function fmtBrl(v) {
+  if (v === null || v === undefined) return '—';
+  const neg = v < 0;
+  const s = Math.round(Math.abs(v)).toLocaleString('pt-BR');
+  return neg ? `(${s})` : s;
+}
+
+/* ── Toggle grupo (nível 1 → 2) ──────────────────────────────────────────── */
+function toggleGrupo(row) {
+  const grupoId = row.dataset.grupo;
+  if (!grupoId) return;
+
+  const hdr   = document.getElementById(`filha-hdr-${grupoId}`);
+  const filhas = document.querySelectorAll(`.dre-conta[data-pai="${grupoId}"]`);
+  const icon   = document.getElementById(`icon-${grupoId}`);
+  const abrir  = !hdr || hdr.style.display === 'none';
+
+  if (hdr) hdr.style.display = abrir ? '' : 'none';
+  filhas.forEach(r => {
+    r.style.display = abrir ? '' : 'none';
+    // fecha os ct-placeholders ao recolher
+    if (!abrir) {
+      const safe = r.id.replace('filha-', '');
+      const ct = document.getElementById(`ct-${safe}`);
+      if (ct) ct.style.display = 'none';
+      const iconC = document.getElementById(`icon-conta-${safe}`);
+      if (iconC) iconC.textContent = '▶';
+      r.classList.remove('conta-expandida');
+    }
+  });
+
+  if (icon) icon.textContent = abrir ? '▼' : '▶';
+  row.classList.toggle('grupo-expandido', abrir);
+}
+
+/* ── Toggle conta (nível 2 → 3, AJAX CT1/CT2) ────────────────────────────── */
+async function toggleConta(row) {
+  const conta = row.dataset.conta;
+  const comp  = row.dataset.comp;
+  const safe  = row.id.replace('filha-', '');
+  const ct    = document.getElementById(`ct-${safe}`);
+  const iconC = document.getElementById(`icon-conta-${safe}`);
+  if (!ct) return;
+
+  const aberto = ct.style.display !== 'none' && ct.querySelector('table');
+
+  if (aberto) {
+    ct.style.display = 'none';
+    if (iconC) iconC.textContent = '▶';
+    row.classList.remove('conta-expandida');
+    return;
+  }
+
+  // Já carregado anteriormente — apenas reexibe
+  if (ct.querySelector('table')) {
+    ct.style.display = '';
+    if (iconC) iconC.textContent = '▼';
+    row.classList.add('conta-expandida');
+    return;
+  }
+
+  // ── Carrega via AJAX ───────────────────────────────────────────────────────
+  const cell = ct.querySelector('td') || ct.firstElementChild;
+  if (cell) cell.innerHTML = '<span class="ct-loading">⏳ carregando lançamentos…</span>';
+  ct.style.display = '';
+
+  const hasMkb = row.dataset.hasMkb === '1';
+  const hasGni = row.dataset.hasGni === '1';
+  const empresas = [];
+  if (hasMkb) empresas.push({emp:'mkb', label:'MKB'});
+  if (hasGni) empresas.push({emp:'gnileb', label:'Gnileb'});
+  if (!empresas.length) empresas.push({emp:'mkb', label:'MKB'});  // fallback
+
+  try {
+    const fetches = empresas.map(e =>
+      fetch(`/api/lancamentos-razao?empresa=${e.emp}&competencia=${comp}&conta=${encodeURIComponent(conta)}`)
+        .then(r => r.json())
+        .then(d => ({...d, empLabel: e.label}))
+    );
+    const results = await Promise.all(fetches);
+
+    let html = `<td colspan="12" style="padding:0">`;
+
+    for (const data of results) {
+      if (!data.rows || data.rows.length === 0) continue;
+      const isCT1 = data.tipo_fonte === 'CT1';
+      const badge = isCT1
+        ? `<span class="badge-ct1">CT1 · Razão</span>`
+        : `<span class="badge-ct2">CT2 · Comparativo</span>`;
+
+      html += `
+        <div class="ct-empresa-header">
+          <strong>${data.empLabel}</strong>
+          ${badge}
+          <span class="ct-total">Total: ${fmtBrl(data.total)}</span>
+          <span class="ct-qtd">${data.rows.length} lançamento${data.rows.length > 1 ? 's' : ''}</span>
+        </div>
+        <table class="table-ct">
+          <thead><tr>`;
+
+      if (isCT1) {
+        html += `<th>Data</th><th>Documento</th><th>Histórico</th>
+                 <th>Conta Partida</th><th>Filial</th><th>C.Custo</th>
+                 <th class="num">Débito</th><th class="num">Crédito</th>
+                 <th class="num">Valor</th>`;
+      } else {
+        html += `<th>Período</th><th colspan="5">Descrição</th>
+                 <th class="num">Débito</th><th class="num">Crédito</th>
+                 <th class="num">Valor</th>`;
+      }
+
+      html += `</tr></thead><tbody>`;
+
+      for (const r of data.rows) {
+        const clsV = r.valor < 0 ? 'text-danger' : (r.valor > 0 ? 'text-success' : '');
+        const clsD = r.debito  > 0 ? 'text-danger'  : '';
+        const clsC = r.credito > 0 ? 'text-success' : '';
+        if (isCT1) {
+          html += `<tr class="ct-row">
+            <td class="ct-data">${r.data || '—'}</td>
+            <td class="ct-doc">${r.documento || '—'}</td>
+            <td class="ct-hist">${r.historico || '—'}</td>
+            <td class="ct-partida">${r.conta_partida || '—'}</td>
+            <td class="ct-filial">${r.filial || '—'}</td>
+            <td class="ct-cc">${r.centro_custo || '—'}</td>
+            <td class="num ${clsD}">${r.debito  ? fmtBrl(r.debito)  : '—'}</td>
+            <td class="num ${clsC}">${r.credito ? fmtBrl(r.credito) : '—'}</td>
+            <td class="num ${clsV} fw-600">${fmtBrl(r.valor)}</td>
+          </tr>`;
+        } else {
+          html += `<tr class="ct-row">
+            <td class="ct-data">${r.data || '—'}</td>
+            <td class="ct-hist" colspan="5">${r.historico || '—'}</td>
+            <td class="num ${clsD}">${r.debito  ? fmtBrl(r.debito)  : '—'}</td>
+            <td class="num ${clsC}">${r.credito ? fmtBrl(r.credito) : '—'}</td>
+            <td class="num ${clsV} fw-600">${fmtBrl(r.valor)}</td>
+          </tr>`;
+        }
+      }
+
+      html += `</tbody>
+        <tfoot>
+          <tr class="ct-total-row">
+            <td colspan="${isCT1 ? 8 : 8}" class="text-muted" style="font-size:.7rem">
+              Total ${data.empLabel}
+            </td>
+            <td class="num fw-600 ${data.total < 0 ? 'text-danger' : 'text-success'}">${fmtBrl(data.total)}</td>
+          </tr>
+        </tfoot>
+        </table>`;
+    }
+
+    // Se todas as empresas estão sem lançamentos
+    const temDados = results.some(d => d.rows && d.rows.length > 0);
+    if (!temDados) {
+      html += `<div class="ct-empty">Sem lançamentos para esta conta/mês.</div>`;
+    }
+
+    html += `</td>`;
+    ct.innerHTML = html;
+    ct.style.display = '';
+    if (iconC) iconC.textContent = '▼';
+    row.classList.add('conta-expandida');
+
+  } catch(e) {
+    ct.innerHTML = `<td colspan="12" class="ct-empty ct-erro">Erro ao carregar: ${e.message}</td>`;
+    console.error(e);
+  }
+}
+
+/* ── Colapsa/expande TODA uma seção (Custos ou Despesas) ─────────────────── */
+function toggleSecao(secao) {
+  const grupoRows = document.querySelectorAll(`.dre-row[data-secao="${secao}"]`);
+  const icon      = document.getElementById(`icon-sec-${secao}`);
+  if (!grupoRows.length) return;
+
+  const abrir = grupoRows[0].style.display === 'none';
+
+  grupoRows.forEach(row => {
+    row.style.display = abrir ? '' : 'none';
+    const grupoId = row.dataset.grupo;
+
+    // Ao fechar: recolhe também as contas/lançamentos do grupo
+    if (!abrir) {
+      const hdr   = document.getElementById(`filha-hdr-${grupoId}`);
+      const filhas = document.querySelectorAll(`.dre-conta[data-pai="${grupoId}"]`);
+      if (hdr) hdr.style.display = 'none';
+      filhas.forEach(f => {
+        f.style.display = 'none';
+        const safe  = f.id.replace('filha-', '');
+        const ct    = document.getElementById(`ct-${safe}`);
+        const iconC = document.getElementById(`icon-conta-${safe}`);
+        if (ct)    ct.style.display = 'none';
+        if (iconC) iconC.textContent = '▶';
+        f.classList.remove('conta-expandida');
+      });
+      const iconG = document.getElementById(`icon-${grupoId}`);
+      if (iconG) iconG.textContent = '▶';
+      row.classList.remove('grupo-expandido');
+    }
+  });
+
+  if (icon) icon.textContent = abrir ? '▼' : '▶';
+}
+
+/* ── Expand / colapsa todos os grupos ────────────────────────────────────── */
+function expandirTodos(abrir) {
+  // Garante que as seções estejam visíveis ao expandir tudo
+  ['custo', 'despesa'].forEach(sec => {
+    const grupoRows = document.querySelectorAll(`.dre-row[data-secao="${sec}"]`);
+    const icon = document.getElementById(`icon-sec-${sec}`);
+    if (abrir) {
+      grupoRows.forEach(r => { r.style.display = ''; });
+      if (icon) icon.textContent = '▼';
+    }
+  });
+
+  document.querySelectorAll('[data-grupo]').forEach(row => {
+    const grupoId = row.dataset.grupo;
+    const hdr    = document.getElementById(`filha-hdr-${grupoId}`);
+    const filhas = document.querySelectorAll(`.dre-conta[data-pai="${grupoId}"]`);
+    const icon   = document.getElementById(`icon-${grupoId}`);
+    if (hdr) hdr.style.display = abrir ? '' : 'none';
+    filhas.forEach(r => { r.style.display = abrir ? '' : 'none'; });
+    if (icon) icon.textContent = abrir ? '▼' : '▶';
+    row.classList.toggle('grupo-expandido', abrir);
+    if (!abrir) {
+      filhas.forEach(r => {
+        const safe = r.id.replace('filha-', '');
+        const ct = document.getElementById(`ct-${safe}`);
+        if (ct) ct.style.display = 'none';
+        const iconC = document.getElementById(`icon-conta-${safe}`);
+        if (iconC) iconC.textContent = '▶';
+        r.classList.remove('conta-expandida');
+      });
+    }
+  });
+}
+</script>
+{% endblock %}

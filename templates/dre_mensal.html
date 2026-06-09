@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}DRE Mensal — {{ empresa|upper }}{% endblock %}
+
+{% block content %}
+
+{# ── Cabeçalho ───────────────────────────────────────────────────────────── #}
+<div class="page-header">
+  <h1>DRE — Meses Lado a Lado</h1>
+  <p class="subtitle">
+    {% if empresa == 'consolidado' %}Consolidado Grupo Markbuilding
+    {% elif empresa == 'mkb' %}Mark Building Gerenciamento Predial
+    {% elif empresa == 'gnileb' %}MKB Participações (Gnileb)
+    {% else %}{{ empresa|upper }}{% endif %}
+    &nbsp;·&nbsp;
+    <a href="{{ url_for('dre_resumida', competencia=competencias[-1]) }}">← DRE por Empresa</a>
+  </p>
+</div>
+
+{# ── Seletores ────────────────────────────────────────────────────────────── #}
+<div class="mes-selector">
+  <span class="selector-label">Empresa:</span>
+  <a href="{{ url_for('dre_mensal', empresa='mkb') }}"
+     class="btn-mes {% if empresa=='mkb' and modo=='fechada' %}btn-mes-ativo{% endif %}">MKB</a>
+  <a href="{{ url_for('dre_mensal', empresa='gnileb') }}"
+     class="btn-mes {% if empresa=='gnileb' and modo=='fechada' %}btn-mes-ativo{% endif %}">Gnileb</a>
+  <a href="{{ url_for('dre_mensal', empresa='consolidado') }}"
+     class="btn-mes {% if empresa=='consolidado' and modo=='fechada' %}btn-mes-ativo{% endif %}">Consolidado</a>
+
+  <span class="sep-emp">|</span>
+  <span class="selector-label">Visão:</span>
+  <a href="{{ url_for('dre_mensal', empresa=empresa) }}"
+     class="btn-mes {% if modo=='fechada' %}btn-mes-ativo{% endif %}">Resumida</a>
+  {% if empresa != 'consolidado' %}
+  <a href="{{ url_for('dre_mensal_detalhada', empresa=empresa) }}"
+     class="btn-mes {% if modo=='detalhada' %}btn-mes-ativo{% endif %}">Detalhada</a>
+  {% endif %}
+</div>
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{# MODO FECHADA: 12 linhas DRE × colunas de mês                             #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{% if modo == 'fechada' %}
+
+  {% set n_cols = competencias|length %}
+  {% set ult = competencias[-1] %}
+  {% set ant = competencias[-2] if n_cols > 1 else none %}
+  {% set rob_ytd = ytd.get('ROB', 1) or 1 %}
+
+  <div class="card-full">
+    <table class="table-mensal">
+      <thead>
+        <tr>
+          <th class="col-linha-m">Linha DRE</th>
+          {% for comp in competencias %}
+            <th class="num">{{ mes_label(comp) }}</th>
+          {% endfor %}
+          <th class="num col-var">Var. {{ mes_label(ult) }}/{{ mes_label(ant) if ant else '—' }}</th>
+          <th class="num col-ytd">Acum. {{ competencias[0][:4] }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for linha_id, label, tipo, _ in dre_meta %}
+          {% if tipo == 'ebitda' %}
+            <tr class="dre-sep"><td colspan="{{ n_cols + 3 }}"></td></tr>
+          {% endif %}
+
+          {# Variação último vs penúltimo #}
+          {% set var_info = vars_mes.get(linha_id, (none, '—', '')) %}
+
+          <tr class="dre-row dre-{{ tipo }}">
+            <td class="col-linha-m">{{ label }}</td>
+
+            {% for comp in competencias %}
+              {% set v = mensal[comp].get(linha_id, 0) %}
+              <td class="num {% if v < 0 %}text-danger{% endif %}">{{ fmt_brl(v) }}</td>
+            {% endfor %}
+
+            {# Variação #}
+            <td class="num">
+              {% if var_info[0] is not none %}
+                <span class="var-{{ var_info[2] }}">
+                  {% if var_info[2] == 'pos' %}▲{% else %}▼{% endif %}
+                  {{ var_info[1] }}
+                </span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+
+            {# YTD #}
+            {% set ytd_v = ytd.get(linha_id, 0) %}
+            <td class="num {% if ytd_v < 0 %}text-danger{% endif %}">
+              {{ fmt_brl(ytd_v) }}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="notes-box">
+    <strong>Var.:</strong> variação % do último mês em relação ao mês anterior.
+    <strong>Acum.:</strong> soma do período {{ competencias[0] }} a {{ competencias[-1] }} (linhas de fluxo).
+    Valores em R$ (sem centavos).
+  </div>
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{# MODO DETALHADA: grupos de contas × colunas de mês                        #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{% elif modo == 'detalhada' %}
+
+  <div class="card-full">
+    <table class="table-mensal table-det-m">
+      <thead>
+        <tr>
+          <th class="col-cod">Conta</th>
+          <th class="col-desc">Descrição</th>
+          {% for comp in competencias %}
+            <th class="num">{{ mes_label(comp) }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for grupo in grupos_ordem %}
+          {# Verifica se algum mês tem dados para este grupo #}
+          {# Verifica se algum mês tem dados para este grupo #}
+          {% set tem_dados = namespace(value=false) %}
+          {% for comp in competencias %}
+            {% for g in det_mensal[comp] %}
+              {% if g.grupo == grupo %}{% set tem_dados.value = true %}{% endif %}
+            {% endfor %}
+          {% endfor %}
+
+          {% if tem_dados.value %}
+          {# Linha de cabeçalho do grupo — subtotais #}
+          <tr class="det-grupo">
+            <td colspan="2">{{ grupo_labels.get(grupo, grupo) }}</td>
+            {% for comp in competencias %}
+              {% set subtotal = namespace(value=0) %}
+              {% for g in det_mensal[comp] %}
+                {% if g.grupo == grupo %}{% set subtotal.value = g.subtotal %}{% endif %}
+              {% endfor %}
+              <td class="num {% if subtotal.value < 0 %}text-danger{% endif %}">
+                <strong>{{ fmt_brl(subtotal.value) }}</strong>
+              </td>
+            {% endfor %}
+          </tr>
+
+          {# Contas individuais: usa o mês mais completo para definir a lista #}
+          {% set contas_ref = namespace(lista=[]) %}
+          {% for comp in competencias|reverse %}
+            {% for g in det_mensal[comp] %}
+              {% if g.grupo == grupo and g.contas|length > contas_ref.lista|length %}
+                {% set contas_ref.lista = g.contas %}
+              {% endif %}
+            {% endfor %}
+          {% endfor %}
+
+          {% for conta in contas_ref.lista|sort(attribute='cod') %}
+            <tr class="det-conta">
+              <td class="col-cod text-muted">{{ conta.cod }}</td>
+              <td class="col-desc">{{ conta.descricao }}</td>
+              {% for comp in competencias %}
+                {% set val = namespace(value=0) %}
+                {% for g in det_mensal[comp] %}
+                  {% if g.grupo == grupo %}
+                    {% for c in g.contas %}
+                      {% if c.cod == conta.cod %}{% set val.value = c.valor %}{% endif %}
+                    {% endfor %}
+                  {% endif %}
+                {% endfor %}
+                <td class="num {% if val.value < 0 %}text-danger{% endif %}">
+                  {% if val.value != 0 %}{{ fmt_brl(val.value) }}{% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+
+          <tr class="det-sep"><td colspan="{{ competencias|length + 2 }}"></td></tr>
+          {% endif %}{# tem_dados #}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+{% endif %}
+{% endblock %}

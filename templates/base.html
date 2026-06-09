@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}MKB Dashboard{% endblock %} — BPS4</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="{{ url_for('index') }}" class="nav-brand">
+    <img src="{{ url_for('static', filename='bps4-logo.png') }}"
+         alt="BPS4" class="nav-logo-img">
+    <span class="nav-divider">|</span>
+    <div class="nav-brand-text">
+      <span class="nav-title">MKB Dashboard</span>
+      <span class="nav-sub">Grupo Markbuilding</span>
+    </div>
+  </a>
+  <ul class="nav-links">
+    <li>
+      <a href="{{ url_for('index') }}"
+         {% if request.endpoint == 'index' %}class="active"{% endif %}>
+        Início
+      </a>
+    </li>
+    {% set ultima_comp = request.view_args.get('competencia', '') %}
+    <li>
+      <a href="{{ url_for('dre_resumida', competencia=ultima_comp or '2026-04') }}"
+         {% if request.endpoint in ['dre_resumida','dre_detalhada'] %}class="active"{% endif %}>
+        DRE
+      </a>
+    </li>
+    <li>
+      <a href="{{ url_for('irpj', empresa='mkb', competencia=ultima_comp or '2026-04') }}"
+         {% if request.endpoint == 'irpj' %}class="active"{% endif %}>
+        IRPJ / CSLL
+      </a>
+    </li>
+    <li>
+      <a href="{{ url_for('comparativo', empresa='mkb') }}"
+         {% if request.endpoint == 'comparativo' %}class="active"{% endif %}>
+        Comparativo
+      </a>
+    </li>
+    <li>
+      <a href="{{ url_for('receita_clientes', empresa='mkb') }}"
+         {% if request.endpoint == 'receita_clientes' %}class="active"{% endif %}>
+        💼 Receita por Cliente
+      </a>
+    </li>
+    <li>
+      <a href="{{ url_for('despesas_fornecedores', empresa='mkb') }}"
+         {% if request.endpoint == 'despesas_fornecedores' %}class="active"{% endif %}>
+        🧾 Despesas por Fornecedor
+      </a>
+    </li>
+    <li>
+      <a href="{{ url_for('ingest') }}"
+         {% if request.endpoint == 'ingest' %}class="active"{% endif %}>
+        ⬆ Importar
+      </a>
+    </li>
+  </ul>
+  {% if session.usuario_logado %}
+  <div class="nav-user">
+    <span class="nav-user-nome">{{ session.usuario_logado }}</span>
+    <a href="{{ url_for('logout') }}" class="nav-logout">Sair</a>
+  </div>
+  {% endif %}
+</nav>
+
+<main class="container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-box">
+        {% for category, message in messages %}
+          <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="footer">
+  <span>BPS4 Contabilidade · MKB-Dashboard · {{ now }}</span>
+</footer>
+
+<script src="{{ url_for('static', filename='main.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

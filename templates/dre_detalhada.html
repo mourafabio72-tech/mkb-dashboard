@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}DRE Detalhada — {{ emp_info.sigla }} {{ mes_label(competencia) }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>DRE Detalhada — {{ emp_info.sigla }}</h1>
+  <p class="subtitle">
+    {{ emp_info.nome }} &nbsp;·&nbsp; {{ mes_label(competencia) }}
+    &nbsp;·&nbsp;
+    <a href="{{ url_for('dre_resumida', competencia=competencia) }}">← Voltar à DRE Resumida</a>
+  </p>
+</div>
+
+{# ── Seletor de mês ──────────────────────────────────────────────────────── #}
+<div class="mes-selector">
+  {% for comp in competencias %}
+    <a href="{{ url_for('dre_detalhada', competencia=comp, empresa=empresa) }}"
+       class="btn-mes {% if comp == competencia %}btn-mes-ativo{% endif %}">
+      {{ mes_label(comp) }}
+    </a>
+  {% endfor %}
+  <span class="sep-emp">|</span>
+  {% for emp_key, emp_data in EMPRESAS.items() %}
+    <a href="{{ url_for('dre_detalhada', competencia=competencia, empresa=emp_key) }}"
+       class="btn-mes {% if emp_key == empresa %}btn-mes-ativo{% endif %}">
+      {{ emp_data.sigla }}
+    </a>
+  {% endfor %}
+</div>
+
+{# ── Linha de totalizadores rápidos ───────────────────────────────────────── #}
+{% set rob = dre_res.get('ROB', 0) %}
+<div class="kpi-mini-grid">
+  <div class="kpi-mini">
+    <span class="kpi-mini-label">Rec. Bruta</span>
+    <span class="kpi-mini-val">{{ fmt_brl(rob) }}</span>
+  </div>
+  <div class="kpi-mini">
+    <span class="kpi-mini-label">Rec. Líquida</span>
+    <span class="kpi-mini-val">{{ fmt_brl(dre_res.get('ROL', 0)) }}</span>
+  </div>
+  <div class="kpi-mini">
+    <span class="kpi-mini-label">Lucro Bruto</span>
+    <span class="kpi-mini-val {% if dre_res.get('LB', 0) < 0 %}text-danger{% endif %}">
+      {{ fmt_brl(dre_res.get('LB', 0)) }}
+    </span>
+  </div>
+  <div class="kpi-mini kpi-mini-hl">
+    <span class="kpi-mini-label">LAIR</span>
+    <span class="kpi-mini-val {% if dre_res.get('LAIR', 0) < 0 %}text-danger{% endif %}">
+      {{ fmt_brl(dre_res.get('LAIR', 0)) }}
+    </span>
+  </div>
+  <div class="kpi-mini">
+    <span class="kpi-mini-label">Resultado Liq.</span>
+    <span class="kpi-mini-val {% if dre_res.get('LL', 0) < 0 %}text-danger{% endif %}">
+      {{ fmt_brl(dre_res.get('LL', 0)) }}
+    </span>
+  </div>
+</div>
+
+{# ── Tabela detalhada ─────────────────────────────────────────────────────── #}
+{% if detalhes %}
+<div class="card-full">
+  <table class="table-det">
+    <thead>
+      <tr>
+        <th class="col-cod">Conta</th>
+        <th class="col-desc">Descrição</th>
+        <th class="num">Valor (R$)</th>
+        <th class="num pct-col">% ROB</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for grupo in detalhes %}
+        {# Linha de grupo / subtotal #}
+        <tr class="det-grupo">
+          <td colspan="2">{{ grupo.label }}</td>
+          <td class="num {% if grupo.subtotal < 0 %}text-danger{% endif %}">
+            <strong>{{ fmt_brl(grupo.subtotal) }}</strong>
+          </td>
+          <td class="num pct-col text-muted">{{ pct_rob(grupo.subtotal, rob) }}</td>
+        </tr>
+
+        {# Contas individuais #}
+        {% for conta in grupo.contas %}
+          <tr class="det-conta">
+            <td class="col-cod text-muted">{{ conta.cod }}</td>
+            <td class="col-desc">{{ conta.descricao }}</td>
+            <td class="num {% if conta.valor < 0 %}text-danger{% endif %}">
+              {{ fmt_brl(conta.valor) }}
+            </td>
+            <td class="num pct-col text-muted">{{ pct_rob(conta.valor, rob) }}</td>
+          </tr>
+        {% endfor %}
+
+        {# Separador entre grupos #}
+        <tr class="det-sep"><td colspan="4"></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">📋</div>
+  <h2>Sem dados para este período</h2>
+  <p>Importe os arquivos do Protheus para {{ mes_label(competencia) }}.</p>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,696 @@
+/* ── MKB-Dashboard · BPS4 Contabilidade ──────────────────────────────────── */
+
+:root {
+  --primary:   #a78bfa;       /* lavanda/violeta — títulos e destaques */
+  --accent:    #8b5cf6;       /* roxo vibrante — botões, links ativos  */
+  --success:   #34d399;       /* esmeralda neon                        */
+  --danger:    #f87171;       /* vermelho suave                        */
+  --warning:   #fbbf24;       /* âmbar dourado                         */
+  --bg:        #09090f;       /* preto quase absoluto                  */
+  --card:      #12121f;       /* card dark                             */
+  --card2:     #1a1a2e;       /* card ligeiramente mais claro          */
+  --border:    #1e1e3a;       /* borda sutil roxo-escura               */
+  --text:      #e2e8f0;       /* texto claro                           */
+  --muted:     #6b6b9a;       /* texto secundário                      */
+  --font:      'Segoe UI', system-ui, sans-serif;
+  --row-alt:   #13131f;
+  --row-res:   #1a1a35;
+  --row-final: #1e1e45;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; }
+
+/* ── NAVBAR ────────────────────────────────────────────────────────────────── */
+.navbar {
+  background: #0d0d1a;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  height: 54px;
+  gap: 8px;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 20px rgba(139,92,246,.15);
+}
+.nav-brand {
+  display: flex; align-items: center; gap: 8px;
+  text-decoration: none; color: inherit; margin-right: auto;
+}
+.nav-logo-img {
+  height: 32px;
+  width: auto;
+}
+.nav-divider    { color: rgba(255,255,255,.2); font-size: 20px; margin: 0 10px; }
+.nav-brand-text { display: flex; flex-direction: column; gap: 0; }
+.nav-title      { font-size: 14px; font-weight: 700; letter-spacing: .5px; color: #fff; line-height: 1.2; }
+.nav-sub        { font-size: 10px; color: var(--muted); line-height: 1.2; }
+
+.nav-links  { display: flex; list-style: none; gap: 2px; }
+.nav-links a {
+  color: var(--muted); text-decoration: none; padding: 8px 14px;
+  border-radius: 6px; font-size: 13px; transition: all .15s;
+}
+.nav-links a:hover  { background: rgba(139,92,246,.15); color: var(--primary); }
+.nav-links a.active { background: rgba(139,92,246,.2); color: var(--primary); font-weight: 600; }
+
+/* Usuário logado / Sair — canto direito da navbar */
+.nav-user {
+  display: flex; align-items: center; gap: 10px;
+  margin-left: 12px; padding-left: 12px;
+  border-left: 1px solid var(--border);
+}
+.nav-user-nome { font-size: 12px; color: var(--muted); }
+.nav-logout {
+  font-size: 11px; font-weight: 700; color: var(--muted);
+  text-decoration: none; padding: 4px 10px; border-radius: 5px;
+  border: 1px solid var(--border); transition: all .15s;
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.nav-logout:hover { border-color: var(--danger); color: var(--danger); }
+
+/* ── CONTAINER ────────────────────────────────────────────────────────────── */
+.container { max-width: 1400px; margin: 0 auto; padding: 24px 24px 48px; }
+
+/* ── FLASH ────────────────────────────────────────────────────────────────── */
+.flash-box  { margin-bottom: 16px; }
+.flash      { padding: 10px 16px; border-radius: 6px; margin-bottom: 8px; font-size: 13px; }
+.flash-success { background: rgba(52,211,153,.12); border-left: 4px solid var(--success); color: var(--success); }
+.flash-warning { background: rgba(251,191,36,.12);  border-left: 4px solid var(--warning); color: var(--warning); }
+.flash-danger  { background: rgba(248,113,113,.12); border-left: 4px solid var(--danger);  color: var(--danger); }
+
+/* ── PAGE HEADER ──────────────────────────────────────────────────────────── */
+.page-header      { margin-bottom: 20px; }
+.page-header h1   { font-size: 22px; font-weight: 700; color: var(--primary); text-shadow: 0 0 20px rgba(167,139,250,.3); }
+.page-header .subtitle { color: var(--muted); margin-top: 4px; font-size: 13px; }
+.page-header .subtitle a { color: var(--accent); text-decoration: none; }
+
+/* ── SELETOR DE MÊS ──────────────────────────────────────────────────────── */
+.mes-selector { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; align-items: center; }
+.btn-mes {
+  padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;
+  text-decoration: none; color: var(--muted); background: rgba(139,92,246,.08);
+  border: 1px solid var(--border); transition: all .15s;
+}
+.btn-mes:hover   { border-color: var(--accent); color: var(--primary); background: rgba(139,92,246,.15); }
+.btn-mes-ativo   { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; box-shadow: 0 2px 10px rgba(139,92,246,.4); }
+.sep-emp         { color: var(--border); margin: 0 4px; }
+
+/* ── KPI GRID ─────────────────────────────────────────────────────────────── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.kpi-card {
+  background: var(--card2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 18px 20px; box-shadow: 0 4px 24px rgba(0,0,0,.4);
+  transition: box-shadow .2s;
+}
+.kpi-card:hover { box-shadow: 0 4px 30px rgba(139,92,246,.2); }
+.kpi-highlight  { border-top: 3px solid var(--accent); box-shadow: 0 4px 24px rgba(139,92,246,.25); }
+.kpi-label  { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--muted); letter-spacing: .6px; margin-bottom: 6px; }
+.kpi-value  { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.kpi-sub    { font-size: 12px; color: var(--muted); }
+.kpi-pct    { color: var(--muted); }
+.kpi-var    { font-size: 12px; margin-top: 6px; }
+.var-pos    { color: var(--success); font-weight: 600; }
+.var-neg    { color: var(--danger);  font-weight: 600; }
+
+/* ── KPI MINI (topo detalhada) ────────────────────────────────────────────── */
+.kpi-mini-grid {
+  display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px;
+}
+.kpi-mini {
+  background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 18px; min-width: 140px;
+}
+.kpi-mini-hl { border-top: 3px solid var(--accent); }
+.kpi-mini-label { display: block; font-size: 10px; text-transform: uppercase; color: var(--muted); letter-spacing: .5px; margin-bottom: 4px; }
+.kpi-mini-val   { display: block; font-size: 16px; font-weight: 700; }
+
+/* ── SECTION GRID ─────────────────────────────────────────────────────────── */
+.section-grid {
+  display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px;
+}
+.section-card, .card-full {
+  background: var(--card2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 20px 24px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.4);
+}
+.section-card h2 {
+  font-size: 15px; font-weight: 600; color: var(--primary);
+  margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+.card-full { margin-bottom: 20px; overflow-x: auto; }
+.dre-header-line {
+  display: flex; justify-content: flex-end; margin-bottom: 14px;
+}
+.dre-actions { display: flex; gap: 8px; }
+
+/* ── TABELA DRE MINI (dashboard) ─────────────────────────────────────────── */
+.table-dre-mini { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table-dre-mini th { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+  padding: 6px 8px; border-bottom: 2px solid var(--border); }
+.table-dre-mini td { padding: 5px 8px; border-bottom: 1px solid #f1f5f9; }
+.table-dre-mini .dre-resultado td { background: var(--row-res); font-weight: 600; }
+.table-dre-mini .dre-resultado_final td { background: var(--row-final); font-weight: 700; font-size: 14px; }
+.card-footer-link { margin-top: 12px; text-align: right; font-size: 13px; }
+.card-footer-link a { color: var(--accent); text-decoration: none; font-weight: 600; }
+
+/* ── GRÁFICOS ─────────────────────────────────────────────────────────────── */
+.graficos-grid-2 {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;
+}
+.grafico-card {
+  background: var(--card2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 18px 20px; box-shadow: 0 4px 24px rgba(0,0,0,.4);
+}
+.grafico-card-full { margin-bottom: 20px; }
+.grafico-titulo {
+  font-size: 13px; font-weight: 700; color: var(--primary);
+  margin-bottom: 14px; display: flex; flex-direction: column; gap: 2px;
+  letter-spacing: .2px;
+}
+.grafico-sub { font-size: 11px; font-weight: 400; color: var(--muted); }
+
+.grafico-wrap       { position: relative; height: 240px; }
+.grafico-wrap-pizza { position: relative; height: 300px; }
+.grafico-wrap-top5  { position: relative; height: 200px; }
+.grafico-wrap-top10 { position: relative; height: 320px; }
+
+/* ── DASHBOARD HEADER ─────────────────────────────────────────────────────── */
+.dash-header-wrap {
+  background: var(--card2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px 20px; margin-bottom: 20px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.4), inset 0 1px 0 rgba(167,139,250,.08);
+}
+.dash-header-top {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 14px;
+}
+.dash-header-top h1    { font-size: 20px; font-weight: 700; color: var(--primary); text-shadow: 0 0 20px rgba(167,139,250,.4); }
+.dash-header-top .subtitle { color: var(--muted); margin-top: 4px; font-size: 13px; }
+
+.dash-check-form {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding-top: 12px; border-top: 1px solid var(--border);
+}
+
+/* ── DASHBOARD GRID 2 COLUNAS ─────────────────────────────────────────────── */
+.dash-grid-2col {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px;
+}
+.section-title {
+  font-size: 14px; font-weight: 700; color: var(--primary);
+  margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid var(--border);
+  letter-spacing: .3px;
+}
+
+/* ── CARDS DE PERÍODO ─────────────────────────────────────────────────────── */
+.periodo-cards { display: flex; flex-direction: column; gap: 10px; }
+.periodo-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; transition: box-shadow .15s;
+}
+.periodo-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+.periodo-card-ativo { border-left: 4px solid var(--accent); background: #fafbff; }
+
+.periodo-card-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;
+}
+.periodo-mes  { font-size: 14px; font-weight: 700; color: var(--primary); }
+.badge-atual  {
+  font-size: 10px; font-weight: 700; background: var(--accent); color: #fff;
+  padding: 2px 7px; border-radius: 10px; text-transform: uppercase; letter-spacing: .5px;
+}
+
+.periodo-kpis {
+  display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px;
+}
+.periodo-kpi   { display: flex; flex-direction: column; gap: 2px; }
+.periodo-kpi-label { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+.periodo-kpi-val   { font-size: 13px; font-weight: 700; color: var(--text); }
+.periodo-var       { font-size: 10px; }
+
+.periodo-links { display: flex; gap: 6px; flex-wrap: wrap; }
+.periodo-links a {
+  font-size: 11px; color: var(--accent); text-decoration: none;
+  background: #eff6ff; padding: 3px 8px; border-radius: 4px; font-weight: 600;
+}
+.periodo-links a:hover { background: #dbeafe; }
+
+/* ── SUGESTÕES DE ANÁLISE ─────────────────────────────────────────────────── */
+.sugestoes-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+.sugestao-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px; border-radius: 10px; border: 1px solid transparent;
+  text-decoration: none; transition: opacity .15s, box-shadow .15s;
+}
+.sugestao-card:hover { opacity: .9; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+.sugestao-icon    { font-size: 22px; flex-shrink: 0; }
+.sugestao-texto   { display: flex; flex-direction: column; gap: 2px; }
+.sugestao-texto strong { font-size: 13px; color: inherit; }
+.sugestao-texto span   { font-size: 11px; opacity: .8; }
+
+.sugestao-azul    { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+.sugestao-verde   { background: #f0fdf4; border-color: #86efac; color: #166534; }
+.sugestao-indigo  { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
+.sugestao-laranja { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
+
+/* ── YTD TABLE ────────────────────────────────────────────────────────────── */
+.row-ytd-res td { background: var(--row-res); font-weight: 600; }
+
+/* ── TOGGLE MODO (Por Empresa / Por Mês) ──────────────────────────────────── */
+.toggle-modo {
+  display: flex; gap: 6px; margin-bottom: 16px; align-items: center;
+}
+.btn-toggle {
+  padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 600;
+  text-decoration: none; color: var(--muted); background: var(--card);
+  border: 1px solid var(--border); transition: all .15s;
+}
+.btn-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.btn-toggle-ativo { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* ── CHECKBOXES DE MESES (modo Por Mês) ──────────────────────────────────── */
+.form-meses { margin-bottom: 16px; }
+.check-meses { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.check-mes-label {
+  display: flex; align-items: center; gap: 5px; cursor: pointer;
+  padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 500;
+  background: rgba(139,92,246,.08); border: 1px solid var(--border); transition: all .15s;
+  user-select: none; color: var(--muted);
+}
+.check-mes-label:hover  { border-color: var(--accent); color: var(--primary); background: rgba(139,92,246,.15); }
+.check-mes-ativo        { background: rgba(139,92,246,.2); border-color: var(--accent); color: var(--primary); font-weight: 700; }
+.check-mes-label input  { accent-color: var(--accent); width: 13px; height: 13px; cursor: pointer; }
+
+/* ── TABELA DRE RESUMIDA (principal) ─────────────────────────────────────── */
+.table-dre {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+.table-dre th {
+  font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+  padding: 7px 8px; border-bottom: 1px solid var(--border); white-space: nowrap;
+  background: rgba(139,92,246,.06); letter-spacing: .3px;
+}
+.table-dre td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
+.table-dre .col-linha { min-width: 190px; }
+.table-dre .col-consol { background: rgba(139,92,246,.08); border-left: 2px solid rgba(139,92,246,.4); max-width: 95px; }
+.table-dre .pct-col { width: 46px; font-size: 11px; color: var(--muted); }
+
+/* Tipos de linha */
+.dre-row.dre-subtotal  td { background: transparent; }
+.dre-row.dre-subtotal:hover td { background: rgba(139,92,246,.05); }
+.dre-row.dre-resultado td { background: var(--row-res); font-weight: 600; }
+.dre-row.dre-resultado_final td { background: var(--row-final); font-weight: 700; font-size: 14px; color: var(--primary); }
+.dre-row.dre-ebitda    td { background: rgba(52,211,153,.08); font-weight: 600; color: var(--success); border-top: 1px solid rgba(52,211,153,.3); }
+.dre-sep td { height: 6px; background: var(--bg); }
+
+.table-dre th.num, .table-dre td.num { text-align: right; }
+
+/* ── TABELA DETALHADA ─────────────────────────────────────────────────────── */
+.table-det {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.table-det th {
+  font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+  padding: 8px 10px; border-bottom: 2px solid var(--border); background: #f8fafc;
+}
+.table-det td { padding: 5px 10px; border-bottom: 1px solid #f8fafc; }
+.table-det th.num, .table-det td.num { text-align: right; }
+.col-cod  { width: 160px; font-family: monospace; font-size: 12px; }
+.col-desc { }
+
+.det-grupo td {
+  background: #eef2ff; font-weight: 600; color: var(--primary);
+  border-top: 1px solid #c7d2fe; padding: 7px 10px;
+}
+.det-conta td { background: #fff; }
+.det-conta:hover td { background: #f8fafc; }
+.det-sep td { height: 4px; background: var(--bg); border: none; }
+
+/* ── TABELA SIMPLES ───────────────────────────────────────────────────────── */
+.table-simple { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table-simple th {
+  background: rgba(139,92,246,.08); font-weight: 600; color: var(--muted); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .5px; padding: 7px 10px;
+  border-bottom: 1px solid var(--border); text-align: left;
+}
+.table-simple td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.table-simple tr:last-child td { border-bottom: none; }
+.table-simple a { color: var(--accent); text-decoration: none; }
+.table-simple a:hover { text-decoration: underline; color: var(--primary); }
+.row-destaque td { background: rgba(139,92,246,.1); font-weight: 500; }
+
+/* ── BOTÕES ───────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-block; padding: 8px 18px; border-radius: 6px; font-size: 13px;
+  font-weight: 600; text-decoration: none; cursor: pointer; border: none; transition: opacity .15s;
+}
+.btn:hover  { opacity: .88; }
+.btn-sm     { padding: 5px 12px; font-size: 12px; }
+.btn-lg     { padding: 12px 28px; font-size: 15px; }
+.btn-primary   { background: var(--accent); color: #fff; box-shadow: 0 2px 12px rgba(139,92,246,.4); }
+.btn-secondary { background: rgba(139,92,246,.15); color: var(--primary); border: 1px solid var(--border); }
+.link-ver-dre  { color: var(--accent); text-decoration: none; font-weight: 600; }
+
+/* ── INGEST ───────────────────────────────────────────────────────────────── */
+.badge-recom {
+  display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase;
+  background: rgba(52,211,153,.15); color: var(--success); border: 1px solid rgba(52,211,153,.3);
+  padding: 2px 7px; border-radius: 10px; letter-spacing: .5px; margin-left: 8px;
+}
+.ingest-desc { font-size: 13px; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
+.input-file  { padding: 6px 0; font-size: 13px; color: var(--text); }
+.input-hint  { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+/* ── FORMULÁRIOS ──────────────────────────────────────────────────────────── */
+.form-ingest { display: flex; flex-direction: column; gap: 16px; margin-bottom: 20px; }
+.form-row    { display: flex; flex-direction: column; gap: 4px; }
+.form-row label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.input-sm { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; width: 200px; }
+.radio-group { display: flex; flex-direction: column; gap: 6px; }
+.radio-group label { font-size: 13px; font-weight: normal; text-transform: none; display: flex; align-items: center; gap: 6px; }
+
+/* ── INFO BOX ─────────────────────────────────────────────────────────────── */
+.info-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 16px; font-size: 12px; color: #1e40af; }
+.info-box ul { margin: 6px 0 0 16px; }
+.info-box code { background: #dbeafe; padding: 1px 4px; border-radius: 3px; font-family: monospace; }
+
+/* ── NOTES BOX ────────────────────────────────────────────────────────────── */
+.notes-box {
+  margin-top: 16px; padding: 10px 16px;
+  background: #fefce8; border: 1px solid #fde68a; border-radius: 8px;
+  font-size: 12px; color: #78350f;
+}
+
+/* ── EMPTY STATE ──────────────────────────────────────────────────────────── */
+.empty-state { text-align: center; padding: 60px 24px; background: var(--card); border-radius: 12px; border: 2px dashed var(--border); }
+.empty-icon  { font-size: 48px; margin-bottom: 16px; }
+.empty-state h2 { font-size: 18px; color: var(--muted); margin-bottom: 8px; }
+.empty-state p  { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+
+/* ── TEXT UTILS ───────────────────────────────────────────────────────────── */
+.text-muted   { color: var(--muted); }
+.text-success { color: var(--success); }
+.text-danger  { color: var(--danger); }
+.text-right   { text-align: right; }
+.num          { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ── FOOTER ───────────────────────────────────────────────────────────────── */
+.footer { text-align: center; padding: 16px; color: var(--muted); font-size: 11px; border-top: 1px solid var(--border); margin-top: 32px; background: #0d0d1a; }
+
+/* ── TABELA MENSAL (meses lado a lado) ───────────────────────────────────── */
+.table-mensal {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.table-mensal th {
+  font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+  padding: 8px 10px; border-bottom: 2px solid var(--border); background: #f8fafc;
+  white-space: nowrap;
+}
+.table-mensal td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; }
+.table-mensal th.num, .table-mensal td.num { text-align: right; white-space: nowrap; }
+.col-linha-m { min-width: 220px; }
+.col-var     { width: 100px; background: #fafbff; border-left: 1px solid var(--border); }
+.col-ytd     { width: 110px; background: #f0fdf4; border-left: 1px solid #86efac; }
+
+.table-mensal .dre-resultado td  { background: var(--row-res); font-weight: 600; }
+.table-mensal .dre-resultado_final td { background: var(--row-final); font-weight: 700; }
+.table-mensal .dre-ebitda td { background: #f0fdf4; font-weight: 600; color: var(--success); }
+.table-mensal .dre-subtotal td { }
+
+/* Tabela detalhada mensal */
+.table-det-m .col-cod  { width: 140px; font-family: monospace; font-size: 11px; }
+.table-det-m .col-desc { min-width: 200px; }
+.table-det-m .det-grupo td {
+  background: #eef2ff; font-weight: 600; color: var(--primary);
+  border-top: 1px solid #c7d2fe; padding: 7px 10px;
+}
+.table-det-m .det-conta td { background: #fff; }
+.table-det-m .det-conta:hover td { background: #f8fafc; }
+.table-det-m .det-sep td { height: 3px; background: var(--bg); border: none; }
+
+/* Coluna Ajuste EP */
+.col-ajuste  { width: 78px; background: #fffbeb; border-left: 1px solid #fde68a; font-size: 11px; }
+.text-ajuste { color: var(--success); font-weight: 600; }
+
+/* Selector label */
+.selector-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; padding: 0 4px; }
+.btn-mes-destaque { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+
+/* ── TOGGLE DRE TIPO (Oficial / Gerencial) ───────────────────────────────── */
+.toggle-dre-tipo {
+  display: flex; gap: 6px;
+}
+.btn-toggle-tipo {
+  display: inline-block; padding: 6px 16px; border-radius: 8px; font-size: 12px;
+  font-weight: 600; text-decoration: none; cursor: pointer;
+  border: 1px solid var(--border); color: var(--muted);
+  background: rgba(139,92,246,.06); transition: all .15s;
+}
+.btn-toggle-tipo:hover  { border-color: var(--accent); color: var(--primary); background: rgba(139,92,246,.15); }
+.btn-toggle-tipo.ativo  { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 2px 12px rgba(139,92,246,.4); }
+
+/* Badge de tipo de DRE */
+.badge-tipo-dre {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+  padding: 2px 9px; border-radius: 10px;
+  background: rgba(139,92,246,.15); color: var(--primary); border: 1px solid rgba(139,92,246,.3);
+}
+
+/* ── TABELA CT1 / CT2 (lançamentos individuais) ──────────────────────────── */
+
+/* Ícone expansão de conta */
+.expand-icon-conta {
+  display: inline-block; width: 12px; font-size: 9px; color: var(--muted);
+}
+/* Conta expandida */
+.dre-conta.conta-expandida td { background: #111128; }
+.dre-conta:hover td { background: #0f0f25; cursor: pointer; }
+
+/* Cabeçalho empresa dentro do CT */
+.ct-empresa-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; background: #0d0d22;
+  font-size: 11px; border-top: 1px solid var(--border);
+}
+.ct-empresa-header strong { color: var(--text); font-size: 12px; }
+.ct-total { color: var(--primary); font-weight: 700; margin-left: 4px; }
+.ct-qtd   { color: var(--muted); font-size: 10px; }
+
+/* Tabela CT1/CT2 */
+.table-ct {
+  width: 100%; border-collapse: collapse; font-size: 11px;
+  border-bottom: 2px solid rgba(139,92,246,.3);
+}
+.table-ct thead th {
+  background: #0a0a1a; color: var(--muted); font-size: 9px;
+  text-transform: uppercase; letter-spacing: .4px;
+  padding: 5px 8px; border-bottom: 1px solid #1a1a35;
+  white-space: nowrap;
+}
+.table-ct td { padding: 4px 8px; border-bottom: 1px solid #111126; color: var(--text); }
+.table-ct .ct-row:hover td { background: #12122f; }
+
+/* Tipos de coluna CT */
+.ct-data     { width: 80px; color: var(--muted); white-space: nowrap; font-size: 10px; }
+.ct-doc      { width: 100px; font-family: monospace; font-size: 9px; color: var(--muted); white-space: nowrap; }
+.ct-hist     { max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ct-partida  { width: 120px; font-family: monospace; font-size: 9px; color: var(--muted); }
+.ct-filial   { width: 50px; color: var(--muted); font-size: 10px; }
+.ct-cc       { width: 70px; color: var(--muted); font-size: 10px; }
+
+/* Rodapé CT */
+.ct-total-row td { background: #0d0d22; font-size: 10px; }
+
+/* Badges CT1 / CT2 */
+.badge-ct1 {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  padding: 1px 7px; border-radius: 8px; white-space: nowrap;
+  background: rgba(52,211,153,.15); color: var(--success); border: 1px solid rgba(52,211,153,.3);
+}
+.badge-ct2 {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  padding: 1px 7px; border-radius: 8px; white-space: nowrap;
+  background: rgba(251,191,36,.12); color: var(--warning); border: 1px solid rgba(251,191,36,.3);
+}
+
+/* Badge: fornecedor consolidado a partir de 2+ códigos de cadastro (recadastro no Protheus) */
+.badge-alinhado {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  padding: 1px 7px; border-radius: 8px; white-space: nowrap;
+  margin-left: 4px;
+  background: rgba(96,165,250,.12); color: var(--info, #60a5fa); border: 1px solid rgba(96,165,250,.3);
+}
+
+/* Estado vazio / loading / erro */
+.ct-loading { color: var(--muted); font-size: 11px; padding: 8px 12px; display: block; }
+.ct-empty   { padding: 10px 12px; color: var(--muted); font-size: 11px; font-style: italic; }
+.ct-erro    { color: var(--danger); }
+
+/* Hint discreto no cabeçalho das contas */
+.hint-ct { color: var(--muted); font-style: italic; font-weight: normal; font-size: 10px; }
+
+/* font-weight 600 utilitário para JS */
+.fw-600 { font-weight: 600; }
+
+/* ── BARRA DE FILTRO DE MESES (Multi-Mês) ───────────────────────────────── */
+.mes-filtro-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 10px 0 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+/* Mês oculto pelo filtro */
+.check-mes-label.mes-oculto {
+  opacity: .4; text-decoration: line-through;
+}
+
+/* ── TABELA MULTI-MÊS ────────────────────────────────────────────────────── */
+
+/* Linha 1 do header: nome do mês + botão ⊞ */
+.mes-th-nome {
+  text-align: center !important;
+  white-space: nowrap;
+  background: rgba(139,92,246,.1);
+  border-left: 2px solid rgba(139,92,246,.35);
+  font-size: 11px; font-weight: 700; color: var(--primary);
+}
+/* Células "extras" ocultas (MKB, Gnileb, Elim) quando expandidas */
+.mes-extra[style*="display:none"] + .mes-cons,
+.mes-cons { border-left: 2px solid rgba(139,92,246,.3); }
+
+/* Célula de Consolidado na tabela multi-mês */
+.table-dre-mensal .col-consol {
+  background: rgba(139,92,246,.08);
+  border-left: 1px solid rgba(139,92,246,.25);
+}
+
+/* Sub-cabeçalho da linha 2 */
+.mes-subheader-row th {
+  font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px;
+  padding: 3px 6px; border-bottom: 2px solid var(--border);
+}
+.col-sub { background: rgba(139,92,246,.04); }
+
+/* Botão toggle ⊞/⊟ no cabeçalho do mês */
+.btn-toggle-mes {
+  display: inline-block; margin-left: 6px;
+  background: rgba(139,92,246,.2); border: 1px solid rgba(139,92,246,.4);
+  color: var(--primary); border-radius: 4px; padding: 0px 5px;
+  font-size: 10px; cursor: pointer; font-weight: 700; line-height: 1.4;
+  transition: all .15s;
+}
+.btn-toggle-mes:hover { background: var(--accent); color: #fff; }
+
+/* ── DRE GERENCIAL — estilos adicionais ──────────────────────────────────── */
+
+/* Container com scroll horizontal */
+.table-scroll { overflow-x: auto; }
+
+/* Header de info + ações */
+.dre-info       { display: flex; align-items: center; gap: 10px; }
+.dre-period     { font-weight: 700; color: var(--primary); font-size: 13px; }
+.dre-vs         { font-size: 11px; color: var(--muted); padding: 2px 8px; background: rgba(139,92,246,.1); border-radius: 10px; }
+.dre-acum       { font-size: 11px; color: var(--muted); padding: 2px 8px; background: rgba(52,211,153,.08); border-radius: 10px; }
+
+/* Tipos de linha gerencial */
+.dre-row.dre-grupo td {
+  cursor: pointer;
+  color: var(--text);
+  background: rgba(139,92,246,.04);
+}
+.dre-row.dre-grupo:hover td { background: rgba(139,92,246,.1); }
+.dre-row.dre-grupo_pos td  { cursor: pointer; background: rgba(52,211,153,.04); }
+.dre-row.dre-grupo_pos:hover td { background: rgba(52,211,153,.1); }
+.dre-row.dre-grupo.grupo-expandido td  { background: rgba(139,92,246,.1); border-bottom-color: var(--accent); }
+.dre-row.dre-grupo_pos.grupo-expandido td { background: rgba(52,211,153,.1); }
+
+/* Separadores de seção */
+.dre-sec-sep td { background: var(--bg); border: none; padding: 0; }
+.dre-sec-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--muted); padding: 10px 8px 4px !important; border-top: 2px solid var(--border);
+  display: flex; align-items: center; gap: 6px;
+}
+/* Seção collapsível (custo / despesa) */
+.dre-sec-collapsible { cursor: pointer; user-select: none; }
+.dre-sec-collapsible:hover td { background: rgba(139,92,246,.06) !important; }
+.dre-sec-collapsible .dre-sec-label { color: var(--primary); }
+
+/* Análise de Receita por Cliente */
+.cliente-row .cliente-nome { font-weight: 600; }
+.cliente-row td.col-linha { display: flex; align-items: center; gap: 6px; }
+
+/* Ícone de expand/collapse */
+.expand-icon {
+  display: inline-block; width: 14px; font-size: 10px;
+  color: var(--muted); transition: transform .15s;
+}
+
+/* Linhas filha (contas individuais) */
+.dre-filha td {
+  background: #0d0d1e;
+  border-bottom: 1px solid #1a1a30;
+  font-size: 11px;
+}
+.dre-filha:hover td { background: #12122a; }
+.dre-filha-hdr th {
+  background: #0d0d1e; border-bottom: 1px solid #1a1a30;
+  padding: 4px 8px; font-size: 10px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .3px;
+}
+
+/* Indentação das linhas filha */
+.indent-1 { padding-left: 28px !important; }
+.indent-2 { padding-left: 48px !important; }
+
+/* Linhas neta (3º nível de drill-down — ex. Notas Fiscais) */
+.dre-neta td {
+  background: #0a0a17;
+  border-bottom: 1px solid #16162a;
+  font-size: 10.5px;
+}
+.dre-neta:hover td { background: #0f0f22; }
+.dre-neta-hdr th {
+  background: #0a0a17; border-bottom: 1px solid #16162a;
+  padding: 3px 8px; font-size: 9.5px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .3px;
+}
+.filha-expansivel { cursor: pointer; }
+.filha-expansivel:hover td { background: #14142c !important; }
+
+/* Código e descrição de conta */
+.conta-cod  {
+  font-family: monospace; font-size: 10px; color: var(--muted);
+  margin-right: 8px; white-space: nowrap;
+}
+.conta-desc { font-size: 11px; color: var(--text); }
+
+/* Colunas extras */
+.col-acum  { border-left: 1px solid rgba(52,211,153,.25); background: rgba(52,211,153,.04); }
+.col-media { background: rgba(139,92,246,.04); }
+.col-var   { border-left: 1px solid rgba(251,191,36,.2); background: rgba(251,191,36,.03); }
+
+/* Cores de variação */
+.text-var-pos { color: var(--success); font-weight: 600; }
+.text-var-neg { color: var(--danger);  font-weight: 600; }
+
+/* Dica de expansão */
+.tip-expand { color: var(--muted); font-style: italic; margin-left: 8px; }
+
+/* ── RESPONSIVO ───────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .kpi-grid    { grid-template-columns: 1fr 1fr; }
+  .section-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .kpi-grid { grid-template-columns: 1fr; }
+  .table-dre .pct-col { display: none; }
+  .col-acum, .col-media { display: none; }
+}

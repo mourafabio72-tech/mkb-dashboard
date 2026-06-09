@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ titulo }}</h1>
+  {% if competencia %}
+  <p class="subtitle">
+    Empresa: <strong>{{ empresa | upper }}</strong> &nbsp;|&nbsp;
+    Período: <strong>{{ mes_label }}</strong>
+  </p>
+  {% endif %}
+</div>
+
+<div class="empty-state">
+  <div class="empty-icon">🔧</div>
+  <h2>Em desenvolvimento</h2>
+  <p>Esta seção estará disponível no próximo sprint.</p>
+  <a href="{{ url_for('index') }}" class="btn btn-secondary">← Voltar ao Dashboard</a>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+# Banco de dados (dados de clientes — LGPD: não versionar)
+*.db
+*.db-shm
+*.db-wal
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
+logs/
+
+# Arquivos de debug gerados na pasta raiz
+check_*.html
+_flask.log
+flask_err.log
+
+# Scripts somente Windows (não úteis no Linux/nuvem)
+*.bat
+*.vbs
+
+# Dados importados temporários (não pertencem ao repositório)
+Downloads/
+*.xlsx
+*.csv
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}Importar Dados{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>⬆ Importar Dados do Protheus</h1>
+  <p class="subtitle">Escolha o formato de exportação e importe os dados para o banco.</p>
+</div>
+
+<div class="graficos-grid-2">
+
+  {# ── CT1: Razão Contábil ──────────────────────────────────────────────── #}
+  <div class="section-card">
+    <h2>📋 CT1 — Razão Contábil <span class="badge-recom">Recomendado</span></h2>
+    <p class="ingest-desc">
+      Relatório <strong>12-00 Emissão do Razão Conta</strong> do Protheus.<br>
+      Lançamento a lançamento — habilita drill-down, histórico e análise por filial.
+    </p>
+
+    <form method="POST" action="{{ url_for('ingest') }}" enctype="multipart/form-data" class="form-ingest">
+      <input type="hidden" name="formato" value="ct1">
+
+      <div class="form-row">
+        <label>Empresa</label>
+        <select name="empresa_ct1" class="input-sm">
+          {% for chave, emp in EMPRESAS.items() %}
+            <option value="{{ chave }}">{{ emp.sigla }} — {{ emp.nome[:35] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label>Arquivo Excel (.xlsx)</label>
+        <input type="file" name="arquivo_ct1" accept=".xlsx,.xls" class="input-file" required>
+        <small class="input-hint">Aba: "12-00 - Emissao do Razao Conta"</small>
+      </div>
+
+      <button type="submit" class="btn btn-primary">⬆ Importar Razão CT1</button>
+    </form>
+
+    <div class="info-box" style="margin-top:14px;">
+      <strong>Como gerar no Protheus:</strong><br>
+      SIGACON → CT1 → Razão Contábil → selecionar empresa, período e contas → Exportar Excel
+    </div>
+  </div>
+
+  {# ── Plano de Contas: descrição oficial das contas ────────────────────── #}
+  <div class="section-card">
+    <h2>📚 Plano de Contas — Descrição oficial</h2>
+    <p class="ingest-desc">
+      Export do cadastro de contas do Protheus (CSV "Conta;Descricao").<br>
+      Fonte <strong>oficial</strong> da descrição de cada conta — alimenta a classificação por
+      <strong>Conta Contábil</strong> em "🧾 Despesas por Fornecedor" (ex.: "SERV DE INFORMATICA"
+      em vez do grupo DRE genérico). Sobrescreve descrições aproximadas herdadas de outras importações.
+    </p>
+
+    <form method="POST" action="{{ url_for('ingest') }}" enctype="multipart/form-data" class="form-ingest">
+      <input type="hidden" name="formato" value="plano_contas">
+
+      <div class="form-row">
+        <label>Empresa</label>
+        <select name="empresa_plano_contas" class="input-sm">
+          {% for chave, emp in EMPRESAS.items() %}
+            <option value="{{ chave }}">{{ emp.sigla }} — {{ emp.nome[:35] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label>Arquivo CSV (.csv)</label>
+        <input type="file" name="arquivo_plano_contas" accept=".csv" class="input-file" required>
+        <small class="input-hint">Colunas: "Conta;Descricao" — encoding latin-1, ';'-delimitado</small>
+      </div>
+
+      <button type="submit" class="btn btn-primary">⬆ Importar Plano de Contas</button>
+    </form>
+
+    <div class="info-box" style="margin-top:14px;">
+      <strong>Como gerar no Protheus:</strong><br>
+      SIGACON → Atualizações → Cadastros → Plano de Contas → Exportar (CSV "Conta;Descricao")
+    </div>
+  </div>
+
+  {# ── CT2: Comparativo Conta x 12 Meses ────────────────────────────────── #}
+  <div class="section-card">
+    <h2>📊 CT2 — Comparativo Conta x 12 Meses</h2>
+    <p class="ingest-desc">
+      Lê a aba <strong>Template DRE Protheus</strong> dos arquivos mensais.<br>
+      Saldo mensal por conta — compatível com o fluxo atual.
+    </p>
+
+    <form method="POST" action="{{ url_for('ingest') }}" class="form-ingest">
+      <input type="hidden" name="formato" value="ct2">
+
+      <div class="form-row">
+        <label>Ano</label>
+        <input type="number" name="ano" value="{{ ano_atual }}" min="2023" max="2030" class="input-sm">
+      </div>
+
+      <div class="form-row">
+        <label>Mês</label>
+        <select name="mes" class="input-sm">
+          {% set nomes = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'] %}
+          {% for m in range(1, 13) %}
+            <option value="{{ m }}" {% if m == mes_atual %}selected{% endif %}>
+              {{ m }} — {{ nomes[m] }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label>Empresas</label>
+        <div class="radio-group">
+          <label><input type="checkbox" name="empresa_ct2" value="mkb"    checked> MKB — Mark Building Gerenciamento</label>
+          <label><input type="checkbox" name="empresa_ct2" value="gnileb" checked> Gnileb — MKB Participações</label>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>Modo</label>
+        <div class="radio-group">
+          <label><input type="radio" name="modo" value="mes" checked> Apenas este mês</label>
+          <label><input type="radio" name="modo" value="ano"> Todos os meses até este</label>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-secondary">⬆ Importar CT2</button>
+    </form>
+
+    <div class="info-box" style="margin-top:14px;">
+      <strong>Localização automática dos arquivos:</strong><br>
+      <code>…/MKB/Apresentação Mensal/BPS4/{ano}/{mm}/1 - MKB - DRE {mm}{ano}.xlsx</code><br>
+      <code>…/Gnileb/Apresentação GNILEB/{ano}/{mm}/MKB Participações - DRE {mm}.{ano}.xlsx</code>
+    </div>
+  </div>
+
+</div>
+
+{# ── Status do banco ──────────────────────────────────────────────────────── #}
+<div class="section-card" style="margin-top:20px;">
+  <h2>📦 Dados no banco</h2>
+
+  {% if stats_razao or stats_ct2 %}
+  <div class="graficos-grid-2">
+
+    {% if stats_razao %}
+    <div>
+      <h3 style="font-size:13px;color:var(--primary);margin-bottom:10px;">CT1 — Razão (lançamentos individuais)</h3>
+      <table class="table-simple">
+        <thead><tr><th>Empresa</th><th>Competência</th><th>Lançamentos</th></tr></thead>
+        <tbody>
+          {% for r in stats_razao %}
+          <tr><td>{{ r[0] }}</td><td>{{ mes_label(r[1]) }}</td><td>{{ r[2] }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {% if stats_ct2 %}
+    <div>
+      <h3 style="font-size:13px;color:var(--primary);margin-bottom:10px;">CT2 — Comparativo (saldo mensal)</h3>
+      <table class="table-simple">
+        <thead><tr><th>Empresa</th><th>Competência</th><th>Contas</th></tr></thead>
+        <tbody>
+          {% for r in stats_ct2 %}
+          <tr><td>{{ r[0] }}</td><td>{{ mes_label(r[1]) }}</td><td>{{ r[2] }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+  </div>
+  {% else %}
+  <p class="text-muted">Nenhum dado importado ainda.</p>
+  {% endif %}
+</div>
+{% endblock %}

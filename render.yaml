@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: mkb-dashboard
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python wsgi.py
+    plan: free                     # altere para "starter" se precisar de mais recursos
+
+    # Variáveis de ambiente — configure os valores no painel do Render
+    # (Dashboard > seu serviço > Environment > Add Environment Variable)
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true        # Render gera automaticamente um valor aleatório seguro
+
+      - key: DB_PATH
+        value: /data/mkb_dre.db    # aponta para o disco persistente abaixo
+
+      - key: DASHBOARD_USERS
+        sync: false                # obrigatório definir no painel (não comitar senhas!)
+        # Formato: "usuario1:senha1,usuario2:senha2"
+        # Ex.: "fabio:MinhaS3nha,mkbclient:SenhaMKB2026"
+
+      - key: PORT
+        value: "10000"             # Render expõe na porta 10000 por padrão
+
+    # Disco persistente para o SQLite (sobrevive a redeploys)
+    disk:
+      name: mkb-dados
+      mountPath: /data
+      sizeGB: 1                    # 1 GB é mais que suficiente para o banco atual (16 MB)

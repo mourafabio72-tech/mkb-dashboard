@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}Receita por Cliente — {{ EMPRESAS[empresa].sigla }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div>
+      <h1>💼 Receita por Cliente</h1>
+      <p class="subtitle">Receita Bruta (3.1.1.x) segregada por cliente, nota fiscal e mês — fonte: Razão Contábil (CT1)</p>
+    </div>
+
+    {# ── Seletor de empresa ─────────────────────────────────────────────── #}
+    <div class="toggle-dre-tipo">
+      {% for chave, emp in EMPRESAS.items() %}
+        <a href="{{ url_for('receita_clientes', empresa=chave, de=comp_ini, ate=comp_fim) }}"
+           class="btn-toggle-tipo {% if empresa == chave %}ativo{% endif %}">
+          {{ emp.sigla }}
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{# ── Filtro de período ────────────────────────────────────────────────────── #}
+<form method="GET" action="{{ url_for('receita_clientes', empresa=empresa) }}" class="mes-selector" style="gap:10px">
+  <span class="selector-label">Período:</span>
+  <select name="de" class="input-sm" onchange="this.form.submit()">
+    {% for comp in competencias %}
+      <option value="{{ comp }}" {% if comp == comp_ini %}selected{% endif %}>{{ mes_label(comp) }}</option>
+    {% endfor %}
+  </select>
+  <span class="selector-label">até</span>
+  <select name="ate" class="input-sm" onchange="this.form.submit()">
+    {% for comp in competencias %}
+      <option value="{{ comp }}" {% if comp == comp_fim %}selected{% endif %}>{{ mes_label(comp) }}</option>
+    {% endfor %}
+  </select>
+  <noscript><button type="submit" class="btn btn-sm btn-secondary">Filtrar</button></noscript>
+
+  <span class="sep-emp">|</span>
+  <input type="text" id="busca-cliente" class="input-sm" placeholder="🔍 Buscar cliente..."
+         oninput="filtrarClientes(this.value)" style="min-width:220px">
+</form>
+
+{# ── Alerta: meses sem CT1 ────────────────────────────────────────────────── #}
+{% if analise.competencias_sem_ct1 %}
+<div class="flash-box">
+  <div class="flash flash-warning">
+    ⚠️ <strong>{{ analise.competencias_sem_ct1 | length }} mês(es) do período sem Razão (CT1) importado</strong> —
+    não é possível detalhar por cliente nesses meses (apenas saldo agregado disponível via CT2):
+    {% for c in analise.competencias_sem_ct1 %}
+      <span class="badge-ct2" style="margin-left:4px">{{ mes_label(c) }}</span>
+    {% endfor %}
+    &nbsp;<a href="{{ url_for('ingest') }}">Importar Razão →</a>
+  </div>
+</div>
+{% endif %}
+
+{% if not analise.clientes %}
+<div class="card-full" style="text-align:center;padding:40px">
+  <p class="text-muted">Nenhum lançamento de receita bruta (3.1.1.x) com Razão (CT1) encontrado para
+     <strong>{{ EMPRESAS[empresa].sigla }}</strong> no período selecionado.</p>
+  <a href="{{ url_for('ingest') }}" class="btn btn-primary" style="margin-top:10px">⬆ Importar Razão CT1</a>
+</div>
+{% else %}
+
+{# ── Resumo ───────────────────────────────────────────────────────────────── #}
+<div class="kpi-grid" style="margin-bottom:16px">
+  <div class="kpi-card">
+    <span class="kpi-label">Receita Bruta no período</span>
+    <span class="kpi-value">{{ fmt_brl(analise.total_geral) }}</span>
+    <span class="kpi-sub">{{ analise.competencias | length }} mês(es) com CT1 · {{ EMPRESAS[empresa].sigla }}</span>
+  </div>
+  <div class="kpi-card">
+    <span class="kpi-label">Clientes identificados</span>
+    <span class="kpi-value">{{ analise.clientes | length }}</span>
+    <span class="kpi-sub">via histórico do lançamento (CT1)</span>
+  </div>
+  <div class="kpi-card">
+    <span class="kpi-label">Maior cliente</span>
+    {% set top = analise.clientes[0] %}
+    <span class="kpi-value" style="font-size:16px">{{ top.nome }}</span>
+    <span class="kpi-sub">{{ fmt_brl(top.total_geral) }}
+      ({{ "%.1f"|format(top.total_geral / analise.total_geral * 100 if analise.total_geral else 0) }}% do total)</span>
+  </div>
+</div>
+
+{# ── Tabela pivot: Cliente × Mês ──────────────────────────────────────────── #}
+<div class="card-full">
+  <div class="dre-header-line">
+    <div class="dre-info">
+      <span class="dre-period">{{ mes_label(comp_ini) }} – {{ mes_label(comp_fim) }}</span>
+      <span class="badge-tipo-dre">{{ analise.clientes | length }} clientes · receita bruta (3.1.1.x)</span>
+    </div>
+    <div class="dre-actions">
+      <button class="btn btn-sm btn-secondary" onclick="expandirTodosClientes(true)">⊞ Expandir todos</button>
+      <button class="btn btn-sm btn-secondary" onclick="expandirTodosClientes(false)">⊟ Recolher todos</button>
+    </div>
+  </div>
+
+  <div class="table-scroll">
+  <table class="table-dre" id="tabela-clientes">
+    <thead>
+      <tr>
+        <th class="col-linha">Cliente</th>
+        {% for comp in analise.competencias %}
+          <th class="num">{{ mes_label(comp) }}</th>
+        {% endfor %}
+        <th class="num col-acum">Total</th>
+        <th class="num col-acum">% do Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for cli in analise.clientes %}
+      {% set safe_id = "cli-" ~ loop.index %}
+      <tr class="dre-row dre-grupo cliente-row" data-cliente="{{ safe_id }}"
+          onclick="toggleCliente(this)">
+        <td class="col-linha">
+          <span class="expand-icon" id="icon-{{ safe_id }}">▶</span>
+          <span class="cliente-nome">{{ cli.nome }}</span>
+          {% if cli.nome | length == 20 %}
+            <span class="badge-ct2" title="Nome possivelmente truncado pela exportação do Protheus (campo histórico com largura fixa)">truncado?</span>
+          {% endif %}
+        </td>
+        {% for comp in analise.competencias %}
+          <td class="num">{{ fmt_brl(cli.totais.get(comp, 0.0)) if cli.totais.get(comp) else "—" }}</td>
+        {% endfor %}
+        <td class="num fw-600">{{ fmt_brl(cli.total_geral) }}</td>
+        <td class="num pct-col">
+          {{ "%.1f"|format(cli.total_geral / analise.total_geral * 100 if analise.total_geral else 0) }}%
+        </td>
+      </tr>
+
+      {# ── Notas fiscais do cliente (expansível) ─────────────────────────── #}
+      <tr class="dre-filha dre-filha-hdr" id="hdr-{{ safe_id }}" style="display:none">
+        <th class="indent-1">Nota Fiscal</th>
+        {% for comp in analise.competencias %}
+          <th class="num col-sub">{{ mes_label(comp) }}</th>
+        {% endfor %}
+        <th class="num col-sub">Total</th>
+        <th class="col-sub"></th>
+      </tr>
+      {% for nf in cli.notas %}
+      <tr class="dre-filha" id="{{ safe_id }}-{{ loop.index }}" style="display:none">
+        <td class="indent-1">
+          <span class="conta-cod">NF {{ nf.numero }}</span>
+          {% if nf.data %}
+            <span class="conta-desc">{{ nf.data[8:10] }}/{{ nf.data[5:7] }}/{{ nf.data[0:4] }}</span>
+          {% endif %}
+        </td>
+        {% for comp in analise.competencias %}
+          <td class="num">{{ fmt_brl(nf.totais.get(comp, 0.0)) if nf.totais.get(comp) else "—" }}</td>
+        {% endfor %}
+        <td class="num fw-600">{{ fmt_brl(nf.total_geral) }}</td>
+        <td></td>
+      </tr>
+      {% endfor %}
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="dre-row dre-resultado">
+        <td class="col-linha fw-600">TOTAL — {{ EMPRESAS[empresa].sigla }}</td>
+        {% for comp in analise.competencias %}
+          <td class="num fw-600">{{ fmt_brl(analise.totais_mes.get(comp, 0.0)) }}</td>
+        {% endfor %}
+        <td class="num fw-600">{{ fmt_brl(analise.total_geral) }}</td>
+        <td class="num fw-600">100,0%</td>
+      </tr>
+    </tfoot>
+  </table>
+  </div>
+</div>
+
+<p class="text-muted" style="font-size:12px;margin-top:10px">
+  ℹ️ O nome do cliente é extraído do campo <em>histórico</em> do lançamento Protheus
+  (padrão <code>VL.NF.&lt;número&gt; - &lt;CLIENTE&gt;</code>). Esse campo tem largura fixa na origem,
+  então nomes longos podem aparecer truncados de forma diferente entre lançamentos
+  (marcados com <span class="badge-ct2">truncado?</span>) — não há como recuperar o nome completo
+  apenas a partir deste dado.
+</p>
+
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleCliente(row) {
+  const id   = row.dataset.cliente;
+  const hdr  = document.getElementById(`hdr-${id}`);
+  const icon = document.getElementById(`icon-${id}`);
+  const filhas = document.querySelectorAll(`[id^="${id}-"]`);
+  const abrir = !hdr || hdr.style.display === 'none';
+  if (hdr) hdr.style.display = abrir ? '' : 'none';
+  filhas.forEach(r => { r.style.display = abrir ? '' : 'none'; });
+  if (icon) icon.textContent = abrir ? '▼' : '▶';
+  row.classList.toggle('grupo-expandido', abrir);
+}
+
+function expandirTodosClientes(abrir) {
+  document.querySelectorAll('.cliente-row').forEach(row => {
+    const id   = row.dataset.cliente;
+    const hdr  = document.getElementById(`hdr-${id}`);
+    const icon = document.getElementById(`icon-${id}`);
+    const filhas = document.querySelectorAll(`[id^="${id}-"]`);
+    if (hdr) hdr.style.display = abrir ? '' : 'none';
+    filhas.forEach(r => { r.style.display = abrir ? '' : 'none'; });
+    if (icon) icon.textContent = abrir ? '▼' : '▶';
+    row.classList.toggle('grupo-expandido', abrir);
+  });
+}
+
+function filtrarClientes(termo) {
+  const t = termo.trim().toLowerCase();
+  document.querySelectorAll('.cliente-row').forEach(row => {
+    const nome = row.querySelector('.cliente-nome').textContent.toLowerCase();
+    const bate = !t || nome.includes(t);
+    row.style.display = bate ? '' : 'none';
+    // Esconde também as linhas-filha se o cliente estiver oculto
+    const id = row.dataset.cliente;
+    if (!bate) {
+      const hdr = document.getElementById(`hdr-${id}`);
+      if (hdr) hdr.style.display = 'none';
+      document.querySelectorAll(`[id^="${id}-"]`).forEach(r => r.style.display = 'none');
+      row.classList.remove('grupo-expandido');
+      const icon = document.getElementById(`icon-${id}`);
+      if (icon) icon.textContent = '▶';
+    }
+  });
+}
+</script>
+{% endblock %}

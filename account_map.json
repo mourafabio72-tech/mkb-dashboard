@@ -1,0 +1,57 @@
+{
+  "_comment": "Mapeamento: prefixo de conta contábil -> grupo DRE. Prefixo mais longo tem prioridade.",
+
+  "3.1.1.": "ROB",
+  "3.1.2.": "DED_ABAT",
+  "3.1.3.": "DED_IMPOS",
+
+  "4.1.1.01.01.": "CPV_PROLAB",
+  "4.1.1.01.02.": "CPV_FOLHA",
+  "4.1.1.01.03.": "CPV_ENCARG",
+
+  "4.1.1.02.01.": "CPV_MATER",
+  "4.1.1.02.03.": "CPV_SERV",
+  "4.1.1.02.04.": "CPV_COMERC",
+  "4.1.1.02.05.": "CPV_RECUP",
+  "4.1.1.02.":    "CPV_MATER",
+
+  "4.1.1.03.02.": "CPV_ALUG",
+  "4.1.1.03.03.": "CPV_CONCESSION",
+  "4.1.1.03.04.": "CPV_COMUNIC",
+  "4.1.1.03.05.": "CPV_VEIC",
+  "4.1.1.03.06.": "CPV_ESCRIT",
+  "4.1.1.03.07.": "CPV_DESLOC",
+  "4.1.1.03.08.": "CPV_SEGUROS",
+  "4.1.1.03.09.": "CPV_OUTROS",
+  "4.1.1.03.":    "CPV_OUTROS",
+
+  "4.4.1.01.01.": "DADM_PROLAB",
+  "4.4.1.01.02.": "DADM_FOLHA",
+  "4.4.1.01.03.": "DADM_ENCARG",
+  "4.4.1.01.":    "DADM_FOLHA",
+
+  "4.4.1.02.01.": "DADM_MATER",
+  "4.4.1.02.03.": "DADM_SERV",
+  "4.4.1.02.04.": "DADM_COMERC",
+  "4.4.1.02.":    "DADM_SERV",
+
+  "4.4.1.03.01.": "DADM_TRIBUT",
+  "4.4.1.03.02.": "DADM_ALUG",
+  "4.4.1.03.03.": "DADM_CONCESSION",
+  "4.4.1.03.04.": "DADM_COMUNIC",
+  "4.4.1.03.05.": "DADM_VEIC",
+  "4.4.1.03.07.": "DADM_VIAGEM",
+  "4.4.1.03.08.": "DADM_SEGUROS",
+  "4.4.1.03.09.": "DADM_OUTROS",
+  "4.4.1.03.10.": "DADM_ACORDOS",
+  "4.4.1.03.":    "DADM_OUTROS",
+
+  "4.4.1.04.01.": "ENC_DESP",
+  "4.4.1.04.02.": "ENC_REC",
+
+  "4.4.1.05.":    "OUTROS_OP",
+  "4.4.1.06.":    "OUTROS_OP",
+  "4.4.2.":       "OUTROS_OP",
+
+  "4.5.":         "IRPJ_CSLL"
+}
