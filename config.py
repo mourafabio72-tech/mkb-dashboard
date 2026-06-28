@@ -7,9 +7,17 @@ import os
 from pathlib import Path
 
 # ─── RAIZ DOS ARQUIVOS FONTE ──────────────────────────────────────────────────
-BASE_CONTAB = Path(r"C:\Users\FabioMoura\BPS4 OUTSOURCING\Intranet BPS4 - Op. CONTABILIDADE")
-BASE_MKB    = BASE_CONTAB / "04 - Grupo Markbuilding" / "00 - MKB" / "Apresentação Mensal" / "BPS4"
-BASE_GNILEB = BASE_CONTAB / "04 - Grupo Markbuilding" / "02 -  Mark Participações - Gnileb" / "Apresentação GNILEB"
+BASE_CONTAB     = Path(r"C:\Users\FabioMoura\BPS4 OUTSOURCING\Intranet BPS4 - Op. CONTABILIDADE")
+BASE_MKB_ROOT    = BASE_CONTAB / "04 - Grupo Markbuilding" / "00 - MKB"
+BASE_GNILEB_ROOT = BASE_CONTAB / "04 - Grupo Markbuilding" / "02 -  Mark Participações - Gnileb"
+
+BASE_MKB    = BASE_MKB_ROOT / "Apresentação Mensal" / "BPS4"
+BASE_GNILEB = BASE_GNILEB_ROOT / "Apresentação GNILEB"
+
+# Pasta "Fechamento" -- onde Razão (CT1) e Balancete do mês são salvos com
+# nome padronizado (mais confiável que "Apresentação Mensal" para a Razão).
+BASE_MKB_FECHAMENTO    = BASE_MKB_ROOT / "Fechamento"
+BASE_GNILEB_FECHAMENTO = BASE_GNILEB_ROOT / "Fechamento"
 
 # ─── BANCO DE DADOS ──────────────────────────────────────────────────────────
 # Em produção defina DB_PATH=/data/mkb_dre.db (disco persistente do Render).
@@ -42,6 +50,38 @@ def caminho_mkb(ano: int, mes: int) -> Path:
 def caminho_gnileb(ano: int, mes: int) -> Path:
     return BASE_GNILEB / str(ano) / f"{mes:02d}" / f"MKB Participações - DRE {mes:02d}.{ano}.xlsx"
 
+
+# ─── LOCALIZAÇÃO AUTOMÁTICA — IMPORTAÇÃO "MÊS COMPLETO" ──────────────────────
+# Resolve por padrão glob (não nome exato) porque o nome real varia um pouco
+# entre meses (ex.: sufixo " - v2", prefixo numérico "6 - " presente em alguns
+# meses e ausente em outros). Em caso de mais de um arquivo bater com o
+# padrão, usa o modificado mais recentemente (normalmente a versão corrigida).
+def _resolver_arquivo(pasta: Path, padrao: str) -> Path | None:
+    if not pasta.is_dir():
+        return None
+    candidatos = sorted(pasta.glob(padrao), key=lambda p: p.stat().st_mtime, reverse=True)
+    return candidatos[0] if candidatos else None
+
+
+# Fechamento/{ano}/{mm}/MKB - RAZÃO {mm}.{ano}*.xlsx (aba "12-00 - Emissao do Razao Conta")
+def caminho_razao_mkb(ano: int, mes: int) -> Path | None:
+    pasta = BASE_MKB_FECHAMENTO / str(ano) / f"{mes:02d}"
+    return _resolver_arquivo(pasta, f"MKB - RAZÃO {mes:02d}.{ano}*.xlsx")
+
+
+# Fechamento/{ano}/{mm}/MKB PART - RAZÃO {mm}.{ano}*.xlsx
+def caminho_razao_gnileb(ano: int, mes: int) -> Path | None:
+    pasta = BASE_GNILEB_FECHAMENTO / str(ano) / f"{mes:02d}"
+    return _resolver_arquivo(pasta, f"MKB PART - RAZÃO {mes:02d}.{ano}*.xlsx")
+
+
+# Apresentação Mensal/BPS4/{ano}/{mm}/MKB GERENC IRPJ CSLL LUCRO REAL {mm}_{ano}*.xlsx (aba "ANUAL")
+# Só MKB -- a versão Gnileb é trimestral, com nome irregular ("...1º TRIMESTRE..."),
+# por isso fica de fora da localização automática (continua manual em /ingest).
+def caminho_irpj_csll_mkb(ano: int, mes: int) -> Path | None:
+    pasta = BASE_MKB / str(ano) / f"{mes:02d}"
+    return _resolver_arquivo(pasta, f"MKB GERENC IRPJ CSLL LUCRO REAL {mes:02d}_{ano}*.xlsx")
+
 # ─── CONFIGURAÇÃO DA ABA TEMPLATE DRE PROTHEUS ───────────────────────────────
 SHEET_TEMPLATE = "Template DRE Protheus"
 
@@ -63,7 +103,8 @@ SKIP_DESCRICOES = {"TOTAL", ""}
 
 # ─── FLASK ────────────────────────────────────────────────────────────────────
 # Em produção defina SECRET_KEY como variável de ambiente (string aleatória longa).
-SECRET_KEY = os.environ.get("SECRET_KEY", "mkb-dashboard-2026-local-only")
+import secrets as _secrets
+SECRET_KEY = os.environ.get("SECRET_KEY") or _secrets.token_hex(32)
 PORT       = int(os.environ.get("PORT", 5001))
 DEBUG      = os.environ.get("DEBUG", "false").lower() == "true"
 

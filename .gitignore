@@ -32,6 +32,9 @@ Downloads/
 *.xlsx
 *.csv
 
+# Cookies e credenciais
+cookies.txt
+
 # IDE / OS
 .vscode/
 .idea/
