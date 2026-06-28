@@ -20,6 +20,62 @@
   --row-final: #1e1e45;
 }
 
+/* ── TEMA LIGHT ───────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  color-scheme: light;
+  --primary:   #7c3aed;
+  --accent:    #6d28d9;
+  --success:   #059669;
+  --danger:    #dc2626;
+  --warning:   #d97706;
+  --bg:        #f3f4f6;
+  --card:      #ffffff;
+  --card2:     #ffffff;
+  --border:    #e5e7eb;
+  --text:      #1f2937;
+  --muted:     #6b7280;
+  --row-alt:   #f9fafb;
+  --row-res:   #ede9fe;
+  --row-final: #ddd6fe;
+  --navbar-bg: #ffffff;
+  --footer-bg: #ffffff;
+}
+[data-theme="light"] .navbar { background: var(--navbar-bg); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+[data-theme="light"] .nav-title { color: var(--text); }
+[data-theme="light"] .footer { background: var(--footer-bg); }
+[data-theme="light"] .table-det th,
+[data-theme="light"] .table-mensal th { background: #f3f4f6; color: var(--muted); }
+[data-theme="light"] .table-det td { border-bottom-color: var(--border); }
+[data-theme="light"] .det-grupo td { background: #ede9fe; color: var(--primary); border-top-color: #c4b5fd; }
+[data-theme="light"] .det-conta td { background: var(--card); }
+[data-theme="light"] .det-conta:hover td { background: #f9fafb; }
+[data-theme="light"] .table-dre-mini td { border-bottom-color: var(--border); }
+[data-theme="light"] .kpi-card { box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+[data-theme="light"] .kpi-card:hover { box-shadow: 0 4px 16px rgba(124,58,237,.12); }
+[data-theme="light"] .section-card,
+[data-theme="light"] .card-full,
+[data-theme="light"] .grafico-card { box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+[data-theme="light"] .info-box { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+[data-theme="light"] .notes-box { background: #fefce8; border-color: #fde68a; color: #78350f; }
+[data-theme="light"] .dre-filha td { background: #f5f3ff; border-bottom-color: #e5e7eb; }
+[data-theme="light"] .dre-filha:hover td { background: #ede9fe; }
+[data-theme="light"] .dre-filha-hdr th { background: #f5f3ff; border-bottom-color: #e5e7eb; }
+[data-theme="light"] .dre-neta td { background: #faf5ff; border-bottom-color: #e5e7eb; }
+[data-theme="light"] .dre-neta:hover td { background: #f3e8ff; }
+[data-theme="light"] .table-ct thead th { background: #f3f4f6; }
+[data-theme="light"] .table-ct td { border-bottom-color: var(--border); }
+[data-theme="light"] .ct-empresa-header { background: #f9fafb; }
+[data-theme="light"] .dre-row.dre-grupo td { background: rgba(124,58,237,.04); }
+[data-theme="light"] .dre-row.dre-grupo:hover td { background: rgba(124,58,237,.08); }
+[data-theme="light"] .dre-conta:hover td { background: #f5f3ff; }
+[data-theme="light"] .periodo-links a { background: #eff6ff; color: var(--accent); }
+[data-theme="light"] .periodo-links a:hover { background: #dbeafe; }
+[data-theme="light"] .dash-header-wrap { box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+[data-theme="light"] .empty-state { background: var(--card); border-color: var(--border); }
+[data-theme="light"] .input-sm { background: #fff; color: var(--text); border-color: var(--border); }
+[data-theme="light"] .input-sm option { background: #fff; color: var(--text); }
+[data-theme="light"] .tabela-irpj th { background: #f3f4f6; color: var(--muted); }
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; }
 
