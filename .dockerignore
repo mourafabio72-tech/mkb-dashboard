@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+.git/
+*.log
+logs/
+mkb_dre.db
+check_*.html
+page_mensal.html
+page_mes.html
+cookies.txt
+.claude/

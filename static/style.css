@@ -1,6 +1,8 @@
 /* ── MKB-Dashboard · BPS4 Contabilidade ──────────────────────────────────── */
 
 :root {
+  color-scheme: dark;         /* avisa o navegador: página já é dark-aware,
+                                  não force/reescreva cores de controles nativos */
   --primary:   #a78bfa;       /* lavanda/violeta — títulos e destaques */
   --accent:    #8b5cf6;       /* roxo vibrante — botões, links ativos  */
   --success:   #34d399;       /* esmeralda neon                        */
@@ -177,9 +179,24 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .grafico-sub { font-size: 11px; font-weight: 400; color: var(--muted); }
 
 .grafico-wrap       { position: relative; height: 240px; }
-.grafico-wrap-pizza { position: relative; height: 300px; }
+.grafico-wrap-pizza { position: relative; height: 180px; flex: 0 0 58%; min-width: 0; }
 .grafico-wrap-top5  { position: relative; height: 200px; }
 .grafico-wrap-top10 { position: relative; height: 320px; }
+
+/* Pizza + legenda lado a lado (em vez de legenda embaixo, reduz a altura do card) */
+.pizza-flex { display: flex; align-items: center; gap: 12px; }
+
+/* Legenda HTML do gráfico de pizza (substitui a legenda nativa do Chart.js,
+   desenhada em <canvas> -- texto HTML normal não sofre "force dark" do navegador) */
+.legenda-html  { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
+.legenda-item  { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text); }
+.legenda-swatch{ width: 12px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+.legenda-texto { color: var(--text); }
+
+@media (max-width: 700px) {
+  .pizza-flex { flex-direction: column; }
+  .grafico-wrap-pizza { flex: none; width: 100%; }
+}
 
 /* ── DASHBOARD HEADER ─────────────────────────────────────────────────────── */
 .dash-header-wrap {
@@ -344,6 +361,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .table-simple tr:last-child td { border-bottom: none; }
 .table-simple a { color: var(--accent); text-decoration: none; }
 .table-simple a:hover { text-decoration: underline; color: var(--primary); }
+.table-simple tr.row-paga { opacity: .55; }
 .row-destaque td { background: rgba(139,92,246,.1); font-weight: 500; }
 
 /* ── BOTÕES ───────────────────────────────────────────────────────────────── */
@@ -372,7 +390,11 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .form-ingest { display: flex; flex-direction: column; gap: 16px; margin-bottom: 20px; }
 .form-row    { display: flex; flex-direction: column; gap: 4px; }
 .form-row label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
-.input-sm { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; width: 200px; }
+.input-sm {
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 13px; width: 200px; background: var(--card2); color: var(--text);
+}
+.input-sm option { background: var(--card2); color: var(--text); }
 .radio-group { display: flex; flex-direction: column; gap: 6px; }
 .radio-group label { font-size: 13px; font-weight: normal; text-transform: none; display: flex; align-items: center; gap: 6px; }
 
@@ -423,6 +445,12 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .table-mensal .dre-resultado_final td { background: var(--row-final); font-weight: 700; }
 .table-mensal .dre-ebitda td { background: #f0fdf4; font-weight: 600; color: var(--success); }
 .table-mensal .dre-subtotal td { }
+
+/* IRPJ/CSLL: cabeçalho e linhas de marco em tom escuro (sem branco/cinza-claro
+   do .table-mensal padrão, que destoa do tema dark do restante da página) */
+.tabela-irpj th { background: var(--card); color: var(--text); }
+.tabela-irpj td { border-bottom: 1px solid var(--border); }
+.tabela-irpj .linha-subtotal td { background: var(--row-res); font-weight: 700; }
 
 /* Tabela detalhada mensal */
 .table-det-m .col-cod  { width: 140px; font-family: monospace; font-size: 11px; }
@@ -610,6 +638,14 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .dre-row.dre-grupo_pos:hover td { background: rgba(52,211,153,.1); }
 .dre-row.dre-grupo.grupo-expandido td  { background: rgba(139,92,246,.1); border-bottom-color: var(--accent); }
 .dre-row.dre-grupo_pos.grupo-expandido td { background: rgba(52,211,153,.1); }
+
+/* Linhas "resultado" que também são drilláveis (ex.: Receita Líquida) —
+   mantêm o destaque de subtotal, mas ganham cursor de clique e leve
+   realce ao expandir. */
+.dre-row[data-grupo],
+.dre-row[data-grupo-m] { cursor: pointer; }
+.dre-row.dre-resultado.grupo-expandido td,
+.dre-row.dre-ebitda.grupo-expandido td { border-bottom-color: var(--accent); }
 
 /* Separadores de seção */
 .dre-sec-sep td { background: var(--bg); border: none; padding: 0; }

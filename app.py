@@ -1,18 +1,23 @@
 """
 app.py -- MKB-Dashboard  (porta 5001)
-Dashboard gerencial do Grupo Markbuilding: DRE, IRPJ/CSLL, Comparativos.
+Dashboard gerencial do Grupo Markbuilding: DRE, IRPJ/CSLL, Endividamento Tributário.
 """
 
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from werkzeug.security import generate_password_hash
 
 from config import SECRET_KEY, PORT, DEBUG, EMPRESAS
-from auth import login_required, verificar_credenciais
+from auth import login_required, admin_required, verificar_credenciais
 from ingestion import get_conn, criar_schema, seed_empresas, importar
+from importar_mes import importar_mes_completo
 from razao_parser import importar_razao
-from plano_contas_parser import importar_plano_contas
+from emprestimo_bancario_parser import importar_cronograma
+from irpj_csll_parser import importar_irpj_csll
+from endividamento_parser import importar_vinculacao
 from dre_engine import (
     calcular_dre, calcular_consolidado, calcular_todas_empresas,
     calcular_dre_detalhada, calcular_dre_mensal, calcular_dre_mensal_detalhada,
@@ -20,7 +25,8 @@ from dre_engine import (
     calcular_todas_empresas_gerencial, calcular_dre_gerencial_mensal,
     calcular_dre_detalhada_gerencial, analisar_receita_clientes,
     analisar_despesas_fornecedores,
-    fmt_brl, pct_rob, variacao_pct, DRE_META, DRE_META_GERENCIAL
+    fmt_brl, pct_rob, variacao_pct, DRE_META, DRE_META_GERENCIAL,
+    GRUPOS_AGREGADOS_GER, montar_bridge_ebitda, montar_bridge_resultado_final
 )
 
 app = Flask(__name__)
@@ -79,6 +85,248 @@ def _mes_label(competencia: str) -> str:
     except Exception:
         return competencia
 
+
+def _ref_competencia_razao(conn, empresa_id: int) -> str:
+    """
+    Mês ANTERIOR ao último competência do Razão da empresa (o último mês do
+    Razão pode ainda não estar fechado/conciliado) -- cai para "hoje" se a
+    empresa não tiver Razão importado ainda. Mesmo critério usado em
+    /endividamento-bancario e no resumo do dashboard.
+    """
+    r_max = conn.execute(
+        "SELECT MAX(competencia) FROM razao WHERE empresa_id=?", (empresa_id,)
+    ).fetchone()
+    if r_max and r_max[0]:
+        ano_ref, mes_ref = int(r_max[0][:4]), int(r_max[0][5:7])
+        mes_ref -= 1
+        if mes_ref < 1:
+            mes_ref = 12
+            ano_ref -= 1
+        return f"{ano_ref}-{mes_ref:02d}"
+    hoje = datetime.now()
+    return f"{hoje.year}-{hoje.month:02d}"
+
+
+def _resumo_endividamento_tributario(empresa_id: int) -> dict:
+    """
+    Saldo devedor atual + desembolso mensal do Endividamento Tributário de
+    uma empresa (snapshot mais recente de `parcelamentos`, saldo via Razão
+    em tempo real) -- versão resumida da rota /endividamento, usada no
+    resumo do dashboard (sem a série mensal completa).
+    """
+    conn = get_conn()
+    competencias_disp = [
+        r[0] for r in conn.execute(
+            "SELECT DISTINCT competencia_ref FROM parcelamentos WHERE empresa_id=? ORDER BY competencia_ref",
+            (empresa_id,)
+        ).fetchall()
+    ]
+    if not competencias_disp:
+        conn.close()
+        return {"total_endividamento": 0.0, "desembolso_total": 0.0}
+
+    comp_ref = competencias_disp[-1]
+    parcelamentos = conn.execute(
+        """
+        SELECT tributo, conta_cp, conta_lp, desembolso_mensal, saldo_contabilidade_snapshot
+        FROM parcelamentos WHERE empresa_id=? AND competencia_ref=?
+        """,
+        (empresa_id, comp_ref)
+    ).fetchall()
+
+    grupos_conta: dict[tuple, list] = {}
+    for p in parcelamentos:
+        chave = (p["conta_cp"], p["conta_lp"])
+        grupos_conta.setdefault(chave, []).append(p["tributo"])
+
+    peso_por_tributo: dict[str, float] = {}
+    for p in parcelamentos:
+        chave = (p["conta_cp"], p["conta_lp"])
+        membros = grupos_conta[chave]
+        if len(membros) == 1:
+            peso_por_tributo[p["tributo"]] = 1.0
+            continue
+        soma_snapshot = sum(
+            (pp["saldo_contabilidade_snapshot"] or 0.0)
+            for pp in parcelamentos if pp["tributo"] in membros
+        )
+        snap = p["saldo_contabilidade_snapshot"] or 0.0
+        peso_por_tributo[p["tributo"]] = (
+            snap / soma_snapshot if soma_snapshot else 1.0 / len(membros)
+        )
+
+    def _saldo_atual_conta(conta):
+        if not conta:
+            return 0.0
+        r = conn.execute(
+            "SELECT saldo_atual FROM razao WHERE empresa_id=? AND conta_cod=? "
+            "AND saldo_atual IS NOT NULL ORDER BY competencia DESC, data_lanc DESC, id DESC LIMIT 1",
+            (empresa_id, conta)
+        ).fetchone()
+        return r["saldo_atual"] if r else 0.0
+
+    total_endividamento = 0.0
+    for p in parcelamentos:
+        peso = peso_por_tributo[p["tributo"]]
+        saldo = _saldo_atual_conta(p["conta_cp"]) + (_saldo_atual_conta(p["conta_lp"]) if p["conta_lp"] else 0.0)
+        total_endividamento += saldo * peso
+
+    desembolso_total = sum(p["desembolso_mensal"] or 0 for p in parcelamentos)
+    conn.close()
+    return {"total_endividamento": total_endividamento, "desembolso_total": desembolso_total}
+
+
+def _resumo_endividamento_bancario(empresa_id: int) -> dict:
+    """
+    Saldo a pagar + valor da próxima parcela do Endividamento Bancário de
+    uma empresa, somado entre todos os contratos -- versão resumida da rota
+    /endividamento-bancario, usada no resumo do dashboard.
+    """
+    conn = get_conn()
+    criar_schema(conn)
+    emprestimos = conn.execute(
+        "SELECT * FROM emprestimos_bancarios WHERE empresa_id=?", (empresa_id,)
+    ).fetchall()
+    if not emprestimos:
+        conn.close()
+        return {"saldo_a_pagar": 0.0, "valor_parcela_atual": 0.0}
+
+    def _saldo_atual(conta):
+        if not conta:
+            return None
+        r = conn.execute(
+            "SELECT saldo_atual FROM razao WHERE empresa_id=? AND conta_cod=? "
+            "AND saldo_atual IS NOT NULL ORDER BY competencia DESC, data_lanc DESC, id DESC LIMIT 1",
+            (empresa_id, conta)
+        ).fetchone()
+        return r["saldo_atual"] if r else None
+
+    ref_competencia = _ref_competencia_razao(conn, empresa_id)
+
+    saldo_total = 0.0
+    parcela_total = 0.0
+    for e in emprestimos:
+        parcelas = conn.execute(
+            "SELECT * FROM emprestimos_parcelas WHERE emprestimo_id=? ORDER BY numero_parcela",
+            (e["id"],)
+        ).fetchall()
+
+        s_cp_p = _saldo_atual(e["conta_cp_principal"])
+        s_cp_j = _saldo_atual(e["conta_cp_juros"])
+        s_lp_p = _saldo_atual(e["conta_lp_principal"])
+        s_lp_j = _saldo_atual(e["conta_lp_juros"])
+        tem_razao = any(v is not None for v in (s_cp_p, s_cp_j, s_lp_p, s_lp_j))
+
+        if tem_razao:
+            saldo = (s_cp_p or 0) + (s_cp_j or 0) + (s_lp_p or 0) + (s_lp_j or 0)
+            futuras = [p for p in parcelas if p["competencia"] > ref_competencia]
+            parcela = futuras[0]["valor_parcela"] if futuras else (parcelas[-1]["valor_parcela"] if parcelas else 0.0)
+        elif parcelas:
+            pagas = [p for p in parcelas if p["competencia"] <= ref_competencia]
+            futuras = [p for p in parcelas if p["competencia"] > ref_competencia]
+            saldo = pagas[-1]["saldo_devedor"] if pagas else e["valor_contratado"]
+            parcela = futuras[0]["valor_parcela"] if futuras else (pagas[-1]["valor_parcela"] if pagas else 0.0)
+        else:
+            saldo, parcela = 0.0, 0.0
+
+        saldo_total += saldo or 0.0
+        parcela_total += parcela or 0.0
+
+    conn.close()
+    return {"saldo_a_pagar": saldo_total, "valor_parcela_atual": parcela_total}
+
+
+def _pagamentos_mensais_tributario(empresa_id: int, competencias: list) -> dict:
+    """
+    Valor efetivamente PAGO (débito na conta CP, ponderado pelo peso de
+    rateio) por mês, do Endividamento Tributário de uma empresa -- mesma
+    lógica de `_pago`/`totais_pagos_por_mes` da rota /endividamento, só que
+    para uma lista arbitrária de competências (usado na série do dashboard).
+    """
+    resultado = {c: 0.0 for c in competencias}
+    conn = get_conn()
+    comp_ref_rows = conn.execute(
+        "SELECT DISTINCT competencia_ref FROM parcelamentos WHERE empresa_id=? ORDER BY competencia_ref",
+        (empresa_id,)
+    ).fetchall()
+    if not comp_ref_rows:
+        conn.close()
+        return resultado
+
+    comp_ref = comp_ref_rows[-1][0]
+    parcelamentos = conn.execute(
+        "SELECT tributo, conta_cp, conta_lp, saldo_contabilidade_snapshot "
+        "FROM parcelamentos WHERE empresa_id=? AND competencia_ref=?",
+        (empresa_id, comp_ref)
+    ).fetchall()
+
+    grupos_conta: dict[tuple, list] = {}
+    for p in parcelamentos:
+        chave = (p["conta_cp"], p["conta_lp"])
+        grupos_conta.setdefault(chave, []).append(p["tributo"])
+
+    peso_por_tributo: dict[str, float] = {}
+    for p in parcelamentos:
+        chave = (p["conta_cp"], p["conta_lp"])
+        membros = grupos_conta[chave]
+        if len(membros) == 1:
+            peso_por_tributo[p["tributo"]] = 1.0
+            continue
+        soma_snapshot = sum(
+            (pp["saldo_contabilidade_snapshot"] or 0.0)
+            for pp in parcelamentos if pp["tributo"] in membros
+        )
+        snap = p["saldo_contabilidade_snapshot"] or 0.0
+        peso_por_tributo[p["tributo"]] = (
+            snap / soma_snapshot if soma_snapshot else 1.0 / len(membros)
+        )
+
+    contas_cp_unicas = {p["conta_cp"] for p in parcelamentos}
+    pago_por_conta_comp: dict[tuple, float] = {}
+    if contas_cp_unicas:
+        placeholders = ",".join("?" * len(contas_cp_unicas))
+        rows = conn.execute(
+            f"SELECT conta_cod, competencia, SUM(debito) as total_debito FROM razao "
+            f"WHERE empresa_id=? AND conta_cod IN ({placeholders}) GROUP BY conta_cod, competencia",
+            (empresa_id, *contas_cp_unicas)
+        ).fetchall()
+        for r in rows:
+            pago_por_conta_comp[(r["conta_cod"], r["competencia"])] = r["total_debito"] or 0.0
+    conn.close()
+
+    for p in parcelamentos:
+        peso = peso_por_tributo[p["tributo"]]
+        for c in competencias:
+            resultado[c] += pago_por_conta_comp.get((p["conta_cp"], c), 0.0) * peso
+    return resultado
+
+
+def _pagamentos_mensais_bancario(empresa_id: int, competencias: list) -> dict:
+    """Valor da parcela (cronograma) por mês, do Endividamento Bancário de uma empresa."""
+    resultado = {c: 0.0 for c in competencias}
+    conn = get_conn()
+    criar_schema(conn)
+    emprestimo_ids = [r[0] for r in conn.execute(
+        "SELECT id FROM emprestimos_bancarios WHERE empresa_id=?", (empresa_id,)
+    ).fetchall()]
+    if not emprestimo_ids:
+        conn.close()
+        return resultado
+
+    placeholders = ",".join("?" * len(emprestimo_ids))
+    rows = conn.execute(
+        f"SELECT competencia, SUM(valor_parcela) as total FROM emprestimos_parcelas "
+        f"WHERE emprestimo_id IN ({placeholders}) GROUP BY competencia",
+        emprestimo_ids
+    ).fetchall()
+    conn.close()
+
+    for r in rows:
+        if r["competencia"] in resultado:
+            resultado[r["competencia"]] += r["total"] or 0.0
+    return resultado
+
+
 app.jinja_env.globals["mes_label"] = _mes_label
 
 
@@ -92,9 +340,15 @@ def login():
         usuario = (request.form.get("usuario") or "").strip()
         senha   = (request.form.get("senha")   or "").strip()
         next_url = request.form.get("next") or url_for("index")
-        if verificar_credenciais(usuario, senha):
+
+        conn = get_conn()
+        criar_schema(conn)
+        dados_usuario = verificar_credenciais(conn, usuario, senha)
+        conn.close()
+
+        if dados_usuario:
             session.permanent = True
-            session["usuario_logado"] = usuario
+            session["usuario_logado"] = dados_usuario
             return redirect(next_url)
         return render_template("login.html", erro="Usuário ou senha incorretos.",
                                ultimo_usuario=usuario, next_url=next_url)
@@ -108,6 +362,79 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+# --- ROTAS: USUÁRIOS (admin) -------------------------------------------------
+
+@app.route("/usuarios")
+@login_required
+@admin_required
+def usuarios():
+    conn = get_conn()
+    criar_schema(conn)
+    lista = conn.execute(
+        "SELECT id, usuario, nome, email, role, ativo, criado_em FROM usuarios ORDER BY criado_em"
+    ).fetchall()
+    conn.close()
+    return render_template("usuarios.html", usuarios=lista)
+
+
+@app.route("/usuarios/novo", methods=["GET", "POST"])
+@login_required
+@admin_required
+def usuarios_novo():
+    if request.method == "POST":
+        usuario = (request.form.get("usuario") or "").strip()
+        nome    = (request.form.get("nome") or "").strip()
+        email   = (request.form.get("email") or "").strip() or None
+        senha   = (request.form.get("senha") or "").strip()
+        role    = request.form.get("role", "leitura")
+        role    = role if role in ("admin", "leitura") else "leitura"
+
+        if not (usuario and nome and senha):
+            flash("Preencha usuário, nome e senha.", "warning")
+            return redirect(url_for("usuarios_novo"))
+        if len(senha) < 6:
+            flash("A senha precisa ter pelo menos 6 caracteres.", "warning")
+            return redirect(url_for("usuarios_novo"))
+
+        conn = get_conn()
+        criar_schema(conn)
+        try:
+            conn.execute(
+                "INSERT INTO usuarios (usuario, nome, email, senha_hash, role, ativo) VALUES (?,?,?,?,?,1)",
+                (usuario, nome, email, generate_password_hash(senha), role),
+            )
+            conn.commit()
+            flash(f"Usuário \"{usuario}\" criado ({role}).", "success")
+        except sqlite3.IntegrityError:
+            flash(f"Já existe um usuário com o login \"{usuario}\".", "danger")
+        finally:
+            conn.close()
+        return redirect(url_for("usuarios"))
+
+    return render_template("usuarios_novo.html")
+
+
+@app.route("/usuarios/<int:usuario_id>/alternar", methods=["POST"])
+@login_required
+@admin_required
+def usuarios_alternar(usuario_id):
+    conn = get_conn()
+    criar_schema(conn)
+    row = conn.execute("SELECT ativo, usuario FROM usuarios WHERE id=?", (usuario_id,)).fetchone()
+    if not row:
+        flash("Usuário não encontrado.", "danger")
+    else:
+        novo_status = 0 if row["ativo"] else 1
+        conn.execute("UPDATE usuarios SET ativo=? WHERE id=?", (novo_status, usuario_id))
+        conn.commit()
+        flash(
+            f"Usuário \"{row['usuario']}\" {'reativado' if novo_status else 'desativado'}.",
+            "success"
+        )
+    conn.close()
+    return redirect(url_for("usuarios"))
 
 
 # --- ROTAS PROTEGIDAS --------------------------------------------------------
@@ -171,6 +498,60 @@ def index():
     grafico_custo    = calcular_top_custo(competencias, n=10)
     grafico_despesa  = calcular_top_despesa(competencias, n=10)
 
+    # Resumo de Endividamento (Tributário + Bancário), MKB + Gnileb somados,
+    # comparado à Receita Bruta consolidada acumulada (YTD) do período acima.
+    end_trib_mkb     = _resumo_endividamento_tributario(EMPRESAS["mkb"]["id"])
+    end_trib_gnileb  = _resumo_endividamento_tributario(EMPRESAS["gnileb"]["id"])
+    end_banc_mkb     = _resumo_endividamento_bancario(EMPRESAS["mkb"]["id"])
+    end_banc_gnileb  = _resumo_endividamento_bancario(EMPRESAS["gnileb"]["id"])
+
+    divida_tributaria = end_trib_mkb["total_endividamento"] + end_trib_gnileb["total_endividamento"]
+    divida_bancaria    = end_banc_mkb["saldo_a_pagar"] + end_banc_gnileb["saldo_a_pagar"]
+    divida_total       = divida_tributaria + divida_bancaria
+
+    desembolso_tributario = end_trib_mkb["desembolso_total"] + end_trib_gnileb["desembolso_total"]
+    desembolso_bancario    = end_banc_mkb["valor_parcela_atual"] + end_banc_gnileb["valor_parcela_atual"]
+    desembolso_total_geral = desembolso_tributario + desembolso_bancario
+
+    rob_consolidado_ytd = ytd.get("ROB", 0) or 0
+    pct_divida_rob = (divida_total / rob_consolidado_ytd * 100) if rob_consolidado_ytd else None
+
+    resumo_endividamento = {
+        "divida_tributaria": divida_tributaria,
+        "divida_bancaria": divida_bancaria,
+        "divida_total": divida_total,
+        "desembolso_total": desembolso_total_geral,
+        "rob_consolidado_ytd": rob_consolidado_ytd,
+        "pct_divida_rob": pct_divida_rob,
+    }
+
+    # Série mensal: parcelas pagas (Tributário + Bancário) × Receita Bruta
+    # ACUMULADA até aquele mês (Jan -> mês), consolidado MKB + Gnileb.
+    pagos_trib_mkb = _pagamentos_mensais_tributario(EMPRESAS["mkb"]["id"], competencias)
+    pagos_trib_gni = _pagamentos_mensais_tributario(EMPRESAS["gnileb"]["id"], competencias)
+    pagos_banc_mkb = _pagamentos_mensais_bancario(EMPRESAS["mkb"]["id"], competencias)
+    pagos_banc_gni = _pagamentos_mensais_bancario(EMPRESAS["gnileb"]["id"], competencias)
+
+    serie_endividamento_mensal = []
+    rob_acum = 0.0
+    divida_acum = 0.0
+    for c in competencias:
+        rob_mes = mensal_todos[c].get("ROB", 0) or 0
+        rob_acum += rob_mes
+        valor_pago = (
+            pagos_trib_mkb.get(c, 0.0) + pagos_trib_gni.get(c, 0.0)
+            + pagos_banc_mkb.get(c, 0.0) + pagos_banc_gni.get(c, 0.0)
+        )
+        divida_acum += valor_pago
+        pct = (valor_pago / rob_acum * 100) if rob_acum else None
+        serie_endividamento_mensal.append({
+            "competencia": c, "valor_pago": valor_pago,
+            "divida_acumulada": divida_acum, "rob_mes": rob_mes, "pct": pct,
+        })
+
+    grafico_endividamento_valor = [round(l["valor_pago"]) for l in serie_endividamento_mensal]
+    grafico_endividamento_pct   = [round(l["pct"], 1) if l["pct"] is not None else 0 for l in serie_endividamento_mensal]
+
     return render_template(
         "dashboard.html",
         todas_competencias=todas_competencias,
@@ -179,6 +560,8 @@ def index():
         kpis=kpis,
         kpis_ant=kpis_ant,
         ytd=ytd,
+        resumo_endividamento=resumo_endividamento,
+        serie_endividamento_mensal=serie_endividamento_mensal,
         dre_meta=DRE_META,
         fmt_brl=fmt_brl,
         pct_rob=pct_rob,
@@ -188,6 +571,8 @@ def index():
         grafico_segmento=_json.dumps(grafico_segmento),
         grafico_custo=_json.dumps(grafico_custo),
         grafico_despesa=_json.dumps(grafico_despesa),
+        grafico_endividamento_valor=_json.dumps(grafico_endividamento_valor),
+        grafico_endividamento_pct=_json.dumps(grafico_endividamento_pct),
     )
 
 
@@ -236,6 +621,14 @@ def dre_resumida(competencia):
     det_gnileb = calcular_dre_detalhada_gerencial(EMPRESAS["gnileb"]["id"], competencia)
     det_merged = _merge_detalhe_gerencial(det_mkb, det_gnileb)
 
+    # EBITDA: drill-down não é lista de contas, e sim a "ponte" a partir do
+    # Resultado Líquido (ver montar_bridge_ebitda em dre_engine.py)
+    det_merged["EBITDA"] = montar_bridge_ebitda(dados, det_mkb, det_gnileb)
+
+    # LL (Resultado Final): drill-down é a "ponte" de subtotais ROL→...→LL
+    # (ver montar_bridge_resultado_final em dre_engine.py)
+    det_merged["LL"] = montar_bridge_resultado_final(dados)
+
     # ── MULTI-MÊS: dados de todos os meses + contas por grupo ───────────────
     dados_mensal: dict = {}
     contas_meses: dict = {}     # {grupo: [{cod, descricao, totais: {comp: v}}]}
@@ -249,6 +642,8 @@ def dre_resumida(competencia):
             dm  = calcular_dre_detalhada_gerencial(EMPRESAS["mkb"]["id"],    comp)
             dg  = calcular_dre_detalhada_gerencial(EMPRESAS["gnileb"]["id"], comp)
             det_por_mes[comp] = _merge_detalhe_gerencial(dm, dg)
+            det_por_mes[comp]["EBITDA"] = montar_bridge_ebitda(dados_mensal[comp], dm, dg)
+            det_por_mes[comp]["LL"] = montar_bridge_resultado_final(dados_mensal[comp])
 
         _acc: dict = {}   # {grupo: {cod: {descricao, totais: {comp: v}}}}
         for comp in competencias:
@@ -259,8 +654,13 @@ def dre_resumida(competencia):
                     if cod not in _acc[grupo]:
                         _acc[grupo][cod] = {"cod": cod, "descricao": c["descricao"], "totais": {}}
                     _acc[grupo][cod]["totais"][comp] = c["total"]
-        contas_meses = {g: sorted(d.values(), key=lambda x: x["cod"])
-                        for g, d in _acc.items()}
+        # EBITDA e LL: preservam a ordem da "ponte" (bridge de subtotais),
+        # não reordenam por código de conta como os demais grupos.
+        contas_meses = {
+            g: (list(d.values()) if g in ("EBITDA", "LL")
+                else sorted(d.values(), key=lambda x: x["cod"]))
+            for g, d in _acc.items()
+        }
 
         # YTD e média sobre TODOS os meses
         ytd_all: dict[str, float] = {}
@@ -389,6 +789,10 @@ def _merge_detalhe_gerencial(det_mkb: list, det_gnileb: list) -> dict:
     """
     Funde as listas de contas de MKB e Gnileb por grupo.
     Retorna dict {grupo: [{cod, descricao, mkb, gnileb, total}]}.
+
+    Também cria chaves agregadas para linhas da DRE Gerencial que somam
+    mais de um grupo do account_map (ver GRUPOS_AGREGADOS_GER em
+    dre_engine.py): DED, ROL e EBITDA.
     """
     merged: dict[str, dict] = {}
 
@@ -412,6 +816,14 @@ def _merge_detalhe_gerencial(det_mkb: list, det_gnileb: list) -> dict:
         for c in lista:
             c["total"] = c["mkb"] + c["gnileb"]
         resultado[grupo] = lista
+
+    # ── Agregações de linhas que somam múltiplos grupos (DED, ROL, EBITDA) ───
+    for linha, grupos in GRUPOS_AGREGADOS_GER.items():
+        combinado = []
+        for g in grupos:
+            combinado.extend(resultado.get(g, []))
+        resultado[linha] = sorted(combinado, key=lambda x: x["cod"])
+
     return resultado
 
 
@@ -572,12 +984,30 @@ def despesas_fornecedores(empresa="mkb"):
 
 @app.route("/ingest", methods=["GET", "POST"])
 @login_required
+@admin_required
 def ingest():
     ano_atual = datetime.now().year
     mes_atual = datetime.now().month
 
     if request.method == "POST":
         formato = request.form.get("formato", "ct2")
+
+        # ─── MÊS COMPLETO: localização automática (DRE + Razão + IRPJ/CSLL) ─
+        if formato == "mes_completo":
+            ano          = int(request.form.get("ano",  ano_atual))
+            mes          = int(request.form.get("mes",  mes_atual))
+            empresas_sel = request.form.getlist("empresa_mes") or ["mkb", "gnileb"]
+
+            relatorio = importar_mes_completo(ano, mes, empresas=empresas_sel)
+
+            for msg in relatorio["importados"]:
+                flash(f"✔ {msg}", "success")
+            for msg in relatorio["nao_encontrados"]:
+                flash(f"⚠ Não encontrado automaticamente (faça upload manual abaixo): {msg}", "warning")
+            for msg in relatorio["erros"]:
+                flash(f"✖ {msg}", "danger")
+
+            return redirect(url_for("ingest"))
 
         # ─── CT1: Razão Contábil ────────────────────────────────────────────
         if formato == "ct1":
@@ -616,37 +1046,77 @@ def ingest():
                     pass
             return redirect(url_for("ingest"))
 
-        # ─── Plano de Contas: descrição oficial das contas ──────────────────
-        if formato == "plano_contas":
-            arquivo_pc = request.files.get("arquivo_plano_contas")
-            empresa_pc = request.form.get("empresa_plano_contas", "mkb")
+        # ─── IRPJ/CSLL: planilha ANUAL (apuração de Lucro Real) ─────────────
+        if formato == "irpj_csll":
+            arquivo_irpj = request.files.get("arquivo_irpj_csll")
+            empresa_irpj = request.form.get("empresa_irpj_csll", "mkb")
 
-            if not arquivo_pc or not arquivo_pc.filename:
-                flash("Selecione o arquivo CSV do Plano de Contas.", "warning")
+            if not arquivo_irpj or not arquivo_irpj.filename:
+                flash("Selecione a planilha ANUAL de IRPJ/CSLL (.xlsx).", "warning")
                 return redirect(url_for("ingest"))
 
             import tempfile, os
-            ext = Path(arquivo_pc.filename).suffix
+            ext = Path(arquivo_irpj.filename).suffix
             with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-                arquivo_pc.save(tmp.name)
+                arquivo_irpj.save(tmp.name)
                 tmp_path = Path(tmp.name)
 
             try:
                 conn = get_conn()
                 criar_schema(conn)
                 seed_empresas(conn)
-                res = importar_plano_contas(tmp_path, empresa_pc, conn)
+                res = importar_irpj_csll(tmp_path, empresa_irpj, conn)
                 conn.close()
                 if "erro" in res:
-                    flash(f"Erro ao importar Plano de Contas: {res['erro']}", "danger")
+                    flash(f"Erro ao importar IRPJ/CSLL: {res['erro']}", "danger")
                 else:
                     flash(
-                        f"Plano de Contas importado: {res.get('registros', 0)} contas "
-                        f"({res.get('empresa','')}) — descrições gravadas/atualizadas em \"contas\".",
+                        f"IRPJ/CSLL importado: {res.get('registros', 0)} linhas "
+                        f"({res.get('empresa','')}) — "
+                        f"competências: {', '.join(res.get('competencias', []))}",
                         "success"
                     )
             except Exception as e:
-                flash(f"Erro ao importar Plano de Contas: {e}", "danger")
+                flash(f"Erro ao importar IRPJ/CSLL: {e}", "danger")
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+            return redirect(url_for("ingest"))
+
+        # ─── ENDIVIDAMENTO: planilha de vinculação parcelamento x conta ─────
+        if formato == "endividamento":
+            arquivo_end = request.files.get("arquivo_endividamento")
+            empresa_end = request.form.get("empresa_endividamento", "mkb")
+
+            if not arquivo_end or not arquivo_end.filename:
+                flash("Selecione a planilha de vinculação (.csv).", "warning")
+                return redirect(url_for("ingest"))
+
+            import tempfile, os
+            ext = Path(arquivo_end.filename).suffix
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                arquivo_end.save(tmp.name)
+                tmp_path = Path(tmp.name)
+
+            try:
+                conn = get_conn()
+                criar_schema(conn)
+                seed_empresas(conn)
+                res = importar_vinculacao(tmp_path, empresa_end, conn)
+                conn.close()
+                if "erro" in res:
+                    flash(f"Erro ao importar Endividamento: {res['erro']}", "danger")
+                else:
+                    flash(
+                        f"Endividamento importado: {res.get('registros', 0)} parcelamentos "
+                        f"({res.get('empresa','')}) — "
+                        f"competência de referência: {res.get('competencia_ref','')}",
+                        "success"
+                    )
+            except Exception as e:
+                flash(f"Erro ao importar Endividamento: {e}", "danger")
             finally:
                 try:
                     os.unlink(tmp_path)
@@ -655,31 +1125,37 @@ def ingest():
             return redirect(url_for("ingest"))
 
         # ─── CT2: Comparativo Conta x 12 Meses ──────────────────────────────
-        ano          = int(request.form.get("ano",  ano_atual))
-        mes          = int(request.form.get("mes",  mes_atual))
-        modo         = request.form.get("modo", "mes")
-        empresas_sel = request.form.getlist("empresa_ct2") or ["mkb", "gnileb"]
+        # Sem card manual na tela (a Razão já cobre a maior parte das contas
+        # via v_lancamentos; o CT2 continua sendo importado automaticamente
+        # pelo "Importar Mês Completo" -- ver importar_mes.py). Esta rota
+        # continua disponível só pra reimportação em lote de vários meses de
+        # uma vez, se algum dia for necessário (ex.: POST manual/CLI).
+        if formato == "ct2":
+            ano          = int(request.form.get("ano",  ano_atual))
+            mes          = int(request.form.get("mes",  mes_atual))
+            modo         = request.form.get("modo", "mes")
+            empresas_sel = request.form.getlist("empresa_ct2") or ["mkb", "gnileb"]
 
-        meses = list(range(1, mes_atual + 1)) if modo == "ano" else [mes]
+            meses = list(range(1, mes_atual + 1)) if modo == "ano" else [mes]
 
-        erros_total  = []
-        total_mkb    = 0
-        total_gnileb = 0
+            erros_total  = []
+            total_mkb    = 0
+            total_gnileb = 0
 
-        for m in meses:
-            res = importar(ano, m, empresas=empresas_sel)
-            total_mkb    += res["mkb"]
-            total_gnileb += res["gnileb"]
-            erros_total  += res["erros"]
+            for m in meses:
+                res = importar(ano, m, empresas=empresas_sel)
+                total_mkb    += res["mkb"]
+                total_gnileb += res["gnileb"]
+                erros_total  += res["erros"]
 
-        for e in erros_total:
-            flash(f"Aviso: {e}", "warning")
+            for e in erros_total:
+                flash(f"Aviso: {e}", "warning")
 
-        nomes = " | ".join(e.upper() for e in empresas_sel)
-        flash(
-            f"CT2 importado [{nomes}]: MKB={total_mkb} | GNILEB={total_gnileb} lançamentos",
-            "success"
-        )
+            nomes = " | ".join(e.upper() for e in empresas_sel)
+            flash(
+                f"CT2 importado [{nomes}]: MKB={total_mkb} | GNILEB={total_gnileb} lançamentos",
+                "success"
+            )
         return redirect(url_for("ingest"))
 
     _conn = get_conn()
@@ -707,10 +1183,30 @@ def ingest():
         ).fetchall() if conn.execute(
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name='razao'"
         ).fetchone() else []
+        stats_irpj = conn.execute(
+            """
+            SELECT e.sigla, i.competencia, COUNT(DISTINCT i.secao || '-' || i.ordem) as qtd
+            FROM irpj_csll i JOIN empresas e ON i.empresa_id = e.id
+            GROUP BY e.sigla, i.competencia ORDER BY i.competencia, e.sigla
+            """
+        ).fetchall() if conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='irpj_csll'"
+        ).fetchone() else []
+        stats_endividamento = conn.execute(
+            """
+            SELECT e.sigla, p.competencia_ref, COUNT(*) as qtd
+            FROM parcelamentos p JOIN empresas e ON p.empresa_id = e.id
+            GROUP BY e.sigla, p.competencia_ref ORDER BY p.competencia_ref, e.sigla
+            """
+        ).fetchall() if conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='parcelamentos'"
+        ).fetchone() else []
         conn.close()
     except Exception:
         stats_ct2 = []
         stats_razao = []
+        stats_irpj = []
+        stats_endividamento = []
 
     return render_template(
         "ingest.html",
@@ -718,6 +1214,8 @@ def ingest():
         mes_atual=mes_atual,
         competencias=competencias,
         stats_ct2=stats_ct2,
+        stats_irpj=stats_irpj,
+        stats_endividamento=stats_endividamento,
         stats_razao=stats_razao,
     )
 
@@ -831,16 +1329,595 @@ def dre_mensal_detalhada(empresa):
 @app.route("/irpj/<empresa>/<competencia>")
 @login_required
 def irpj(empresa, competencia):
-    return render_template("em_breve.html", titulo="IRPJ/CSLL",
-                           empresa=empresa, competencia=competencia,
-                           mes_label=_mes_label(competencia))
+    if empresa not in EMPRESAS:
+        return render_template("em_breve.html", titulo="IRPJ/CSLL",
+                               empresa=empresa, competencia=competencia,
+                               mes_label=_mes_label(competencia))
+
+    empresa_id = EMPRESAS[empresa]["id"]
+    secao = request.args.get("secao", "CSLL").upper()
+    if secao not in ("CSLL", "IRPJ"):
+        secao = "CSLL"
+    meses_param = request.args.get("meses", "ano")
+
+    conn = get_conn()
+    # Só considera "disponível" a competência que teve apuração de fato.
+    # Meses sem apuração (planilha ainda zerada, ex.: meses futuros) carregam
+    # só 1-2 saldos "arrastados" (ex.: antecipações acumuladas) idênticos em
+    # todos os meses vazios -- por isso o corte exige ALGUMAS linhas com
+    # valor diferente de zero (não apenas 1), para não confundir esse arrasto
+    # com apuração real.
+    MIN_LINHAS_COM_VALOR = 3
+    competencias_disp = [
+        r[0] for r in conn.execute(
+            """
+            SELECT competencia FROM irpj_csll
+            WHERE empresa_id=?
+            GROUP BY competencia
+            HAVING SUM(CASE WHEN valor IS NOT NULL AND valor != 0 THEN 1 ELSE 0 END) >= ?
+            ORDER BY competencia
+            """,
+            (empresa_id, MIN_LINHAS_COM_VALOR)
+        ).fetchall()
+    ]
+
+    if not competencias_disp:
+        conn.close()
+        return render_template("em_breve.html", titulo="IRPJ/CSLL",
+                               empresa=empresa, competencia=competencia,
+                               mes_label=_mes_label(competencia))
+
+    # Se a competência da URL não tem dados, cai na mais recente disponível
+    if competencia not in competencias_disp:
+        competencia = competencias_disp[-1]
+
+    # Janela de meses a exibir na tabela comparativa: sempre começa em Janeiro
+    # do ano da competência de referência e vai até ela (estilo YTD, igual à
+    # planilha original) — não "retrocede N meses" a partir do mês atual.
+    # "todas" mostra a história completa (todos os anos já importados, sem
+    # limitar pelo mês de referência).
+    if meses_param == "todas":
+        janela = competencias_disp
+    else:
+        meses_param = "ano"
+        idx = competencias_disp.index(competencia)
+        ano_ref = competencia[:4]
+        janela = [c for c in competencias_disp[:idx + 1] if c.startswith(ano_ref + "-")]
+
+    placeholders = ",".join("?" * len(janela))
+    linhas = conn.execute(
+        f"""
+        SELECT competencia, ordem, conta_cod, descricao, valor, is_destaque, is_subtotal
+        FROM irpj_csll
+        WHERE empresa_id=? AND secao=? AND competencia IN ({placeholders})
+        ORDER BY ordem, competencia
+        """,
+        (empresa_id, secao, *janela)
+    ).fetchall()
+
+    # Cards de resumo: valor final de CADA seção na competência atual (não na
+    # janela) — usa a ÚLTIMA linha "destaque" (pode haver mais de uma, ex.:
+    # "IRPJ Devido" e, mais abaixo, "IRPJ Valor Final Devido" após dedução de
+    # retenções — a de baixo é o valor realmente a pagar).
+    linhas_atual = conn.execute(
+        """
+        SELECT secao, ordem, valor FROM irpj_csll
+        WHERE empresa_id=? AND competencia=? AND is_destaque=1
+        ORDER BY secao ASC, ordem
+        """,
+        (empresa_id, competencia)
+    ).fetchall()
+    conn.close()
+
+    csll_final = next((l["valor"] for l in reversed(linhas_atual) if l["secao"] == "CSLL"), None)
+    irpj_final = next((l["valor"] for l in reversed(linhas_atual) if l["secao"] == "IRPJ"), None)
+
+    # Pivot: agrupa por ordem (linha original da planilha) -> {competencia: valor}
+    pivot: dict[int, dict] = {}
+    for l in linhas:
+        item = pivot.setdefault(l["ordem"], {
+            "conta_cod": l["conta_cod"], "descricao": l["descricao"],
+            "valores": {}, "destaque": False, "subtotal": False,
+        })
+        item["valores"][l["competencia"]] = l["valor"]
+        if l["is_destaque"]:
+            item["destaque"] = True
+        if l["is_subtotal"]:
+            item["subtotal"] = True
+
+    # Oculta linhas totalmente zeradas/vazias dentro da janela exibida -- mas
+    # NUNCA a linha "destaque" (CSLL/IRPJ A Recolher): zero ali é informação
+    # real (imposto integralmente coberto por antecipações), não ausência de
+    # dado, e é a linha mais importante da tabela.
+    linhas_pivot = [
+        pivot[k] for k in sorted(pivot.keys())
+        if pivot[k]["destaque"] or any((v or 0) != 0 for v in pivot[k]["valores"].values())
+    ]
+
+    return render_template(
+        "irpj_csll.html",
+        empresa=empresa, competencia=competencia,
+        mes_label_atual=_mes_label(competencia),
+        competencias=competencias_disp,
+        janela=janela, secao=secao, meses_param=meses_param,
+        linhas=linhas_pivot,
+        csll_final=csll_final, irpj_final=irpj_final,
+    )
 
 
-@app.route("/comparativo/<empresa>")
+@app.route("/endividamento/<empresa>/<competencia>")
 @login_required
-def comparativo(empresa):
-    return render_template("em_breve.html", titulo="Comparativo Mensal",
-                           empresa=empresa, competencia="", mes_label="")
+def endividamento(empresa, competencia):
+    if empresa not in EMPRESAS:
+        return render_template("em_breve.html", titulo="Endividamento Tributário",
+                               empresa=empresa, competencia=competencia,
+                               mes_label=_mes_label(competencia))
+
+    empresa_id = EMPRESAS[empresa]["id"]
+    meses_param = request.args.get("meses", "ano")
+
+    conn = get_conn()
+
+    # Competências com snapshot de vinculação já enviado
+    competencias_disp = [
+        r[0] for r in conn.execute(
+            "SELECT DISTINCT competencia_ref FROM parcelamentos WHERE empresa_id=? ORDER BY competencia_ref",
+            (empresa_id,)
+        ).fetchall()
+    ]
+
+    if not competencias_disp:
+        conn.close()
+        return render_template("em_breve.html", titulo="Endividamento Tributário",
+                               empresa=empresa, competencia=competencia,
+                               mes_label=_mes_label(competencia))
+
+    # Se a competência da URL não tem snapshot, usa o mais recente <= ela
+    # (ou o mais antigo disponível, se a URL pedir algo anterior a todos)
+    if competencia not in competencias_disp:
+        anteriores = [c for c in competencias_disp if c <= competencia]
+        competencia = anteriores[-1] if anteriores else competencias_disp[0]
+
+    parcelamentos = conn.execute(
+        """
+        SELECT tributo, processo, conta_cp, conta_lp, qtd_parcelas, parcela_paga,
+               faltam, dt_inicio, dt_termino, desembolso_mensal, valor_principal,
+               observacao, saldo_fiscal, saldo_contabilidade_snapshot
+        FROM parcelamentos WHERE empresa_id=? AND competencia_ref=?
+        ORDER BY tributo
+        """,
+        (empresa_id, competencia)
+    ).fetchall()
+
+    # Peso de rateio: 2+ parcelamentos podem compartilhar a mesma conta_cp/lp
+    # (ex.: "TRANSAÇÃO - DEMAIS DÉBITOS" e "TRANSAÇÃO - DÉBITOS
+    # PREVIDENCIÁRIOS" usam a mesma conta) -- o saldo REAL da conta (vindo do
+    # razão) precisa ser dividido entre eles, não duplicado em cada um. Usa o
+    # "Saldo contabilidade" do snapshot como peso (confirmado: a soma dos
+    # snapshots de quem compartilha a conta bate com o saldo combinado real).
+    grupos_conta: dict[tuple, list] = {}
+    for p in parcelamentos:
+        chave = (p["conta_cp"], p["conta_lp"])
+        grupos_conta.setdefault(chave, []).append(p["tributo"])
+
+    peso_por_tributo: dict[str, float] = {}
+    for p in parcelamentos:
+        chave = (p["conta_cp"], p["conta_lp"])
+        membros = grupos_conta[chave]
+        if len(membros) == 1:
+            peso_por_tributo[p["tributo"]] = 1.0
+            continue
+        soma_snapshot = sum(
+            (pp["saldo_contabilidade_snapshot"] or 0.0)
+            for pp in parcelamentos if pp["tributo"] in membros
+        )
+        snap = p["saldo_contabilidade_snapshot"] or 0.0
+        peso_por_tributo[p["tributo"]] = (
+            snap / soma_snapshot if soma_snapshot else 1.0 / len(membros)
+        )
+
+    contas_envolvidas = set()
+    for p in parcelamentos:
+        contas_envolvidas.add(p["conta_cp"])
+        if p["conta_lp"]:
+            contas_envolvidas.add(p["conta_lp"])
+
+    comps_razao = []
+    if contas_envolvidas:
+        placeholders = ",".join("?" * len(contas_envolvidas))
+        comps_razao = [
+            r[0] for r in conn.execute(
+                f"SELECT DISTINCT competencia FROM razao WHERE empresa_id=? "
+                f"AND conta_cod IN ({placeholders}) ORDER BY competencia",
+                (empresa_id, *contas_envolvidas)
+            ).fetchall()
+        ]
+
+    # Janela de meses (calendário contínuo): "ano" = Jan do ano da referência
+    # até a referência; "todas" = desde a 1ª competência com razão disponível.
+    if meses_param == "todas":
+        inicio = min(comps_razao) if comps_razao else competencia
+    else:
+        meses_param = "ano"
+        inicio = f"{competencia[:4]}-01"
+
+    def _add_mes(ano, mes):
+        mes += 1
+        if mes > 12:
+            mes = 1
+            ano += 1
+        return ano, mes
+
+    def _mes_anterior(comp):
+        ano, mes = int(comp[:4]), int(comp[5:7])
+        mes -= 1
+        if mes < 1:
+            mes = 12
+            ano -= 1
+        return f"{ano}-{mes:02d}"
+
+    mes_referencia_anterior = _mes_anterior(competencia)
+
+    janela = []
+    ano_i, mes_i = int(inicio[:4]), int(inicio[5:7])
+    ano_f, mes_f = int(competencia[:4]), int(competencia[5:7])
+    while (ano_i, mes_i) <= (ano_f, mes_f):
+        janela.append(f"{ano_i}-{mes_i:02d}")
+        ano_i, mes_i = _add_mes(ano_i, mes_i)
+
+    # Busca todos os saldo_atual relevantes de uma vez e monta, por conta, o
+    # saldo "como estava" em cada competência da janela (carrega o último
+    # valor conhecido para meses sem lançamento -- a dívida não desaparece).
+    saldo_por_conta_comp: dict[tuple, float] = {}
+    if contas_envolvidas:
+        placeholders = ",".join("?" * len(contas_envolvidas))
+        rows = conn.execute(
+            f"""
+            SELECT conta_cod, competencia, saldo_atual
+            FROM razao WHERE empresa_id=? AND conta_cod IN ({placeholders})
+              AND saldo_atual IS NOT NULL
+            ORDER BY conta_cod, competencia, data_lanc, id
+            """,
+            (empresa_id, *contas_envolvidas)
+        ).fetchall()
+        por_conta: dict[str, dict] = {}
+        for r in rows:
+            por_conta.setdefault(r["conta_cod"], {})[r["competencia"]] = r["saldo_atual"]
+        for conta, comps_vals in por_conta.items():
+            comps_ordenadas = sorted(comps_vals.keys())
+            idx, ultimo = 0, None
+            for comp in janela:
+                while idx < len(comps_ordenadas) and comps_ordenadas[idx] <= comp:
+                    ultimo = comps_vals[comps_ordenadas[idx]]
+                    idx += 1
+                saldo_por_conta_comp[(conta, comp)] = ultimo
+
+    # Valor PAGO em cada mês: soma do DÉBITO lançado na conta CP naquele mês
+    # (um pagamento reduz o passivo = débito; transferências LP->CP e juros
+    # acrescidos aparecem como CRÉDITO na conta CP, então não entram aqui --
+    # só a conta CP é somada, a LP só recebe/cede saldo internamente, nunca
+    # representa desembolso de caixa real).
+    contas_cp_unicas = {p["conta_cp"] for p in parcelamentos}
+    pago_por_conta_comp: dict[tuple, float] = {}
+    if contas_cp_unicas:
+        placeholders_cp = ",".join("?" * len(contas_cp_unicas))
+        rows_pg = conn.execute(
+            f"""
+            SELECT conta_cod, competencia, SUM(debito) as total_debito
+            FROM razao WHERE empresa_id=? AND conta_cod IN ({placeholders_cp})
+            GROUP BY conta_cod, competencia
+            """,
+            (empresa_id, *contas_cp_unicas)
+        ).fetchall()
+        for r in rows_pg:
+            pago_por_conta_comp[(r["conta_cod"], r["competencia"])] = r["total_debito"] or 0.0
+
+    conn.close()
+
+    def _saldo(conta, comp):
+        return saldo_por_conta_comp.get((conta, comp)) or 0.0
+
+    def _pago(conta, comp):
+        return pago_por_conta_comp.get((conta, comp)) or 0.0
+
+    linhas = []
+    totais_por_mes = {c: 0.0 for c in janela}
+    totais_pagos_por_mes = {c: 0.0 for c in janela}
+    for p in parcelamentos:
+        peso = peso_por_tributo[p["tributo"]]
+        valores, pagos = {}, {}
+        for c in janela:
+            saldo_conta = _saldo(p["conta_cp"], c) + (_saldo(p["conta_lp"], c) if p["conta_lp"] else 0.0)
+            total = saldo_conta * peso
+            valores[c] = total
+            totais_por_mes[c] += total
+
+            pago_mes = _pago(p["conta_cp"], c) * peso
+            pagos[c] = pago_mes
+            totais_pagos_por_mes[c] += pago_mes
+
+        # Saldo ANTERIOR = saldo devedor (dívida) no mês imediatamente antes
+        # da referência -- não é soma de pagamentos, é o mesmo saldo da
+        # tabela 1, só "puxado" para o mês anterior (pode não estar na
+        # janela exibida, ex.: referência = janeiro).
+        saldo_conta_ant = (
+            _saldo(p["conta_cp"], mes_referencia_anterior)
+            + (_saldo(p["conta_lp"], mes_referencia_anterior) if p["conta_lp"] else 0.0)
+        )
+        saldo_anterior = saldo_conta_ant * peso
+        total_a_pagar = valores.get(competencia, 0.0)  # saldo devedor na referência
+
+        linhas.append({
+            "tributo": p["tributo"], "processo": p["processo"],
+            "qtd_parcelas": p["qtd_parcelas"], "parcela_paga": p["parcela_paga"],
+            "faltam": p["faltam"], "dt_inicio": p["dt_inicio"], "dt_termino": p["dt_termino"],
+            "desembolso_mensal": p["desembolso_mensal"], "valor_principal": p["valor_principal"],
+            "saldo_fiscal": p["saldo_fiscal"], "valores": valores, "pagos": pagos,
+            "saldo_anterior": saldo_anterior, "total_a_pagar": total_a_pagar,
+        })
+
+    total_endividamento = totais_por_mes.get(competencia, 0.0)
+    desembolso_total = sum(p["desembolso_mensal"] or 0 for p in parcelamentos)
+    total_saldo_anterior = sum(l["saldo_anterior"] for l in linhas)
+    total_a_pagar_geral = sum(l["total_a_pagar"] for l in linhas)
+
+    # ROB acumulada (Jan -> competência de referência), mesmo padrão YTD já
+    # usado no Dashboard/DRE
+    meses_ano_ref = [f"{competencia[:4]}-{m:02d}" for m in range(1, int(competencia[5:7]) + 1)]
+    rob_acumulada = 0.0
+    for c in meses_ano_ref:
+        try:
+            rob_acumulada += calcular_dre(empresa_id, c).get("ROB", 0) or 0
+        except Exception:
+            pass
+
+    pct_endividamento_rob = (total_endividamento / rob_acumulada * 100) if rob_acumulada else None
+
+    return render_template(
+        "endividamento.html",
+        empresa=empresa, competencia=competencia,
+        mes_label_atual=_mes_label(competencia),
+        competencias=competencias_disp,
+        janela=janela, meses_param=meses_param,
+        linhas=linhas, totais_por_mes=totais_por_mes,
+        totais_pagos_por_mes=totais_pagos_por_mes,
+        total_endividamento=total_endividamento,
+        rob_acumulada=rob_acumulada,
+        desembolso_total=desembolso_total,
+        pct_endividamento_rob=pct_endividamento_rob,
+        mes_label_anterior=_mes_label(mes_referencia_anterior),
+        total_saldo_anterior=total_saldo_anterior,
+        total_a_pagar_geral=total_a_pagar_geral,
+    )
+
+
+# --- ROTAS: ENDIVIDAMENTO BANCÁRIO -------------------------------------------
+# Diferente do Endividamento Tributário (upload de CSV mensal/snapshot), aqui
+# o cadastro é manual e raro -- layout de planilha de banco pra banco é
+# inconsistente demais pra valer um parser automático (ver decisão tomada com
+# o usuário). Saldo devedor e total pago são calculados em tempo real a
+# partir do Razão, mesmo padrão do Endividamento Tributário.
+
+@app.route("/endividamento-bancario/cadastro", methods=["GET", "POST"])
+@login_required
+@admin_required
+def endividamento_bancario_cadastro():
+    if request.method == "POST":
+        empresa_chave = request.form.get("empresa", "gnileb")
+        emp = EMPRESAS.get(empresa_chave)
+        if not emp:
+            flash("Empresa inválida.", "danger")
+            return redirect(url_for("endividamento_bancario_cadastro"))
+
+        def _num(campo):
+            txt = request.form.get(campo, "").strip()
+            if not txt:
+                return None
+            return float(txt.replace(".", "").replace(",", "."))
+
+        try:
+            banco       = request.form.get("banco", "").strip()
+            descricao   = request.form.get("descricao", "").strip() or None
+            conta_cp_p  = request.form.get("conta_cp_principal", "").strip()
+            conta_cp_j  = request.form.get("conta_cp_juros", "").strip() or None
+            conta_lp_p  = request.form.get("conta_lp_principal", "").strip() or None
+            conta_lp_j  = request.form.get("conta_lp_juros", "").strip() or None
+            valor_contratado       = _num("valor_contratado")
+            valor_total_com_juros  = _num("valor_total_com_juros")
+            qtd_parcelas_txt       = request.form.get("qtd_parcelas", "").strip()
+            qtd_parcelas           = int(qtd_parcelas_txt) if qtd_parcelas_txt else None
+            data_primeira_parcela  = request.form.get("data_primeira_parcela", "").strip()
+        except ValueError as e:
+            flash(f"Valor numérico inválido: {e}", "danger")
+            return redirect(url_for("endividamento_bancario_cadastro"))
+
+        if not (banco and conta_cp_p and valor_contratado and qtd_parcelas and data_primeira_parcela):
+            flash(
+                "Preencha banco, conta CP principal, valor contratado, "
+                "qtd. parcelas e data da 1ª parcela.", "warning"
+            )
+            return redirect(url_for("endividamento_bancario_cadastro"))
+
+        conn = get_conn()
+        criar_schema(conn)
+        conn.execute(
+            """
+            INSERT INTO emprestimos_bancarios
+                (empresa_id, banco, descricao, conta_cp_principal, conta_cp_juros,
+                 conta_lp_principal, conta_lp_juros, valor_contratado,
+                 valor_total_com_juros, qtd_parcelas, data_primeira_parcela)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (emp["id"], banco, descricao, conta_cp_p, conta_cp_j,
+             conta_lp_p, conta_lp_j, valor_contratado, valor_total_com_juros,
+             qtd_parcelas, data_primeira_parcela),
+        )
+        conn.commit()
+        conn.close()
+        flash(f"Empréstimo \"{banco}\" cadastrado para {emp['sigla']}.", "success")
+        return redirect(url_for("endividamento_bancario", empresa=empresa_chave))
+
+    conn = get_conn()
+    criar_schema(conn)
+    cadastrados = conn.execute(
+        """
+        SELECT eb.id, e.sigla, eb.banco, eb.descricao, eb.valor_contratado, eb.qtd_parcelas,
+               (SELECT COUNT(*) FROM emprestimos_parcelas ep WHERE ep.emprestimo_id = eb.id) AS qtd_cronograma
+        FROM emprestimos_bancarios eb JOIN empresas e ON e.id = eb.empresa_id
+        ORDER BY eb.criado_em DESC
+        """
+    ).fetchall()
+    conn.close()
+    return render_template(
+        "endividamento_bancario_cadastro.html",
+        cadastrados=cadastrados, EMPRESAS=EMPRESAS,
+    )
+
+
+@app.route("/endividamento-bancario/cronograma/<int:emprestimo_id>", methods=["POST"])
+@login_required
+@admin_required
+def endividamento_bancario_cronograma(emprestimo_id):
+    arquivo = request.files.get("arquivo_cronograma")
+    if not arquivo or not arquivo.filename:
+        flash("Selecione a planilha de simulação/cronograma do banco (.xlsx).", "warning")
+        return redirect(url_for("endividamento_bancario_cadastro"))
+
+    import tempfile, os
+    ext = Path(arquivo.filename).suffix
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+        arquivo.save(tmp.name)
+        tmp_path = Path(tmp.name)
+
+    try:
+        conn = get_conn()
+        criar_schema(conn)
+        res = importar_cronograma(tmp_path, emprestimo_id, conn)
+        conn.close()
+        if "erro" in res:
+            flash(f"Erro ao importar cronograma: {res['erro']}", "danger")
+        else:
+            flash(
+                f"Cronograma importado: {res['registros']} parcelas "
+                f"({res['competencia_ini']} a {res['competencia_fim']}).", "success"
+            )
+    except Exception as e:
+        flash(f"Erro ao importar cronograma: {e}", "danger")
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+    return redirect(url_for("endividamento_bancario_cadastro"))
+
+
+@app.route("/endividamento-bancario/<empresa>")
+@login_required
+def endividamento_bancario(empresa):
+    empresa_valida = empresa if empresa in EMPRESAS else "gnileb"
+    emp_id = EMPRESAS[empresa_valida]["id"]
+
+    conn = get_conn()
+    criar_schema(conn)
+    emprestimos = conn.execute(
+        "SELECT * FROM emprestimos_bancarios WHERE empresa_id=? ORDER BY criado_em",
+        (emp_id,)
+    ).fetchall()
+
+    def _saldo_atual(conta):
+        if not conta:
+            return None
+        r = conn.execute(
+            "SELECT saldo_atual FROM razao WHERE empresa_id=? AND conta_cod=? "
+            "AND saldo_atual IS NOT NULL ORDER BY competencia DESC, data_lanc DESC, id DESC LIMIT 1",
+            (emp_id, conta)
+        ).fetchone()
+        return r["saldo_atual"] if r else None
+
+    ref_competencia = _ref_competencia_razao(conn, emp_id)
+
+    linhas = []
+    for e in emprestimos:
+        parcelas = conn.execute(
+            "SELECT * FROM emprestimos_parcelas WHERE emprestimo_id=? ORDER BY numero_parcela",
+            (e["id"],)
+        ).fetchall()
+
+        s_cp_p = _saldo_atual(e["conta_cp_principal"])
+        s_cp_j = _saldo_atual(e["conta_cp_juros"])
+        s_lp_p = _saldo_atual(e["conta_lp_principal"])
+        s_lp_j = _saldo_atual(e["conta_lp_juros"])
+
+        # Saldo a pagar (líquido) = soma das contas de principal (saldo
+        # positivo = passivo em aberto) + contas de juros a apropriar (saldo
+        # já negativo, contra-conta -- soma reduz o bruto ao líquido).
+        tem_razao = any(v is not None for v in (s_cp_p, s_cp_j, s_lp_p, s_lp_j))
+
+        detalhe = []
+        if tem_razao:
+            # Razão disponível -- fonte oficial (ver Endividamento Tributário)
+            saldo_a_pagar = (s_cp_p or 0) + (s_cp_j or 0) + (s_lp_p or 0) + (s_lp_j or 0)
+            total_pago    = e["valor_contratado"] - saldo_a_pagar
+            parcelas_pagas    = sum(1 for p in parcelas if p["competencia"] <= ref_competencia)
+            parcelas_a_pagar  = e["qtd_parcelas"] - parcelas_pagas
+            valor_parcela_atual = next(
+                (p["valor_parcela"] for p in parcelas if p["competencia"] > ref_competencia),
+                parcelas[-1]["valor_parcela"] if parcelas else None,
+            )
+        elif parcelas:
+            # Sem Razão ainda -- usa o cronograma de amortização do contrato
+            # (planilha do banco) como fonte do detalhamento mês a mês.
+            pagas = [p for p in parcelas if p["competencia"] <= ref_competencia]
+            futuras = [p for p in parcelas if p["competencia"] > ref_competencia]
+            parcelas_pagas   = len(pagas)
+            parcelas_a_pagar = len(futuras)
+            saldo_a_pagar = pagas[-1]["saldo_devedor"] if pagas else e["valor_contratado"]
+            total_pago    = e["valor_contratado"] - saldo_a_pagar
+            valor_parcela_atual = (futuras[0]["valor_parcela"] if futuras
+                                    else (pagas[-1]["valor_parcela"] if pagas else None))
+        else:
+            parcelas_pagas = parcelas_a_pagar = saldo_a_pagar = total_pago = valor_parcela_atual = None
+
+        for p in parcelas:
+            detalhe.append({
+                "numero_parcela": p["numero_parcela"], "competencia": p["competencia"],
+                "amortizacao": p["amortizacao"], "juros": p["juros"],
+                "saldo_devedor": p["saldo_devedor"], "valor_parcela": p["valor_parcela"],
+                "paga": p["competencia"] <= ref_competencia,
+            })
+
+        linhas.append({
+            "id": e["id"], "banco": e["banco"], "descricao": e["descricao"],
+            "valor_contratado": e["valor_contratado"],
+            "valor_total_com_juros": e["valor_total_com_juros"],
+            "qtd_parcelas": e["qtd_parcelas"],
+            "parcelas_pagas": parcelas_pagas,
+            "parcelas_a_pagar": parcelas_a_pagar,
+            "saldo_a_pagar": saldo_a_pagar,
+            "total_pago": total_pago,
+            "valor_parcela_atual": valor_parcela_atual,
+            "tem_dados": tem_razao or bool(parcelas),
+            "fonte": "Razão" if tem_razao else ("Cronograma do contrato" if parcelas else None),
+            "detalhe": detalhe,
+        })
+
+    conn.close()
+
+    total_contratado      = sum(l["valor_contratado"] for l in linhas)
+    total_pago_geral       = sum(l["total_pago"] or 0 for l in linhas if l["tem_dados"])
+    total_saldo_geral      = sum(l["saldo_a_pagar"] or 0 for l in linhas if l["tem_dados"])
+    parcelas_a_pagar_total = sum(l["parcelas_a_pagar"] or 0 for l in linhas if l["tem_dados"])
+
+    return render_template(
+        "endividamento_bancario.html",
+        empresa=empresa_valida, linhas=linhas,
+        ref_competencia=ref_competencia,
+        total_contratado=total_contratado,
+        total_pago_geral=total_pago_geral,
+        total_saldo_geral=total_saldo_geral,
+        parcelas_a_pagar_total=parcelas_a_pagar_total,
+        algum_sem_dados=any(not l["tem_dados"] for l in linhas),
+    )
 
 
 # --- MAIN --------------------------------------------------------------------

@@ -2,52 +2,207 @@
 {% block title %}Receita por Cliente — {{ EMPRESAS[empresa].sigla }}{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-    <div>
-      <h1>💼 Receita por Cliente</h1>
-      <p class="subtitle">Receita Bruta (3.1.1.x) segregada por cliente, nota fiscal e mês — fonte: Razão Contábil (CT1)</p>
-    </div>
+<style>
+/* ── Receita por Cliente · estilos da página ─────────────────────────────── */
 
-    {# ── Seletor de empresa ─────────────────────────────────────────────── #}
-    <div class="toggle-dre-tipo">
-      {% for chave, emp in EMPRESAS.items() %}
-        <a href="{{ url_for('receita_clientes', empresa=chave, de=comp_ini, ate=comp_fim) }}"
-           class="btn-toggle-tipo {% if empresa == chave %}ativo{% endif %}">
-          {{ emp.sigla }}
-        </a>
-      {% endfor %}
-    </div>
+/* Cabeçalho */
+.rc-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:20px; }
+.rc-title  { font-size:20px; font-weight:700; color:var(--primary); letter-spacing:-.2px; }
+.rc-sub    { font-size:12px; color:var(--muted); margin-top:3px; }
+
+/* Barra de filtro */
+.rc-filter-bar { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
+.rc-filter-group { display:flex; align-items:center; gap:6px; }
+.rc-filter-label { font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; }
+.rc-select {
+  padding:6px 10px; border:1px solid var(--border); border-radius:6px;
+  font-size:12px; background:var(--card2); color:var(--text); cursor:pointer; outline:none;
+}
+.rc-select:focus { border-color:var(--accent); }
+.rc-filter-sep { flex:1; min-width:8px; }
+.rc-search {
+  padding:7px 12px 7px 32px; border:1px solid var(--border); border-radius:6px;
+  font-size:12px; background:var(--card2); color:var(--text); min-width:220px; outline:none;
+  transition:border-color .15s;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b6b9a' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:10px center;
+}
+.rc-search:focus { border-color:var(--accent); }
+.rc-search::placeholder { color:var(--muted); }
+
+/* KPIs */
+.rc-kpi-row { display:grid; grid-template-columns:1fr 1fr 2fr; gap:12px; margin-bottom:20px; }
+.rc-kpi {
+  background:var(--card2); border:1px solid var(--border);
+  border-radius:10px; padding:16px 20px;
+  display:flex; flex-direction:column; gap:3px;
+}
+.rc-kpi-accent { border-color:rgba(167,139,250,.4); }
+.rc-kpi-label  { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; color:var(--muted); margin-bottom:2px; }
+.rc-kpi-value  { font-size:24px; font-weight:700; color:var(--text); line-height:1.15; }
+.rc-kpi-name   { font-size:16px; }
+.rc-kpi-sub    { font-size:11px; color:var(--muted); margin-top:1px; }
+.rc-kpi-bar-wrap { height:3px; background:var(--border); border-radius:2px; margin-top:10px; }
+.rc-kpi-bar    { height:100%; background:var(--accent); border-radius:2px; transition:width .5s; }
+
+/* Card da tabela -- SEM overflow:hidden: quebra position:sticky nos <th>
+   (um ancestral com overflow diferente de visible confina/quebra o sticky
+   dos filhos). Os cantos arredondados ficam só no header/rodapé abaixo. */
+.rc-card { background:var(--card2); border:1px solid var(--border); border-radius:10px; margin-bottom:20px; }
+.rc-card-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 18px; border-bottom:1px solid var(--border);
+  background:rgba(139,92,246,.03);
+  border-radius:10px 10px 0 0;
+}
+.rc-card-meta  { display:flex; align-items:center; gap:8px; }
+.rc-period     { font-size:13px; font-weight:700; color:var(--primary); }
+.rc-badge      {
+  font-size:10px; color:var(--muted);
+  background:rgba(139,92,246,.1); border:1px solid rgba(139,92,246,.2);
+  border-radius:10px; padding:2px 8px;
+}
+.rc-actions    { display:flex; gap:6px; }
+.rc-btn-sm {
+  font-size:11px; font-weight:600; color:var(--muted);
+  background:none; border:1px solid var(--border); border-radius:5px;
+  padding:4px 10px; cursor:pointer; transition:all .15s;
+}
+.rc-btn-sm:hover { border-color:var(--accent); color:var(--primary); background:rgba(139,92,246,.08); }
+
+/* Tabela -- cabeçalho ESTÁTICO (sem position:sticky): em tabelas com
+   border-collapse, sticky em th/thead renderizou fora de posição em mais
+   de uma tentativa de ajuste; removido para garantir que o cabeçalho fique
+   sempre, de forma confiável, antes de todas as linhas. */
+.rc-table { width:100%; border-collapse:collapse; font-size:12px; }
+.rc-table th {
+  padding:8px 10px; background:var(--card2);
+  border-bottom:2px solid var(--border);
+  font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px;
+  color:var(--muted); white-space:nowrap; text-align:right;
+}
+.rc-table th.th-left  { text-align:left; min-width:220px; }
+.rc-table th.th-pct   { font-size:8.5px; color:rgba(107,107,154,.45); width:46px; }
+.rc-table th.th-total {
+  border-left:1px solid rgba(52,211,153,.2);
+  background:rgba(52,211,153,.04);
+}
+.th-sort { font-weight:400; color:rgba(107,107,154,.35); text-transform:none; letter-spacing:0; font-size:9px; margin-left:3px; }
+
+/* Linha de cliente */
+.rc-cli td { padding:9px 10px; border-bottom:1px solid var(--border); }
+.rc-cli { cursor:pointer; }
+.rc-cli:hover td { background-color:rgba(139,92,246,.06); }
+.rc-cli.grupo-expandido td { background-color:rgba(139,92,246,.09); }
+.rc-cli-nome { display:flex; align-items:center; gap:6px; font-weight:600; color:var(--text); }
+
+/* Rank badge */
+.rc-rank {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:17px; height:17px; border-radius:50%;
+  font-size:9px; font-weight:800; flex-shrink:0;
+}
+.rc-rank-1 { background:rgba(251,191,36,.18); color:#f59e0b; border:1px solid rgba(251,191,36,.35); }
+.rc-rank-2 { background:rgba(148,163,184,.12); color:#94a3b8; border:1px solid rgba(148,163,184,.3); }
+.rc-rank-3 { background:rgba(180,120,90,.12);  color:#c08060; border:1px solid rgba(180,120,90,.25); }
+
+/* Células numéricas */
+.rc-num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.rc-num-total {
+  text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; font-weight:700;
+  border-left:1px solid rgba(52,211,153,.2);
+  background-color:rgba(52,211,153,.04) !important;
+}
+
+/* AV% com barra de fundo (CSS variable trick) */
+.rc-pct {
+  text-align:right; font-size:10px; color:rgba(107,107,154,.8); white-space:nowrap;
+  background-image:linear-gradient(to right, rgba(167,139,250,.1) var(--bar,0%), transparent var(--bar,0%));
+}
+.rc-pct-total {
+  text-align:right; font-size:10px; color:rgba(107,107,154,.8); white-space:nowrap;
+  border-left:1px solid rgba(52,211,153,.2);
+  background-color:rgba(52,211,153,.04) !important;
+}
+
+/* Linhas de NF */
+.rc-nf-hdr th {
+  background:#0a0a1b; padding:5px 10px; font-size:9px;
+  text-transform:uppercase; letter-spacing:.35px; color:var(--muted);
+  border-bottom:1px solid #1a1a2e; text-align:right;
+}
+.rc-nf-hdr th:first-child { text-align:left; padding-left:36px; }
+.rc-nf td {
+  background:#0d0d1e; border-bottom:1px solid #13132a;
+  padding:5px 10px; font-size:11px;
+}
+.rc-nf:hover td { background:#111128; }
+.rc-nf-nome { padding-left:36px !important; color:var(--muted); }
+
+/* Tfoot total -- última linha visual do card (overflow:hidden foi removido
+   do .rc-card por causa do sticky, então arredonda aqui nas pontas) */
+.rc-total td {
+  padding:10px 10px; background:var(--row-res);
+  font-weight:700; border-top:2px solid rgba(139,92,246,.25);
+}
+.rc-total td:first-child { border-radius:0 0 0 10px; }
+.rc-total td:last-child  { border-radius:0 0 10px 0; }
+.rc-total-label { font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:var(--primary); }
+
+/* Footnote */
+.rc-footnote { font-size:11px; color:var(--muted); margin-top:10px; line-height:1.6; }
+.rc-footnote code { font-family:monospace; font-size:10px; background:rgba(139,92,246,.1); padding:1px 4px; border-radius:3px; }
+
+@media (max-width:860px) {
+  .rc-kpi-row { grid-template-columns:1fr 1fr; }
+  .rc-kpi-accent { grid-column:span 2; }
+}
+</style>
+
+{# ── Cabeçalho ─────────────────────────────────────────────────────────────── #}
+<div class="rc-header">
+  <div>
+    <h1 class="rc-title">💼 Receita por Cliente</h1>
+    <p class="rc-sub">Receita Bruta (3.1.1.x) · por nota fiscal e mês · fonte: Razão Contábil CT1</p>
+  </div>
+  <div class="toggle-dre-tipo">
+    {% for chave, emp in EMPRESAS.items() %}
+      <a href="{{ url_for('receita_clientes', empresa=chave, de=comp_ini, ate=comp_fim) }}"
+         class="btn-toggle-tipo {% if empresa == chave %}ativo{% endif %}">
+        {{ emp.sigla }}
+      </a>
+    {% endfor %}
   </div>
 </div>
 
-{# ── Filtro de período ────────────────────────────────────────────────────── #}
-<form method="GET" action="{{ url_for('receita_clientes', empresa=empresa) }}" class="mes-selector" style="gap:10px">
-  <span class="selector-label">Período:</span>
-  <select name="de" class="input-sm" onchange="this.form.submit()">
-    {% for comp in competencias %}
-      <option value="{{ comp }}" {% if comp == comp_ini %}selected{% endif %}>{{ mes_label(comp) }}</option>
-    {% endfor %}
-  </select>
-  <span class="selector-label">até</span>
-  <select name="ate" class="input-sm" onchange="this.form.submit()">
-    {% for comp in competencias %}
-      <option value="{{ comp }}" {% if comp == comp_fim %}selected{% endif %}>{{ mes_label(comp) }}</option>
-    {% endfor %}
-  </select>
-  <noscript><button type="submit" class="btn btn-sm btn-secondary">Filtrar</button></noscript>
-
-  <span class="sep-emp">|</span>
-  <input type="text" id="busca-cliente" class="input-sm" placeholder="🔍 Buscar cliente..."
-         oninput="filtrarClientes(this.value)" style="min-width:220px">
+{# ── Filtro de período ─────────────────────────────────────────────────────── #}
+<form method="GET" action="{{ url_for('receita_clientes', empresa=empresa) }}" class="rc-filter-bar">
+  <div class="rc-filter-group">
+    <span class="rc-filter-label">De</span>
+    <select name="de" class="rc-select" onchange="this.form.submit()">
+      {% for comp in competencias %}
+        <option value="{{ comp }}" {% if comp == comp_ini %}selected{% endif %}>{{ mes_label(comp) }}</option>
+      {% endfor %}
+    </select>
+    <span class="rc-filter-label">até</span>
+    <select name="ate" class="rc-select" onchange="this.form.submit()">
+      {% for comp in competencias %}
+        <option value="{{ comp }}" {% if comp == comp_fim %}selected{% endif %}>{{ mes_label(comp) }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="rc-filter-sep"></div>
+  <input type="text" id="busca-cliente" class="rc-search" placeholder="Buscar cliente..."
+         oninput="filtrarClientes(this.value)">
+  <noscript><button type="submit" class="rc-btn-sm">Filtrar</button></noscript>
 </form>
 
-{# ── Alerta: meses sem CT1 ────────────────────────────────────────────────── #}
+{# ── Alerta: meses sem CT1 ─────────────────────────────────────────────────── #}
 {% if analise.competencias_sem_ct1 %}
 <div class="flash-box">
   <div class="flash flash-warning">
-    ⚠️ <strong>{{ analise.competencias_sem_ct1 | length }} mês(es) do período sem Razão (CT1) importado</strong> —
-    não é possível detalhar por cliente nesses meses (apenas saldo agregado disponível via CT2):
+    ⚠️ <strong>{{ analise.competencias_sem_ct1 | length }} mês(es) sem CT1</strong> —
+    detalhamento por cliente indisponível:
     {% for c in analise.competencias_sem_ct1 %}
       <span class="badge-ct2" style="margin-left:4px">{{ mes_label(c) }}</span>
     {% endfor %}
@@ -57,140 +212,154 @@
 {% endif %}
 
 {% if not analise.clientes %}
-<div class="card-full" style="text-align:center;padding:40px">
-  <p class="text-muted">Nenhum lançamento de receita bruta (3.1.1.x) com Razão (CT1) encontrado para
+<div class="card-full" style="text-align:center;padding:48px">
+  <p class="text-muted">Nenhum lançamento de receita bruta (3.1.1.x) com CT1 para
      <strong>{{ EMPRESAS[empresa].sigla }}</strong> no período selecionado.</p>
-  <a href="{{ url_for('ingest') }}" class="btn btn-primary" style="margin-top:10px">⬆ Importar Razão CT1</a>
+  <a href="{{ url_for('ingest') }}" class="btn btn-primary" style="margin-top:12px">⬆ Importar Razão CT1</a>
 </div>
 {% else %}
 
-{# ── Resumo ───────────────────────────────────────────────────────────────── #}
-<div class="kpi-grid" style="margin-bottom:16px">
-  <div class="kpi-card">
-    <span class="kpi-label">Receita Bruta no período</span>
-    <span class="kpi-value">{{ fmt_brl(analise.total_geral) }}</span>
-    <span class="kpi-sub">{{ analise.competencias | length }} mês(es) com CT1 · {{ EMPRESAS[empresa].sigla }}</span>
+{# ── KPIs ──────────────────────────────────────────────────────────────────── #}
+{% set top     = analise.clientes[0] %}
+{% set top_pct = top.total_geral / analise.total_geral * 100 if analise.total_geral else 0 %}
+<div class="rc-kpi-row">
+  <div class="rc-kpi">
+    <span class="rc-kpi-label">Receita Bruta</span>
+    <span class="rc-kpi-value">{{ fmt_brl(analise.total_geral) }}</span>
+    <span class="rc-kpi-sub">{{ analise.competencias | length }} meses · {{ EMPRESAS[empresa].sigla }}</span>
   </div>
-  <div class="kpi-card">
-    <span class="kpi-label">Clientes identificados</span>
-    <span class="kpi-value">{{ analise.clientes | length }}</span>
-    <span class="kpi-sub">via histórico do lançamento (CT1)</span>
+  <div class="rc-kpi">
+    <span class="rc-kpi-label">Clientes</span>
+    <span class="rc-kpi-value">{{ analise.clientes | length }}</span>
+    <span class="rc-kpi-sub">identificados via CT1</span>
   </div>
-  <div class="kpi-card">
-    <span class="kpi-label">Maior cliente</span>
-    {% set top = analise.clientes[0] %}
-    <span class="kpi-value" style="font-size:16px">{{ top.nome }}</span>
-    <span class="kpi-sub">{{ fmt_brl(top.total_geral) }}
-      ({{ "%.1f"|format(top.total_geral / analise.total_geral * 100 if analise.total_geral else 0) }}% do total)</span>
+  <div class="rc-kpi rc-kpi-accent">
+    <span class="rc-kpi-label">Top cliente · 1º lugar</span>
+    <span class="rc-kpi-value rc-kpi-name">{{ top.nome }}</span>
+    <span class="rc-kpi-sub">{{ fmt_brl(top.total_geral) }} · {{ "%.1f"|format(top_pct) }}% do período</span>
+    <div class="rc-kpi-bar-wrap">
+      <div class="rc-kpi-bar" style="width:{{ "%.1f"|format(top_pct) }}%"></div>
+    </div>
   </div>
 </div>
 
 {# ── Tabela pivot: Cliente × Mês ──────────────────────────────────────────── #}
-<div class="card-full">
-  <div class="dre-header-line">
-    <div class="dre-info">
-      <span class="dre-period">{{ mes_label(comp_ini) }} – {{ mes_label(comp_fim) }}</span>
-      <span class="badge-tipo-dre">{{ analise.clientes | length }} clientes · receita bruta (3.1.1.x)</span>
+<div class="rc-card">
+  <div class="rc-card-header">
+    <div class="rc-card-meta">
+      <span class="rc-period">{{ mes_label(comp_ini) }} – {{ mes_label(comp_fim) }}</span>
+      <span class="rc-badge">{{ analise.clientes | length }} clientes · receita bruta (3.1.1.x)</span>
     </div>
-    <div class="dre-actions">
-      <button class="btn btn-sm btn-secondary" onclick="expandirTodosClientes(true)">⊞ Expandir todos</button>
-      <button class="btn btn-sm btn-secondary" onclick="expandirTodosClientes(false)">⊟ Recolher todos</button>
+    <div class="rc-actions">
+      <button class="rc-btn-sm" onclick="expandirTodosClientes(true)">⊞ Expandir todos</button>
+      <button class="rc-btn-sm" onclick="expandirTodosClientes(false)">⊟ Recolher</button>
     </div>
   </div>
 
   <div class="table-scroll">
-  <table class="table-dre" id="tabela-clientes">
+  <table class="rc-table" id="tabela-clientes">
     <thead>
       <tr>
-        <th class="col-linha">Cliente</th>
+        <th class="th-left">Cliente <span class="th-sort">↓ faturamento</span></th>
         {% for comp in analise.competencias %}
-          <th class="num">{{ mes_label(comp) }}</th>
+          <th>{{ mes_label(comp) }}</th>
+          <th class="th-pct" title="Análise Vertical — % do total do mês">AV%</th>
         {% endfor %}
-        <th class="num col-acum">Total</th>
-        <th class="num col-acum">% do Total</th>
+        <th class="th-total">Total</th>
+        <th class="th-pct th-total" title="AV% no período">AV%</th>
       </tr>
     </thead>
     <tbody>
       {% for cli in analise.clientes %}
-      {% set safe_id = "cli-" ~ loop.index %}
-      <tr class="dre-row dre-grupo cliente-row" data-cliente="{{ safe_id }}"
-          onclick="toggleCliente(this)">
-        <td class="col-linha">
-          <span class="expand-icon" id="icon-{{ safe_id }}">▶</span>
-          <span class="cliente-nome">{{ cli.nome }}</span>
-          {% if cli.nome | length == 20 %}
-            <span class="badge-ct2" title="Nome possivelmente truncado pela exportação do Protheus (campo histórico com largura fixa)">truncado?</span>
-          {% endif %}
+      {% set safe_id  = "cli-" ~ loop.index %}
+      {% set cli_pct  = cli.total_geral / analise.total_geral * 100 if analise.total_geral else 0 %}
+      <tr class="rc-cli cliente-row" data-cliente="{{ safe_id }}" onclick="toggleCliente(this)">
+        <td>
+          <div class="rc-cli-nome">
+            {% if loop.index <= 3 %}
+              <span class="rc-rank rc-rank-{{ loop.index }}">{{ loop.index }}</span>
+            {% endif %}
+            <span class="expand-icon" id="icon-{{ safe_id }}">▶</span>
+            <span class="cliente-nome">{{ cli.nome }}</span>
+            {% if cli.nome | length == 20 %}
+              <span class="badge-ct2" title="Nome possivelmente truncado (campo histórico Protheus)">?</span>
+            {% endif %}
+          </div>
         </td>
         {% for comp in analise.competencias %}
-          <td class="num">{{ fmt_brl(cli.totais.get(comp, 0.0)) if cli.totais.get(comp) else "—" }}</td>
+          {% set v_cli = cli.totais.get(comp, 0.0) %}
+          {% set t_mes = analise.totais_mes.get(comp, 0) %}
+          {% set pct   = v_cli / t_mes * 100 if t_mes else 0 %}
+          <td class="rc-num">{{ fmt_brl(v_cli) if v_cli else "—" }}</td>
+          <td class="rc-pct" style="--bar:{{ "%.1f"|format(pct) }}%">{{ "%.1f"|format(pct) }}%</td>
         {% endfor %}
-        <td class="num fw-600">{{ fmt_brl(cli.total_geral) }}</td>
-        <td class="num pct-col">
-          {{ "%.1f"|format(cli.total_geral / analise.total_geral * 100 if analise.total_geral else 0) }}%
-        </td>
+        <td class="rc-num-total">{{ fmt_brl(cli.total_geral) }}</td>
+        <td class="rc-pct-total">{{ "%.1f"|format(cli_pct) }}%</td>
       </tr>
 
-      {# ── Notas fiscais do cliente (expansível) ─────────────────────────── #}
-      <tr class="dre-filha dre-filha-hdr" id="hdr-{{ safe_id }}" style="display:none">
-        <th class="indent-1">Nota Fiscal</th>
+      {# ── Notas fiscais (expansível) ──────────────────────────────────────── #}
+      <tr class="rc-nf-hdr" id="hdr-{{ safe_id }}" style="display:none">
+        <th>Nota Fiscal</th>
         {% for comp in analise.competencias %}
-          <th class="num col-sub">{{ mes_label(comp) }}</th>
+          <th>{{ mes_label(comp) }}</th>
+          <th class="th-pct">AV%</th>
         {% endfor %}
-        <th class="num col-sub">Total</th>
-        <th class="col-sub"></th>
+        <th>Total</th>
+        <th></th>
       </tr>
       {% for nf in cli.notas %}
-      <tr class="dre-filha" id="{{ safe_id }}-{{ loop.index }}" style="display:none">
-        <td class="indent-1">
+      <tr class="rc-nf" id="{{ safe_id }}-{{ loop.index }}" style="display:none">
+        <td class="rc-nf-nome">
           <span class="conta-cod">NF {{ nf.numero }}</span>
           {% if nf.data %}
             <span class="conta-desc">{{ nf.data[8:10] }}/{{ nf.data[5:7] }}/{{ nf.data[0:4] }}</span>
           {% endif %}
         </td>
         {% for comp in analise.competencias %}
-          <td class="num">{{ fmt_brl(nf.totais.get(comp, 0.0)) if nf.totais.get(comp) else "—" }}</td>
+          {% set v_nf = nf.totais.get(comp, 0.0) %}
+          {% set t_mes = analise.totais_mes.get(comp, 0) %}
+          {% set pct   = v_nf / t_mes * 100 if t_mes else 0 %}
+          <td class="rc-num">{{ fmt_brl(v_nf) if v_nf else "—" }}</td>
+          <td class="rc-pct" style="--bar:{{ "%.1f"|format(pct) }}%; font-size:9.5px">{{ "%.1f"|format(pct) }}%</td>
         {% endfor %}
-        <td class="num fw-600">{{ fmt_brl(nf.total_geral) }}</td>
+        <td class="rc-num" style="font-weight:600">{{ fmt_brl(nf.total_geral) }}</td>
         <td></td>
       </tr>
       {% endfor %}
       {% endfor %}
     </tbody>
     <tfoot>
-      <tr class="dre-row dre-resultado">
-        <td class="col-linha fw-600">TOTAL — {{ EMPRESAS[empresa].sigla }}</td>
+      <tr class="rc-total">
+        <td><span class="rc-total-label">Total · {{ EMPRESAS[empresa].sigla }}</span></td>
         {% for comp in analise.competencias %}
-          <td class="num fw-600">{{ fmt_brl(analise.totais_mes.get(comp, 0.0)) }}</td>
+          <td class="rc-num">{{ fmt_brl(analise.totais_mes.get(comp, 0.0)) }}</td>
+          <td style="text-align:right;font-size:10px;color:var(--muted)">100%</td>
         {% endfor %}
-        <td class="num fw-600">{{ fmt_brl(analise.total_geral) }}</td>
-        <td class="num fw-600">100,0%</td>
+        <td class="rc-num">{{ fmt_brl(analise.total_geral) }}</td>
+        <td style="text-align:right;font-size:10px;color:var(--muted)">100%</td>
       </tr>
     </tfoot>
   </table>
   </div>
 </div>
 
-<p class="text-muted" style="font-size:12px;margin-top:10px">
-  ℹ️ O nome do cliente é extraído do campo <em>histórico</em> do lançamento Protheus
-  (padrão <code>VL.NF.&lt;número&gt; - &lt;CLIENTE&gt;</code>). Esse campo tem largura fixa na origem,
-  então nomes longos podem aparecer truncados de forma diferente entre lançamentos
-  (marcados com <span class="badge-ct2">truncado?</span>) — não há como recuperar o nome completo
-  apenas a partir deste dado.
+<p class="rc-footnote">
+  ℹ️ Nome do cliente extraído do campo <em>histórico</em> do lançamento Protheus
+  (padrão <code>VL.NF.&lt;número&gt; - &lt;CLIENTE&gt;</code>). Largura fixa na origem —
+  nomes longos podem aparecer truncados (marcados com <span class="badge-ct2">?</span>).
 </p>
 
 {% endif %}
-
 {% endblock %}
 
 {% block scripts %}
 <script>
 function toggleCliente(row) {
-  const id   = row.dataset.cliente;
-  const hdr  = document.getElementById(`hdr-${id}`);
-  const icon = document.getElementById(`icon-${id}`);
+  const id     = row.dataset.cliente;
+  const hdr    = document.getElementById(`hdr-${id}`);
+  const icon   = document.getElementById(`icon-${id}`);
   const filhas = document.querySelectorAll(`[id^="${id}-"]`);
-  const abrir = !hdr || hdr.style.display === 'none';
+  const abrir  = !hdr || hdr.style.display === 'none';
   if (hdr) hdr.style.display = abrir ? '' : 'none';
   filhas.forEach(r => { r.style.display = abrir ? '' : 'none'; });
   if (icon) icon.textContent = abrir ? '▼' : '▶';
@@ -199,9 +368,9 @@ function toggleCliente(row) {
 
 function expandirTodosClientes(abrir) {
   document.querySelectorAll('.cliente-row').forEach(row => {
-    const id   = row.dataset.cliente;
-    const hdr  = document.getElementById(`hdr-${id}`);
-    const icon = document.getElementById(`icon-${id}`);
+    const id     = row.dataset.cliente;
+    const hdr    = document.getElementById(`hdr-${id}`);
+    const icon   = document.getElementById(`icon-${id}`);
     const filhas = document.querySelectorAll(`[id^="${id}-"]`);
     if (hdr) hdr.style.display = abrir ? '' : 'none';
     filhas.forEach(r => { r.style.display = abrir ? '' : 'none'; });
@@ -216,7 +385,6 @@ function filtrarClientes(termo) {
     const nome = row.querySelector('.cliente-nome').textContent.toLowerCase();
     const bate = !t || nome.includes(t);
     row.style.display = bate ? '' : 'none';
-    // Esconde também as linhas-filha se o cliente estiver oculto
     const id = row.dataset.cliente;
     if (!bate) {
       const hdr = document.getElementById(`hdr-${id}`);

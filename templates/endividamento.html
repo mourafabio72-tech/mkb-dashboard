@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Endividamento Tributário — {{ mes_label_atual }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🧾 Endividamento Tributário</h1>
+  <p class="subtitle">
+    Empresa: <strong>{{ empresa | upper }}</strong> &nbsp;|&nbsp;
+    Referência: <strong>{{ mes_label_atual }}</strong>
+  </p>
+</div>
+
+{# ── Seletor de mês de referência + empresa ───────────────────────────── #}
+<div class="mes-selector">
+  <span class="selector-label">Mês de referência:</span>
+  {% for comp in competencias %}
+    <a href="{{ url_for('endividamento', empresa=empresa, competencia=comp, meses=meses_param) }}"
+       class="btn-mes {% if comp == competencia %}btn-mes-ativo{% endif %}">
+      {{ mes_label(comp) }}
+    </a>
+  {% endfor %}
+  <span class="sep-emp">|</span>
+  <span class="selector-label">Empresa:</span>
+  <a href="{{ url_for('endividamento', empresa='mkb', competencia=competencia, meses=meses_param) }}"
+     class="btn-mes {% if empresa == 'mkb' %}btn-mes-ativo{% endif %}">MKB</a>
+  <a href="{{ url_for('endividamento', empresa='gnileb', competencia=competencia, meses=meses_param) }}"
+     class="btn-mes {% if empresa == 'gnileb' %}btn-mes-ativo{% endif %}">Gnileb</a>
+</div>
+
+{# ── Seletor de período da tabela comparativa ─────────────────────────── #}
+<div class="mes-selector">
+  <span class="selector-label">Período:</span>
+  <a href="{{ url_for('endividamento', empresa=empresa, competencia=competencia, meses='ano') }}"
+     class="btn-mes {% if meses_param == 'ano' %}btn-mes-ativo{% endif %}">
+    Jan a {{ mes_label_atual.split('/')[0] }} (ano atual)
+  </a>
+  <a href="{{ url_for('endividamento', empresa=empresa, competencia=competencia, meses='todas') }}"
+     class="btn-mes {% if meses_param == 'todas' %}btn-mes-ativo{% endif %}">
+    Todas as competências
+  </a>
+</div>
+
+{# ── Cards de resumo ──────────────────────────────────────────────────── #}
+<div class="kpi-grid">
+  <div class="kpi-card kpi-highlight">
+    <div class="kpi-label">Total Endividamento — {{ mes_label_atual }}</div>
+    <div class="kpi-value">{{ total_endividamento | brl }}</div>
+    <div class="kpi-sub">Soma do saldo devedor (CP + LP) de todos os parcelamentos</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Receita Bruta Acumulada (ano)</div>
+    <div class="kpi-value">{{ rob_acumulada | brl }}</div>
+    <div class="kpi-sub">Jan a {{ mes_label_atual.split('/')[0] }} — mesma ROB do DRE</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Desembolso Mensal Total</div>
+    <div class="kpi-value">{{ desembolso_total | brl }}</div>
+    <div class="kpi-sub">Soma das parcelas mensais de todos os acordos</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Endividamento ÷ ROB Acumulada</div>
+    <div class="kpi-value">{{ '%.1f'|format(pct_endividamento_rob) ~ '%' if pct_endividamento_rob is not none else '—' }}</div>
+    <div class="kpi-sub">Quanto a dívida representa da receita bruta do ano</div>
+  </div>
+</div>
+
+{# ── Tabela comparativa: valor PAGO da mensalidade por parcelamento × mês #}
+<div class="card-full">
+  {% if linhas %}
+  <table class="table-mensal tabela-irpj">
+    <thead>
+      <tr>
+        <th class="col-linha-m">Parcelamento — Valor Pago no Mês</th>
+        {% for comp in janela %}
+          <th class="num">{{ mes_label(comp) }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in linhas %}
+      <tr>
+        <td class="col-linha-m">{{ l.tributo }}</td>
+        {% for comp in janela %}
+          {% set vp = l.pagos.get(comp) %}
+          <td class="num">{{ vp | brl if vp else '—' }}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+      <tr class="dre-resultado_final">
+        <td class="col-linha-m">TOTAL PAGO NO MÊS</td>
+        {% for comp in janela %}
+          <td class="num">{{ totais_pagos_por_mes.get(comp, 0) | brl }}</td>
+        {% endfor %}
+      </tr>
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-muted" style="padding:20px;">Nenhum parcelamento encontrado para esta competência.</p>
+  {% endif %}
+</div>
+
+{# ── Tabela secundária: metadados de cada parcelamento (mês de referência) #}
+<div class="card-full">
+  <table class="table-simple">
+    <thead>
+      <tr>
+        <th>Parcelamento</th><th>Processo</th><th>Parcelas</th>
+        <th>Início</th><th>Término</th>
+        <th style="text-align:right;">Saldo Anterior ({{ mes_label_anterior }})</th>
+        <th style="text-align:right;">Saldo a Pagar ({{ mes_label_atual }})</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in linhas %}
+      <tr>
+        <td>{{ l.tributo }}</td>
+        <td>{{ l.processo or '—' }}</td>
+        <td>{{ l.parcela_paga }}/{{ l.qtd_parcelas }} ({{ l.faltam }} faltam)</td>
+        <td>{{ l.dt_inicio or '—' }}</td>
+        <td>{{ l.dt_termino or '—' }}</td>
+        <td style="text-align:right;">{{ l.saldo_anterior | brl if l.saldo_anterior else '—' }}</td>
+        <td style="text-align:right;">{{ l.total_a_pagar | brl if l.total_a_pagar else '—' }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="dre-resultado_final">
+        <td colspan="5" class="col-linha-m">TOTAL</td>
+        <td style="text-align:right;">{{ total_saldo_anterior | brl }}</td>
+        <td style="text-align:right;">{{ total_a_pagar_geral | brl }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="info-box" style="margin-top:20px;">
+  Parcelas, datas e processo vêm do snapshot da planilha de vinculação importado para
+  <strong>{{ mes_label_atual }}</strong>. "Saldo Anterior" e "Saldo a Pagar" são o saldo
+  devedor real (razão) das contas de curto e longo prazo de cada parcelamento, calculado em
+  tempo real — não depende de reimportar a vinculação a cada mês.
+  Importar em <a href="{{ url_for('ingest') }}">Importar Dados</a>.
+</div>
+{% endblock %}

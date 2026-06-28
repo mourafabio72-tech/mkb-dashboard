@@ -2,16 +2,29 @@
 {% block title %}Despesas por Fornecedor — {{ EMPRESAS[empresa].sigla }}{% endblock %}
 
 {% block content %}
+<style>
+/* ── Fornecedores · AV% barra de fundo (CSS variable trick) ────────────────── */
+.av-pct {
+  text-align:right; font-size:10px; color:rgba(107,107,154,.8); white-space:nowrap;
+  width:46px;
+  background-image:linear-gradient(to right, rgba(167,139,250,.1) var(--bar,0%), transparent var(--bar,0%));
+}
+.av-pct-total {
+  text-align:right; font-size:10px; font-weight:600; color:var(--muted); white-space:nowrap;
+  background:rgba(52,211,153,.04);
+  border-left:1px solid rgba(52,211,153,.2);
+}
+.av-pct-sub { text-align:right; font-size:9.5px; color:rgba(107,107,154,.65); white-space:nowrap; width:44px; }
+</style>
+
 <div class="page-header">
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
     <div>
       <h1>🧾 Despesas e Custos por Fornecedor</h1>
       <p class="subtitle">Custos e despesas operacionais (4.x) segregados por <strong>conta contábil</strong>
-        (descrição oficial do plano de contas — ex.: "SERV DE INFORMATICA"), fornecedor e mês — fonte: Razão Contábil (CT1).
-        <strong>Não inclui</strong> folha de pagamento, encargos e pró-labore (grupos 4.1.1.01.x / 4.4.1.01.x — já cobertos na análise de DP).</p>
+        (descrição oficial do plano de contas), fornecedor e mês — fonte: Razão Contábil (CT1).
+        <strong>Não inclui</strong> folha de pagamento, encargos e pró-labore (grupos 4.1.1.01.x / 4.4.1.01.x).</p>
     </div>
-
-    {# ── Seletor de empresa ─────────────────────────────────────────────── #}
     <div class="toggle-dre-tipo">
       {% for chave, emp in EMPRESAS.items() %}
         <a href="{{ url_for('despesas_fornecedores', empresa=chave, de=comp_ini, ate=comp_fim, visao=visao, tipo=tipo) }}"
@@ -23,7 +36,7 @@
   </div>
 </div>
 
-{# ── Filtros: período + visão + busca ─────────────────────────────────────── #}
+{# ── Filtros ───────────────────────────────────────────────────────────────── #}
 <form method="GET" action="{{ url_for('despesas_fornecedores', empresa=empresa) }}" class="mes-selector" style="gap:10px;flex-wrap:wrap">
   <span class="selector-label">Período:</span>
   <select name="de" class="input-sm" onchange="this.form.submit()">
@@ -38,14 +51,14 @@
     {% endfor %}
   </select>
   <input type="hidden" name="visao" value="{{ visao }}">
-  <input type="hidden" name="tipo" value="{{ tipo }}">
+  <input type="hidden" name="tipo"  value="{{ tipo }}">
   <noscript><button type="submit" class="btn btn-sm btn-secondary">Filtrar</button></noscript>
 
   <span class="sep-emp">|</span>
   <span class="selector-label">Ver por:</span>
   <div class="toggle-dre-tipo">
-    <a href="{{ url_for('despesas_fornecedores', empresa=empresa, de=comp_ini, ate=comp_fim, visao='grupo', tipo=tipo) }}"
-       class="btn-toggle-tipo {% if visao == 'grupo' %}ativo{% endif %}">Conta Contábil</a>
+    <a href="{{ url_for('despesas_fornecedores', empresa=empresa, de=comp_ini, ate=comp_fim, visao='grupo',      tipo=tipo) }}"
+       class="btn-toggle-tipo {% if visao == 'grupo'      %}ativo{% endif %}">Conta Contábil</a>
     <a href="{{ url_for('despesas_fornecedores', empresa=empresa, de=comp_ini, ate=comp_fim, visao='fornecedor', tipo=tipo) }}"
        class="btn-toggle-tipo {% if visao == 'fornecedor' %}ativo{% endif %}">Fornecedor</a>
   </div>
@@ -53,12 +66,12 @@
   <span class="sep-emp">|</span>
   <span class="selector-label">Tipo:</span>
   <div class="toggle-dre-tipo">
-    <a href="{{ url_for('despesas_fornecedores', empresa=empresa, de=comp_ini, ate=comp_fim, visao=visao, tipo='todos') }}"
-       class="btn-toggle-tipo {% if tipo == 'todos' %}ativo{% endif %}" title="Custos (4.1.x — Custo das Vendas) + Despesas (4.4.x/4.5.x — Administrativas, Financeiras, Outros)">Todos</a>
-    <a href="{{ url_for('despesas_fornecedores', empresa=empresa, de=comp_ini, ate=comp_fim, visao=visao, tipo='custo') }}"
-       class="btn-toggle-tipo {% if tipo == 'custo' %}ativo{% endif %}" title="Apenas contas de Custo das Vendas (4.1.x — material aplicado, serviços, aluguéis, veículos etc. ligados à operação)">Custo</a>
+    <a href="{{ url_for('despesas_fornecedores', empresa=empresa, de=comp_ini, ate=comp_fim, visao=visao, tipo='todos')   }}"
+       class="btn-toggle-tipo {% if tipo == 'todos'   %}ativo{% endif %}" title="Custo (4.1.x) + Despesa (4.4.x/4.5.x)">Todos</a>
+    <a href="{{ url_for('despesas_fornecedores', empresa=empresa, de=comp_ini, ate=comp_fim, visao=visao, tipo='custo')   }}"
+       class="btn-toggle-tipo {% if tipo == 'custo'   %}ativo{% endif %}" title="Apenas Custo das Vendas (4.1.x)">Custo</a>
     <a href="{{ url_for('despesas_fornecedores', empresa=empresa, de=comp_ini, ate=comp_fim, visao=visao, tipo='despesa') }}"
-       class="btn-toggle-tipo {% if tipo == 'despesa' %}ativo{% endif %}" title="Apenas contas de Despesa (4.4.x/4.5.x — administrativas, financeiras/juros, outros resultados, IRPJ/CSLL)">Despesa</a>
+       class="btn-toggle-tipo {% if tipo == 'despesa' %}ativo{% endif %}" title="Apenas Despesa (4.4.x/4.5.x)">Despesa</a>
   </div>
 
   <span class="sep-emp">|</span>
@@ -67,12 +80,12 @@
          oninput="filtrarLinhasPivot(this.value)" style="min-width:220px">
 </form>
 
-{# ── Alerta: meses sem CT1 ────────────────────────────────────────────────── #}
+{# ── Alerta: meses sem CT1 ─────────────────────────────────────────────────── #}
 {% if analise.competencias_sem_ct1 %}
 <div class="flash-box">
   <div class="flash flash-warning">
-    ⚠️ <strong>{{ analise.competencias_sem_ct1 | length }} mês(es) do período sem Razão (CT1) importado</strong> —
-    não é possível detalhar despesas por fornecedor nesses meses (apenas saldo agregado disponível via CT2):
+    ⚠️ <strong>{{ analise.competencias_sem_ct1 | length }} mês(es) sem CT1</strong> —
+    detalhamento por fornecedor indisponível:
     {% for c in analise.competencias_sem_ct1 %}
       <span class="badge-ct2" style="margin-left:4px">{{ mes_label(c) }}</span>
     {% endfor %}
@@ -81,26 +94,26 @@
 </div>
 {% endif %}
 
-{% set linhas = analise.por_grupo if visao == 'grupo' else analise.por_fornecedor %}
-{% set rotulo_linha = 'Conta Contábil' if visao == 'grupo' else 'Fornecedor' %}
-{% set rotulo_filha = 'Fornecedor' if visao == 'grupo' else 'Conta Contábil' %}
+{% set linhas        = analise.por_grupo if visao == 'grupo' else analise.por_fornecedor %}
+{% set rotulo_linha  = 'Conta Contábil' if visao == 'grupo' else 'Fornecedor' %}
+{% set rotulo_filha  = 'Fornecedor' if visao == 'grupo' else 'Conta Contábil' %}
 
 {% if not linhas %}
 <div class="card-full" style="text-align:center;padding:40px">
-  <p class="text-muted">Nenhum lançamento {{ {'todos': 'de despesa/custo', 'custo': 'de custo', 'despesa': 'de despesa'}[tipo] }}
-     (4.x, exceto folha/encargos/pró-labore{% if tipo != 'todos' %}, filtrado por <strong>{{ 'Custo' if tipo == 'custo' else 'Despesa' }}</strong>{% endif %})
-     com Razão (CT1) encontrado para <strong>{{ EMPRESAS[empresa].sigla }}</strong> no período selecionado.
-     {% if tipo != 'todos' %}<br><a href="{{ url_for('despesas_fornecedores', empresa=empresa, de=comp_ini, ate=comp_fim, visao=visao, tipo='todos') }}">Ver todos (Custo + Despesa) →</a>{% endif %}</p>
+  <p class="text-muted">Nenhum lançamento {{ {'todos':'de despesa/custo','custo':'de custo','despesa':'de despesa'}[tipo] }}
+     (4.x, exceto folha{% if tipo != 'todos' %}, filtro: <strong>{{ 'Custo' if tipo == 'custo' else 'Despesa' }}</strong>{% endif %})
+     com CT1 para <strong>{{ EMPRESAS[empresa].sigla }}</strong> no período.
+     {% if tipo != 'todos' %}<br><a href="{{ url_for('despesas_fornecedores', empresa=empresa, de=comp_ini, ate=comp_fim, visao=visao, tipo='todos') }}">Ver todos →</a>{% endif %}</p>
   <a href="{{ url_for('ingest') }}" class="btn btn-primary" style="margin-top:10px">⬆ Importar Razão CT1</a>
 </div>
 {% else %}
 
-{# ── Resumo ───────────────────────────────────────────────────────────────── #}
+{# ── KPIs ──────────────────────────────────────────────────────────────────── #}
 <div class="kpi-grid" style="margin-bottom:16px">
   <div class="kpi-card">
-    <span class="kpi-label">{{ {'todos': 'Despesas e Custos', 'custo': 'Custos', 'despesa': 'Despesas'}[tipo] }} no período</span>
+    <span class="kpi-label">{{ {'todos':'Despesas e Custos','custo':'Custos','despesa':'Despesas'}[tipo] }} no período</span>
     <span class="kpi-value">{{ fmt_brl(analise.total_geral) }}</span>
-    <span class="kpi-sub">{{ analise.competencias | length }} mês(es) com CT1 · {{ EMPRESAS[empresa].sigla }} · sem folha/encargos
+    <span class="kpi-sub">{{ analise.competencias | length }} meses · {{ EMPRESAS[empresa].sigla }} · sem folha/encargos
       {%- if tipo != 'todos' %} · filtro: <strong>{{ 'Custo (4.1.x)' if tipo == 'custo' else 'Despesa (4.4.x/4.5.x)' }}</strong>{% endif %}</span>
   </div>
   <div class="kpi-card">
@@ -109,7 +122,7 @@
     <span class="kpi-sub">{{ analise.por_fornecedor | length }} fornecedores identificados</span>
   </div>
   <div class="kpi-card">
-    <span class="kpi-label">Maior {{ 'conta' if visao == 'grupo' else 'fornecedor' }}</span>
+    <span class="kpi-label">Maior {{ 'conta' if visao == 'grupo' else 'fornecedor' }} <span style="font-weight:400;font-size:10px">↓ ordenado</span></span>
     {% set top = linhas[0] %}
     <span class="kpi-value" style="font-size:16px">{{ top.label if visao == 'grupo' else top.nome }}</span>
     <span class="kpi-sub">{{ fmt_brl(top.total_geral) }}
@@ -120,21 +133,21 @@
 {% if not analise.tem_cadastro_fornecedores %}
 <div class="flash-box">
   <div class="flash flash-warning">
-    ℹ️ Cadastro mestre de fornecedores ainda não importado — os nomes exibidos foram
-    <strong>extraídos do histórico do lançamento</strong> (campo de largura fixa no Protheus, sujeito a truncamento)
-    e estão marcados com <span class="badge-ct2" title="Nome aproximado, extraído do histórico — pode estar truncado">aproximado</span>.
-    Assim que o cadastro for importado, os nomes passam a exibir a razão social oficial automaticamente.
+    ℹ️ Cadastro mestre de fornecedores não importado — nomes extraídos do histórico do lançamento
+    (pode estar truncado), marcados com <span class="badge-ct2">aproximado</span>.
+    Após importar o cadastro os nomes passam à razão social oficial automaticamente.
   </div>
 </div>
 {% endif %}
 
-{# ── Tabela pivot: {{ rotulo_linha }} × Mês ───────────────────────────────── #}
+{# ── Tabela pivot ──────────────────────────────────────────────────────────── #}
 <div class="card-full">
   <div class="dre-header-line">
     <div class="dre-info">
       <span class="dre-period">{{ mes_label(comp_ini) }} – {{ mes_label(comp_fim) }}</span>
-      {% set rotulo_tipo = {'todos': 'custos e despesas', 'custo': 'somente custos', 'despesa': 'somente despesas'}[tipo] %}
-      <span class="badge-tipo-dre">{{ linhas | length }} {{ 'conta(s) contábil(eis)' if visao == 'grupo' else 'fornecedor(es)' }} · {{ rotulo_tipo }} (4.x, sem folha/encargos)</span>
+      {% set rotulo_tipo = {'todos':'custos e despesas','custo':'somente custos','despesa':'somente despesas'}[tipo] %}
+      <span class="badge-tipo-dre">{{ linhas | length }} {{ 'conta(s)' if visao == 'grupo' else 'fornecedor(es)' }}
+        · {{ rotulo_tipo }} · ordenado ↓ maior valor</span>
     </div>
     <div class="dre-actions">
       <button class="btn btn-sm btn-secondary" onclick="expandirTodosPivot(true)">⊞ Expandir todos</button>
@@ -149,15 +162,19 @@
         <th class="col-linha">{{ rotulo_linha }}</th>
         {% for comp in analise.competencias %}
           <th class="num">{{ mes_label(comp) }}</th>
+          <th class="num pct-col text-muted" title="AV% — participação no total do mês">AV%</th>
         {% endfor %}
         <th class="num col-acum">Total</th>
-        <th class="num col-acum">% do Total</th>
+        <th class="num pct-col col-acum" title="AV% do período">AV%</th>
       </tr>
     </thead>
     <tbody>
       {% for linha in linhas %}
       {% set safe_id = "piv-" ~ loop.index %}
-      {% set filhas = linha.fornecedores if visao == 'grupo' else linha.grupos %}
+      {% set filhas  = linha.fornecedores if visao == 'grupo' else linha.grupos %}
+      {% set lin_pct = linha.total_geral / analise.total_geral * 100 if analise.total_geral else 0 %}
+
+      {# ── Linha principal (nível 1) ───────────────────────────────────────── #}
       <tr class="dre-row dre-grupo pivot-row" data-pivot="{{ safe_id }}"
           data-nome="{{ (linha.label if visao == 'grupo' else linha.nome) | lower }}"
           onclick="togglePivot(this)">
@@ -165,34 +182,41 @@
           <span class="expand-icon" id="icon-{{ safe_id }}">▶</span>
           <span class="pivot-nome">{{ linha.label if visao == 'grupo' else linha.nome }}</span>
           {% if visao == 'fornecedor' and linha.aproximado %}
-            <span class="badge-ct2" title="Nome aproximado, extraído do histórico do lançamento — pode estar truncado">aproximado</span>
+            <span class="badge-ct2" title="Nome extraído do histórico — pode estar truncado">aproximado</span>
           {% elif visao == 'fornecedor' and linha.via_similaridade %}
-            <span class="badge-ct2" title="Razão social oficial identificada automaticamente por correspondência aproximada (similaridade) com o cadastro mestre de fornecedores — não havia código de cadastro associado a esta combinação de lançamentos">✓ por similaridade</span>
+            <span class="badge-ct2" title="Razão social identificada automaticamente por similaridade com o cadastro mestre">✓ por similaridade</span>
           {% endif %}
           {% if visao == 'fornecedor' and linha.alinhado %}
-            <span class="badge-alinhado" title="Este fornecedor foi recadastrado no Protheus ao longo do tempo (mais de um código de cadastro identificado para o mesmo nome/razão social) — os lançamentos de todos os códigos foram automaticamente consolidados nesta linha sob um nome único. Expanda o drill-down até o nível de Notas Fiscais para conferir os históricos originais de cada código.">⇄ nomes alinhados</span>
+            <span class="badge-alinhado" title="Fornecedor recadastrado no Protheus — lançamentos de múltiplos códigos consolidados">⇄ nomes alinhados</span>
           {% endif %}
         </td>
         {% for comp in analise.competencias %}
-          <td class="num">{{ fmt_brl(linha.totais.get(comp, 0.0)) if linha.totais.get(comp) else "—" }}</td>
+          {% set v   = linha.totais.get(comp, 0.0) %}
+          {% set t   = analise.totais_mes.get(comp, 0) %}
+          {% set pct = v / t * 100 if t else 0 %}
+          <td class="num">{{ fmt_brl(v) if v else "—" }}</td>
+          <td class="av-pct" style="--bar:{{ "%.1f"|format(pct) }}%">{{ "%.1f"|format(pct) }}%</td>
         {% endfor %}
         <td class="num fw-600">{{ fmt_brl(linha.total_geral) }}</td>
-        <td class="num pct-col">
-          {{ "%.1f"|format(linha.total_geral / analise.total_geral * 100 if analise.total_geral else 0) }}%
-        </td>
+        <td class="av-pct-total num">{{ "%.1f"|format(lin_pct) }}%</td>
       </tr>
 
-      {# ── Drill-down: fornecedores (visão Grupo) ou grupos (visão Fornecedor) ── #}
+      {# ── Drill nível 2: filha header ─────────────────────────────────────── #}
       <tr class="dre-filha dre-filha-hdr" id="hdr-{{ safe_id }}" style="display:none">
         <th class="indent-1">{{ rotulo_filha }}</th>
         {% for comp in analise.competencias %}
           <th class="num col-sub">{{ mes_label(comp) }}</th>
+          <th class="num col-sub text-muted" style="font-size:9px;width:44px">AV%</th>
         {% endfor %}
         <th class="num col-sub">Total</th>
         <th class="col-sub"></th>
       </tr>
+
       {% for filha in filhas %}
       {% set safe_id_f = safe_id ~ "-f" ~ loop.index %}
+      {% set fil_pct   = filha.total_geral / analise.total_geral * 100 if analise.total_geral else 0 %}
+
+      {# ── Drill nível 2: linha filha ──────────────────────────────────────── #}
       <tr class="dre-filha filha-expansivel" id="{{ safe_id_f }}" data-pivot="{{ safe_id_f }}"
           data-parent="{{ safe_id }}" style="display:none" onclick="togglePivot(this)">
         <td class="indent-1">
@@ -200,34 +224,41 @@
           {% if visao == 'grupo' %}
             <span class="conta-cod">{{ filha.nome }}</span>
             {% if filha.aproximado %}
-              <span class="badge-ct2" title="Nome aproximado, extraído do histórico do lançamento — pode estar truncado">aproximado</span>
+              <span class="badge-ct2" title="Nome extraído do histórico — pode estar truncado">aproximado</span>
             {% elif filha.via_similaridade %}
-              <span class="badge-ct2" title="Razão social oficial identificada automaticamente por correspondência aproximada (similaridade) com o cadastro mestre de fornecedores — não havia código de cadastro associado a esta combinação de lançamentos">✓ por similaridade</span>
+              <span class="badge-ct2" title="Identificado por similaridade com o cadastro mestre">✓ por similaridade</span>
             {% endif %}
             {% if filha.alinhado %}
-              <span class="badge-alinhado" title="Este fornecedor foi recadastrado no Protheus ao longo do tempo (mais de um código de cadastro identificado para o mesmo nome/razão social) — os lançamentos de todos os códigos foram automaticamente consolidados nesta linha sob um nome único. Expanda o drill-down até o nível de Notas Fiscais para conferir os históricos originais de cada código.">⇄ nomes alinhados</span>
+              <span class="badge-alinhado" title="Múltiplos códigos consolidados">⇄ nomes alinhados</span>
             {% endif %}
           {% else %}
             <span class="conta-cod">{{ filha.label }}</span>
           {% endif %}
         </td>
         {% for comp in analise.competencias %}
-          <td class="num">{{ fmt_brl(filha.totais.get(comp, 0.0)) if filha.totais.get(comp) else "—" }}</td>
+          {% set vf  = filha.totais.get(comp, 0.0) %}
+          {% set t   = analise.totais_mes.get(comp, 0) %}
+          {% set pct = vf / t * 100 if t else 0 %}
+          <td class="num">{{ fmt_brl(vf) if vf else "—" }}</td>
+          <td class="av-pct-sub" style="--bar:{{ "%.1f"|format(pct) }}%">{{ "%.1f"|format(pct) }}%</td>
         {% endfor %}
         <td class="num fw-600">{{ fmt_brl(filha.total_geral) }}</td>
-        <td></td>
+        <td class="num" style="font-size:10px;color:var(--muted)">{{ "%.1f"|format(fil_pct) }}%</td>
       </tr>
 
-      {# ── Drill-down (3º nível): Notas Fiscais que compõem este total ───── #}
+      {# ── Drill nível 3: NF header ────────────────────────────────────────── #}
       <tr class="dre-neta dre-neta-hdr" id="hdr-{{ safe_id_f }}" data-parent="{{ safe_id_f }}" style="display:none">
         <th class="indent-2">Nota Fiscal</th>
         {% for comp in analise.competencias %}
           <th class="num col-sub">{{ mes_label(comp) }}</th>
+          <th class="col-sub"></th>
         {% endfor %}
         <th class="num col-sub">Total</th>
         <th class="col-sub"></th>
       </tr>
+
       {% for nf in filha.lancamentos %}
+      {# ── Drill nível 3: NF row ───────────────────────────────────────────── #}
       <tr class="dre-neta" id="{{ safe_id_f }}-nf{{ loop.index }}" data-parent="{{ safe_id_f }}" style="display:none">
         <td class="indent-2">
           <span class="conta-cod">NF {{ nf.numero }}</span>
@@ -242,6 +273,7 @@
         </td>
         {% for comp in analise.competencias %}
           <td class="num">{{ fmt_brl(nf.totais.get(comp, 0.0)) if nf.totais.get(comp) else "—" }}</td>
+          <td></td>
         {% endfor %}
         <td class="num fw-600">{{ fmt_brl(nf.total_geral) }}</td>
         <td></td>
@@ -255,9 +287,10 @@
         <td class="col-linha fw-600">TOTAL — {{ EMPRESAS[empresa].sigla }}</td>
         {% for comp in analise.competencias %}
           <td class="num fw-600">{{ fmt_brl(analise.totais_mes.get(comp, 0.0)) }}</td>
+          <td class="num pct-col fw-600">100%</td>
         {% endfor %}
         <td class="num fw-600">{{ fmt_brl(analise.total_geral) }}</td>
-        <td class="num fw-600">100,0%</td>
+        <td class="num pct-col fw-600">100%</td>
       </tr>
     </tfoot>
   </table>
@@ -266,53 +299,24 @@
 
 <p class="text-muted" style="font-size:12px;margin-top:10px">
   ℹ️ A classificação por <strong>Conta Contábil</strong> usa a <strong>descrição oficial do plano de contas</strong>
-  (ex.: "SERV DE INFORMATICA", "SEGUROS DE VEÍCULOS") — uma visão bem mais granular do que o grupo DRE genérico
-  (ex.: "Serviço Contratado"), o que facilita acompanhar a evolução de cada custo/despesa especificamente.
-  Contas que ainda não constam do plano de contas importado aparecem como
-  <span class="badge-ct2" title="Conta sem descrição cadastrada — importe o Plano de Contas em ⬆ Importar para preencher">"Conta X (sem descrição no plano de contas)"</span>
-  — basta importar/atualizar o Plano de Contas em <a href="{{ url_for('ingest') }}">⬆ Importar</a> para preenchê-las.<br>
-  Esta análise <strong>exclui</strong> os grupos de Pró-labore/Honorários, Folha de Pagamento e Encargos sobre Folha
-  (contas 4.1.1.01.x — custo, e 4.4.1.01.x — administrativo), pois o objetivo é acompanhar a evolução dos
-  <strong>custos e despesas operacionais</strong> (material, serviços contratados, aluguéis, concessionárias,
-  comunicação, veículos, seguros etc.) — folha de pagamento já tem análise própria no Departamento Pessoal.
-  O fornecedor é identificado preferencialmente pelo código de cadastro do Protheus (mais estável que o nome,
-  que vem truncado de formas diferentes entre lançamentos — ex.: "TELEXPERTS"/"TELEXPERT"/"TELEXP" são consolidados
-  como um único fornecedor).<br>
-  <strong>Drill-down em 3 níveis:</strong> clique na linha-mãe para abrir a dimensão cruzada
-  ({{ rotulo_filha | lower }}) e, dentro dela, clique em qualquer linha para abrir as
-  <strong>Notas Fiscais</strong> que compõem aquele total — com data, número da NF, trecho do
-  histórico original e valor mês a mês (mesmo padrão de drill-down de "Receita por Cliente",
-  com mais um nível). "⊞ Expandir todos" abre a árvore completa, até o nível de NF.<br>
-  <strong>Identificação automática por similaridade:</strong> sempre que um fornecedor não tem
-  código de cadastro associado, o sistema tenta identificá-lo automaticamente comparando o nome
-  aproximado (extraído do histórico) com a razão social/nome fantasia do cadastro mestre —
-  promovendo-o à razão social oficial quando a semelhança é alta, sinalizado com
-  <span class="badge-ct2" title="Razão social oficial identificada automaticamente por correspondência aproximada (similaridade) com o cadastro mestre de fornecedores">✓ por similaridade</span>.
-  Roda sozinho a cada carregamento da página — sem necessidade de ação manual.<br>
-  <strong>Alinhamento automático entre recadastros:</strong> quando o mesmo fornecedor foi
-  recadastrado no Protheus ao longo do tempo (ex.: trocou de código, ou seu nome foi atualizado
-  de uma forma curta para uma completa — caso típico de prestadores recorrentes), os lançamentos
-  de todos os códigos identificados como o mesmo fornecedor são consolidados automaticamente em
-  uma única linha (preferindo o nome oficial de cadastro e, na ausência ou empate, o mais curto),
-  sinalizada com
-  <span class="badge-alinhado" title="Nomes de mais de um código de cadastro foram identificados como o mesmo fornecedor e consolidados automaticamente nesta linha">⇄ nomes alinhados</span>.
-  Use o drill-down até o nível de Notas Fiscais para conferir os históricos originais de cada
-  código consolidado — caso identifique que, na verdade, são fornecedores distintos, avise para
-  ajuste do critério de agrupamento.
+  (ex.: "SERV DE INFORMATICA", "SEGUROS DE VEÍCULOS"). Contas sem descrição cadastrada aparecem como
+  <span class="badge-ct2">"Conta X (sem descrição)"</span> — basta importar o Plano de Contas em
+  <a href="{{ url_for('ingest') }}">⬆ Importar</a>.<br>
+  Exclui: Pró-labore, Folha e Encargos (4.1.1.01.x / 4.4.1.01.x). Linhas ordenadas do maior para o menor valor.<br>
+  <strong>AV%</strong> = participação percentual no total de custos/despesas do mês.<br>
+  <strong>Drill-down 3 níveis:</strong> clique na linha-mãe → abre {{ rotulo_filha | lower }}
+  → clique novamente → abre as Notas Fiscais com data, número e histórico.<br>
+  Identificação automática por
+  <span class="badge-ct2">✓ similaridade</span> e consolidação de recadastros
+  <span class="badge-alinhado">⇄ nomes alinhados</span> rodam a cada carregamento.
 </p>
 
 {% endif %}
-
 {% endblock %}
 
 {% block scripts %}
 <script>
-// ── Pivot de 3 níveis encadeados (Conta/Fornecedor → Fornecedor/Conta → NF) ──
-// Cada linha expansível tem `data-pivot="<id>"` (seu próprio id) e, quando não
-// é de 1º nível, `data-parent="<id-do-pai>"`. `togglePivot` é genérica: serve
-// tanto para a linha-mãe (1º nível) quanto para a linha-filha (2º nível, que
-// expande para as Notas Fiscais no 3º nível) — o padrão de id/atributo é igual.
-
+// ── Pivot de 3 níveis encadeados ──────────────────────────────────────────
 function togglePivot(row) {
   const id      = row.dataset.pivot;
   const hdr     = document.getElementById(`hdr-${id}`);
@@ -321,13 +325,9 @@ function togglePivot(row) {
   const abrir   = !hdr || hdr.style.display === 'none';
 
   if (abrir) {
-    // Expande apenas este nível — os netos permanecem fechados até o usuário
-    // expandir a linha-filha correspondente.
     if (hdr) hdr.style.display = '';
     diretos.forEach(r => { r.style.display = ''; });
   } else {
-    // Recolhe este nível e, em cascata, TODOS os níveis abaixo dele —
-    // assim, ao reabrir, tudo recomeça fechado (sem "fantasmas" expandidos).
     if (hdr) hdr.style.display = 'none';
     document.querySelectorAll(`[id^="${id}-"]`).forEach(r => {
       r.style.display = 'none';
@@ -342,9 +342,6 @@ function togglePivot(row) {
 }
 
 function expandirTodosPivot(abrir) {
-  // Percorre os 3 níveis em ordem (mãe → filha → neta) — cada linha mostra/
-  // esconde apenas seus FILHOS DIRETOS; ao final, com `abrir=true`, a árvore
-  // toda fica visível; com `abrir=false`, tudo recolhido.
   document.querySelectorAll('[data-pivot]').forEach(row => {
     const id      = row.dataset.pivot;
     const hdr     = document.getElementById(`hdr-${id}`);
@@ -366,7 +363,6 @@ function filtrarLinhasPivot(termo) {
     row.style.display = bate ? '' : 'none';
     const id = row.dataset.pivot;
     if (!bate) {
-      // Recolhe e esconde toda a árvore (filhas + netas) desta linha-mãe
       const hdr = document.getElementById(`hdr-${id}`);
       if (hdr) hdr.style.display = 'none';
       document.querySelectorAll(`[id^="${id}-"]`).forEach(r => {

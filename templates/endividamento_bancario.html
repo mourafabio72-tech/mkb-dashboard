@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Endividamento Bancário{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🏦 Endividamento Bancário</h1>
+  <p class="subtitle">
+    Empresa: <strong>{{ empresa | upper }}</strong> &nbsp;|&nbsp;
+    Total contratado, pago e saldo a pagar por empréstimo/financiamento.
+  </p>
+</div>
+
+<div class="mes-selector">
+  <span class="selector-label">Empresa:</span>
+  <a href="{{ url_for('endividamento_bancario', empresa='mkb') }}"
+     class="btn-mes {% if empresa == 'mkb' %}btn-mes-ativo{% endif %}">MKB</a>
+  <a href="{{ url_for('endividamento_bancario', empresa='gnileb') }}"
+     class="btn-mes {% if empresa == 'gnileb' %}btn-mes-ativo{% endif %}">Gnileb</a>
+  <span class="sep-emp">|</span>
+  <a href="{{ url_for('endividamento_bancario_cadastro') }}" class="btn-mes">+ Cadastrar / cronograma</a>
+</div>
+
+{% if not linhas %}
+<div class="empty-state">
+  <div class="empty-icon">🏦</div>
+  <h2>Nenhum empréstimo cadastrado para {{ empresa | upper }}</h2>
+  <p>Cadastre o contrato (banco, valores, parcelas, contas vinculadas) para começar.</p>
+  <a href="{{ url_for('endividamento_bancario_cadastro') }}" class="btn btn-primary btn-lg">+ Cadastrar empréstimo</a>
+</div>
+{% else %}
+
+<p class="text-muted" style="margin-bottom:14px;font-size:12px;">
+  Posição calculada como se fosse <strong>{{ mes_label(ref_competencia) }}</strong>
+  (mês anterior ao último competência do Razão — ou mês atual, se a empresa ainda não tem Razão importado).
+</p>
+
+{% if algum_sem_dados %}
+<div class="info-box" style="margin-bottom:16px;border-color:var(--warning);">
+  ⚠ Pelo menos um empréstimo não tem Razão nem cronograma cadastrado — cadastre o cronograma
+  da simulação do banco em "+ Cadastrar / cronograma" pra esse contrato aparecer preenchido.
+</div>
+{% endif %}
+
+{# ── Cards de resumo ──────────────────────────────────────────────────── #}
+<div class="kpi-grid">
+  <div class="kpi-card kpi-highlight">
+    <div class="kpi-label">Total Contratado</div>
+    <div class="kpi-value">{{ total_contratado | brl }}</div>
+    <div class="kpi-sub">Soma do valor líquido liberado de todos os empréstimos</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Total Pago até {{ mes_label(ref_competencia) }}</div>
+    <div class="kpi-value">{{ total_pago_geral | brl if not algum_sem_dados else '—' }}</div>
+    <div class="kpi-sub">Amortização paga (Total Contratado − Saldo a Pagar)</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Saldo a Pagar</div>
+    <div class="kpi-value">{{ total_saldo_geral | brl if not algum_sem_dados else '—' }}</div>
+    <div class="kpi-sub">Saldo devedor líquido — Razão (se já importado) ou cronograma do contrato</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Qtd. Parcelas a Pagar</div>
+    <div class="kpi-value">{{ parcelas_a_pagar_total if not algum_sem_dados else '—' }}</div>
+    <div class="kpi-sub">Soma das parcelas restantes de todos os contratos</div>
+  </div>
+</div>
+
+{# ── Tabela por contrato ──────────────────────────────────────────────── #}
+<div class="section-card" style="margin-top:20px;">
+  <h2>📋 Resumo por contrato</h2>
+  <table class="table-simple">
+    <thead>
+      <tr>
+        <th>Banco</th>
+        <th>Descrição</th>
+        <th>Fonte</th>
+        <th>Total Contratado</th>
+        <th>Total Pago</th>
+        <th>Saldo a Pagar</th>
+        <th>Valor da Parcela</th>
+        <th>Parcelas (pagas/total)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in linhas %}
+      <tr>
+        <td>{{ l.banco }}</td>
+        <td>{{ l.descricao or '—' }}</td>
+        <td>{% if l.fonte %}<span class="text-muted">{{ l.fonte }}</span>{% else %}—{% endif %}</td>
+        <td>{{ l.valor_contratado | brl }}</td>
+        <td>{{ l.total_pago | brl if l.tem_dados else '— (sem dados)' }}</td>
+        <td>{{ l.saldo_a_pagar | brl if l.tem_dados else '— (sem dados)' }}</td>
+        <td>{{ l.valor_parcela_atual | brl if l.tem_dados and l.valor_parcela_atual is not none else '—' }}</td>
+        <td>
+          {% if l.tem_dados %}
+            {{ l.parcelas_pagas }} / {{ l.qtd_parcelas }} &nbsp;<span class="text-muted">({{ l.parcelas_a_pagar }} restantes)</span>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ── Detalhamento mês a mês, por contrato ─────────────────────────────── #}
+{% for l in linhas %}
+{% if l.detalhe %}
+<div class="section-card" style="margin-top:20px;">
+  <h2>🗓 Detalhamento mês a mês — {{ l.banco }}{% if l.descricao %} ({{ l.descricao }}){% endif %}</h2>
+  <p class="ingest-desc">
+    Fonte: <strong>{{ l.fonte }}</strong>.
+    {% if l.fonte == 'Cronograma do contrato' %}
+      Assim que o Razão de {{ empresa | upper }} tiver as 4 contas vinculadas, esta tela passa a
+      usar o saldo real do Razão em vez do cronograma.
+    {% endif %}
+  </p>
+  <table class="table-simple">
+    <thead>
+      <tr>
+        <th>Parcela</th>
+        <th>Competência</th>
+        <th>Status</th>
+        <th>Amortização</th>
+        <th>Juros</th>
+        <th>Valor da Parcela</th>
+        <th>Saldo Devedor</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in l.detalhe %}
+      <tr class="{{ 'row-paga' if d.paga else '' }}">
+        <td>{{ d.numero_parcela }}</td>
+        <td>{{ mes_label(d.competencia) }}</td>
+        <td>{% if d.paga %}✔ Paga{% else %}A pagar{% endif %}</td>
+        <td>{{ d.amortizacao | brl }}</td>
+        <td>{{ d.juros | brl }}</td>
+        <td>{{ d.valor_parcela | brl }}</td>
+        <td>{{ d.saldo_devedor | brl }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endfor %}
+
+{% endif %}
+{% endblock %}

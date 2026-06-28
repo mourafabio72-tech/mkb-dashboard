@@ -38,6 +38,10 @@ def classificar_conta(cod: str) -> str:
 # Apenas estas contas são eliminadas; outras do grupo 4.4.1.06 são mantidas
 CONTAS_EP = {"4.4.1.06.01.001", "4.4.1.06.02.001"}
 
+# ─── CONTA DE DEPRECIAÇÃO / AMORTIZAÇÃO (memorando no bridge do EBITDA) ──────
+# Classificada em DADM_OUTROS (já incluída em "(=) Despesas Operacionais").
+CONTA_DEPREC = "4.4.1.03.09.012"
+
 
 # ─── ESTRUTURA DE LINHAS DA DRE ──────────────────────────────────────────────
 
@@ -493,8 +497,8 @@ def calcular_dre_detalhada(empresa_id: int, competencia: str) -> list:
 # Linhas da DRE Gerencial: grupos individuais visíveis + linhas calculadas
 DRE_META_GERENCIAL = [
     # (linha_id,        label,                                  tipo,            secao)
-    ("ROB",             "(+) Receita Operacional Bruta",        "subtotal",      "receita"),
-    ("DED",             "(-) Deduções das Vendas",              "subtotal",      "receita"),
+    ("ROB",             "(+) Receita Operacional Bruta",        "grupo_pos",     "receita"),
+    ("DED",             "(-) Deduções das Vendas",              "grupo",         "receita"),
     ("ROL",             "(=) Receita Operacional Líquida",      "resultado",     "receita"),
     # Custos
     ("CPV_PROLAB",      "(-) Pró-labore / Honorários",          "grupo",         "custo"),
@@ -551,10 +555,35 @@ _GER_GRUPOS_DIRETOS = [
 ]
 
 # Linhas de soma no DRE Gerencial (os grupos diretos + ROB/DED/ENC_FIN/OUTROS_OP/IRPJ_CSLL)
-_LINHAS_SOMA_GER = ["ROB", "DED", "ENC_FIN", "OUTROS_OP", "IRPJ_CSLL"] + _GER_GRUPOS_DIRETOS
+# DEPREC_VALOR/EP_TOTAL_VALOR: valores "puros" (não agregados em grupo) das contas
+# de Depreciação/Amortização e Equivalência Patrimonial — usados para reverter
+# esses itens no cálculo do EBITDA (ver _CALC_GER["EBITDA"] e montar_bridge_ebitda).
+_LINHAS_SOMA_GER = (["ROB", "DED", "ENC_FIN", "OUTROS_OP", "IRPJ_CSLL"]
+                    + _GER_GRUPOS_DIRETOS
+                    + ["DEPREC_VALOR", "EP_TOTAL_VALOR"])
 
 _CPVS = [g for g in _GER_GRUPOS_DIRETOS if g.startswith("CPV_")]
 _DADMS = [g for g in _GER_GRUPOS_DIRETOS if g.startswith("DADM_")]
+
+# Composição (em grupos do account_map / _ORDEM_GRUPOS) das linhas
+# "agregadas" da DRE Gerencial que também são drilláveis no dashboard.
+# Usado por _merge_detalhe_gerencial (app.py) para montar a lista de
+# contas de cada linha a partir dos grupos individuais já calculados.
+#   DED        = Deduções (Abatimentos + Impostos s/ Receita)
+#   ROL        = Receita Líquida = ROB + DED
+#   CPV_TOTAL  = Custos Operacionais = soma de todos os grupos CPV_*
+#   DADM_TOTAL = Despesas Operacionais = soma de todos os grupos DADM_*
+#   ENC_FIN    = Resultado Financeiro = Despesas Financeiras + Receitas Financeiras
+# LL (Resultado Final) não entra aqui: seu drill-down não é uma lista de
+# contas, e sim a "ponte" (bridge) com os subtotais ROL→...→LL — ver
+# montar_bridge_resultado_final(). EBITDA idem — ver montar_bridge_ebitda().
+GRUPOS_AGREGADOS_GER = {
+    "DED":        ["DED_ABAT", "DED_IMPOS"],
+    "ROL":        ["ROB", "DED_ABAT", "DED_IMPOS"],
+    "CPV_TOTAL":  _CPVS,
+    "DADM_TOTAL": _DADMS,
+    "ENC_FIN":    ["ENC_DESP", "ENC_REC"],
+}
 
 _CALC_GER = {
     "ROL":       lambda g: g["ROB"] + g["DED"],
@@ -563,7 +592,13 @@ _CALC_GER = {
     "DADM_TOTAL":lambda g: sum(g.get(k, 0.0) for k in _DADMS),
     "LAIR":      lambda g: g["LB"] + g["DADM_TOTAL"] + g["ENC_FIN"] + g["OUTROS_OP"],
     "LL":        lambda g: g["LAIR"] + g["IRPJ_CSLL"],
-    "EBITDA":    lambda g: g["LAIR"] - g["ENC_FIN"],
+    # EBITDA "Ajustado": além de LAIR - Resultado Financeiro, reverte também
+    # Depreciação/Amortização (despesa não-caixa) e Equivalência Patrimonial
+    # (resultado não-operacional) — mesma lógica da "ponte" em
+    # montar_bridge_ebitda(), porém aplicada diretamente ao cabeçalho da linha.
+    "EBITDA":    lambda g: (g["LAIR"] - g["ENC_FIN"]
+                            - g.get("DEPREC_VALOR", 0.0)
+                            - g.get("EP_TOTAL_VALOR", 0.0)),
 }
 
 
@@ -588,10 +623,18 @@ def calcular_dre_gerencial(empresa_id: int, competencia: str) -> dict:
     conn.close()
 
     grupos: dict[str, float] = {}
+    deprec_valor = 0.0
+    ep_total_valor = 0.0
     for cod, valor in rows:
         grupo = classificar_conta(cod)
         if grupo != "NAO_CLASSIFICADO":
             grupos[grupo] = grupos.get(grupo, 0.0) + valor
+        # Valores "puros" (fora da agregação por grupo) usados na reversão do
+        # EBITDA Ajustado — ver _CALC_GER["EBITDA"].
+        if cod == CONTA_DEPREC:
+            deprec_valor += valor
+        if cod in CONTAS_EP:
+            ep_total_valor += valor
 
     # Soma ROB e DED normalmente (agrupam vários sub-grupos)
     result: dict[str, float] = {}
@@ -600,6 +643,8 @@ def calcular_dre_gerencial(empresa_id: int, competencia: str) -> dict:
     result["ENC_FIN"]   = grupos.get("ENC_DESP", 0.0) + grupos.get("ENC_REC", 0.0)
     result["OUTROS_OP"] = grupos.get("OUTROS_OP", 0.0)
     result["IRPJ_CSLL"] = grupos.get("IRPJ_CSLL", 0.0)
+    result["DEPREC_VALOR"]   = deprec_valor
+    result["EP_TOTAL_VALOR"] = ep_total_valor
 
     # Grupos diretos (um grupo = uma linha)
     for g in _GER_GRUPOS_DIRETOS:
@@ -698,6 +743,145 @@ def calcular_dre_detalhada_gerencial(empresa_id: int, competencia: str) -> list:
             "contas":   contas_ord,
         })
     return resultado
+
+
+def montar_bridge_ebitda(dados: dict, det_mkb: list, det_gnileb: list) -> list:
+    """
+    Monta a "ponte" (bridge) de reconciliação do EBITDA AJUSTADO partindo do
+    Resultado Líquido (LL), trazendo todos os itens somados/revertidos para
+    se chegar ao EBITDA — incluindo depreciação e equivalência patrimonial,
+    que também compõem o ajuste:
+
+        (=) Resultado Líquido (LL)
+        (+)    Reversão da Provisão de IRPJ e CSLL
+        (+/-)  Reversão do Resultado Financeiro
+        (+)    Depreciação / Amortização (reversão)
+        (+/-)  Equivalência Patrimonial — por conta (reversão)
+        (=) EBITDA Ajustado
+
+    `dados` é o retorno de calcular_todas_empresas_gerencial(competencia)
+    (chaves: mkb, gnileb, ajuste, consolidado). `det_mkb`/`det_gnileb` são o
+    retorno de calcular_dre_detalhada_gerencial() para cada empresa.
+
+    Retorna lista no mesmo formato de _merge_detalhe_gerencial()
+    ([{cod, descricao, mkb, gnileb, total}]), pronta para o template
+    renderizar como "filhas" da linha EBITDA (mesmo padrão de ROB/DED/ROL).
+
+    Observação: o total final ("(=) EBITDA Ajustado") passa a diferir do
+    valor da linha-mãe "EBITDA" (que segue a fórmula simples
+    LAIR − Resultado Financeiro, sem reverter depreciação/equivalência) —
+    é justamente esse o ajuste pedido: somar de volta a depreciação
+    (despesa não-caixa) e excluir o resultado de equivalência patrimonial
+    (não-operacional) do EBITDA.
+    """
+    mkb_d = dados["mkb"]
+    gni_d = dados["gnileb"]
+    aju_d = dados["ajuste"]
+
+    def _linha(cod, descricao, m, g, extra=0.0):
+        return {
+            "cod": cod, "descricao": descricao,
+            "mkb": m, "gnileb": g, "total": m + g + extra,
+        }
+
+    itens = [
+        _linha("_LL", "(=) Resultado Líquido (LL)",
+               mkb_d["LL"], gni_d["LL"], aju_d["LL"]),
+        _linha("_REV_IRPJ", "(+) Reversão da Provisão de IRPJ e CSLL",
+               -mkb_d["IRPJ_CSLL"], -gni_d["IRPJ_CSLL"], -aju_d["IRPJ_CSLL"]),
+        _linha("_REV_ENCFIN", "(+/-) Reversão do Resultado Financeiro",
+               -mkb_d["ENC_FIN"], -gni_d["ENC_FIN"], -aju_d["ENC_FIN"]),
+    ]
+
+    # ── Depreciação / Amortização — reversão (soma de volta ao EBITDA) ──────
+    for g in det_mkb:
+        if g["grupo"] == "DADM_OUTROS":
+            for c in g["contas"]:
+                if c["cod"] == CONTA_DEPREC:
+                    itens.append(_linha(
+                        c["cod"], f"(+) {c['descricao']} (reversão)",
+                        -c["valor"], 0.0,
+                    ))
+
+    # ── Equivalência Patrimonial — reversão (exclui resultado não-operac.) ──
+    for g in det_gnileb:
+        if g["grupo"] == "OUTROS_OP":
+            for c in g["contas"]:
+                if c["cod"] in CONTAS_EP:
+                    itens.append(_linha(
+                        c["cod"], f"(+/-) {c['descricao']} (reversão)",
+                        0.0, -c["valor"],
+                    ))
+
+    # ── Subtotal final: EBITDA Ajustado = soma de todos os itens acima ──────
+    total_geral = sum(i["total"]   for i in itens)
+    mkb_geral    = sum(i["mkb"]    for i in itens)
+    gni_geral    = sum(i["gnileb"] for i in itens)
+    itens.append(_linha("_EBITDA_AJ", "(=) EBITDA Ajustado",
+                         mkb_geral, gni_geral, total_geral - mkb_geral - gni_geral))
+
+    return itens
+
+
+def montar_bridge_resultado_final(dados: dict) -> list:
+    """
+    Monta a "ponte" (bridge) de reconciliação do RESULTADO FINAL (Resultado
+    Líquido — LL) partindo da Receita Operacional Líquida (ROL), trazendo os
+    subtotais somados/subtraídos até chegar ao LL:
+
+        (=) Receita Operacional Líquida (ROL)
+        (-)    Custos Operacionais
+        (-)    Despesas Operacionais
+        (+/-)  Encargos Financeiros Líq.
+        (+/-)  Outros Resultados
+        (-)    Provisão de IRPJ e CSLL
+        (=) Resultado Líquido (LL)
+
+    `dados` é o retorno de calcular_todas_empresas_gerencial(competencia)
+    (chaves: mkb, gnileb, ajuste, consolidado).
+
+    Diferente de montar_bridge_ebitda(), esta ponte usa diretamente os
+    SUBTOTAIS já calculados (ROL, CPV_TOTAL, DADM_TOTAL, ENC_FIN, OUTROS_OP,
+    IRPJ_CSLL) — não desce ao nível de conta, pois cada um desses subtotais
+    já é (ou pode ser) drillável individualmente na própria DRE.
+
+    Retorna lista no mesmo formato de _merge_detalhe_gerencial()
+    ([{cod, descricao, mkb, gnileb, total}]), pronta para o template
+    renderizar como "filhas" da linha LL (mesmo padrão de ROL/EBITDA).
+    """
+    mkb_d = dados["mkb"]
+    gni_d = dados["gnileb"]
+    aju_d = dados["ajuste"]
+
+    def _linha(cod, descricao, m, g, extra=0.0):
+        return {
+            "cod": cod, "descricao": descricao,
+            "mkb": m, "gnileb": g, "total": m + g + extra,
+        }
+
+    itens = [
+        _linha("_ROL",    "(=) Receita Operacional Líquida",
+               mkb_d["ROL"], gni_d["ROL"], aju_d["ROL"]),
+        _linha("_CPVTOT", "(-) Custos Operacionais",
+               mkb_d["CPV_TOTAL"], gni_d["CPV_TOTAL"], aju_d["CPV_TOTAL"]),
+        _linha("_DADMTOT","(-) Despesas Operacionais",
+               mkb_d["DADM_TOTAL"], gni_d["DADM_TOTAL"], aju_d["DADM_TOTAL"]),
+        _linha("_ENCFIN2","(+/-) Encargos Financeiros Líq.",
+               mkb_d["ENC_FIN"], gni_d["ENC_FIN"], aju_d["ENC_FIN"]),
+        _linha("_OUTROS2","(+/-) Outros Resultados",
+               mkb_d["OUTROS_OP"], gni_d["OUTROS_OP"], aju_d["OUTROS_OP"]),
+        _linha("_IRPJ2",  "(-) Provisão IRPJ e CSLL",
+               mkb_d["IRPJ_CSLL"], gni_d["IRPJ_CSLL"], aju_d["IRPJ_CSLL"]),
+    ]
+
+    # ── Subtotal final: Resultado Líquido = soma de todos os itens acima ────
+    total_geral = sum(i["total"]   for i in itens)
+    mkb_geral    = sum(i["mkb"]    for i in itens)
+    gni_geral    = sum(i["gnileb"] for i in itens)
+    itens.append(_linha("_LL_BRIDGE", "(=) Resultado Líquido",
+                         mkb_geral, gni_geral, total_geral - mkb_geral - gni_geral))
+
+    return itens
 
 
 # ─── ANÁLISE DE RECEITA POR CLIENTE ──────────────────────────────────────────

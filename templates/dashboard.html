@@ -3,19 +3,82 @@
 
 {% block content %}
 
+{# ── Macro: hub de módulos (reusado em estado vazio e estado com dados) ────
+   compact=false → cards grandes (tela de boas-vindas, sem dados)
+   compact=true  → lista de botões pequenos, alinhada à esquerda (dashboard) #}
+{% macro hub_cards(c, compact=false) %}
+{% set uc = c or '2026-04' %}
+{% set itens = [
+  {'endpoint': 'dre_resumida',                 'params': {'competencia': uc},            'cor': '#8b5cf6', 'icone': 'ph-trend-up',       'label': 'DRE Gerencial',           'sub': 'Resultado mensal e acumulado'},
+  {'endpoint': 'irpj',                         'params': {'empresa': 'mkb', 'competencia': uc}, 'cor': '#f59e0b', 'icone': 'ph-calculator',     'label': 'IRPJ / CSLL',             'sub': 'Apuração fiscal trimestral'},
+  {'endpoint': 'endividamento',                'params': {'empresa': 'mkb', 'competencia': uc}, 'cor': '#10b981', 'icone': 'ph-bank',           'label': 'Endividamento Tributário','sub': 'Saldo devedor × Receita Bruta'},
+  {'endpoint': 'endividamento_bancario',       'params': {'empresa': 'gnileb'},           'cor': '#0ea5e9', 'icone': 'ph-bank',           'label': 'Endividamento Bancário',  'sub': 'Empréstimos · contratado, pago e saldo'},
+  {'endpoint': 'receita_clientes',             'params': {'empresa': 'mkb'},              'cor': '#06b6d4', 'icone': 'ph-briefcase',      'label': 'Receita',                 'sub': 'Por cliente · pivot mensal'},
+  {'endpoint': 'despesas_fornecedores',        'params': {'empresa': 'mkb'},              'cor': '#ec4899', 'icone': 'ph-receipt',        'label': 'Despesas',                'sub': 'Por fornecedor · conta contábil'},
+  {'endpoint': 'ingest',                       'params': {},                              'cor': '#14b8a6', 'icone': 'ph-cloud-arrow-up', 'label': 'Importar',                'sub': 'Razão, IRPJ/CSLL e mês completo', 'admin_apenas': true},
+] %}
+{% set eh_admin = session.usuario_logado and session.usuario_logado.role == 'admin' %}
+{% if not eh_admin %}
+  {% set itens = itens | rejectattr('admin_apenas') | list %}
+{% endif %}
+
+{% if compact %}
+<div class="hub-list">
+  {% for item in itens %}
+  <a href="{{ url_for(item.endpoint, **item.params) }}" class="hub-pill" style="--hub-c:{{ item.cor }}">
+    <i class="ph {{ item.icone }}"></i>
+    <span>{{ item.label }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="hub-grid">
+  {% for item in itens %}
+  <a href="{{ url_for(item.endpoint, **item.params) }}" class="hub-card" style="--hub-c:{{ item.cor }}">
+    <div class="hub-icon" style="color:{{ item.cor }};background:{{ item.cor }}22">
+      <i class="ph {{ item.icone }}"></i>
+    </div>
+    <span class="hub-label">{{ item.label }}</span>
+    <span class="hub-sub">{{ item.sub }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{# ════════════════════════════════════════════════════════════════════════════ #}
+{# ESTADO SEM DADOS — tela de abertura                                         #}
+{# ════════════════════════════════════════════════════════════════════════════ #}
 {% if not ultima %}
-{# ── SEM DADOS ─────────────────────────────────────────────────────────────── #}
-<div class="page-header"><h1>Dashboard Gerencial</h1></div>
-<div class="empty-state">
-  <div class="empty-icon">📂</div>
-  <h2>Nenhum dado importado</h2>
-  <p>Importe os arquivos do Protheus para começar.</p>
-  <a href="{{ url_for('ingest') }}" class="btn btn-primary btn-lg">⬆ Importar dados</a>
+
+<div class="welcome-wrap">
+  <div class="welcome-hero">
+    <div class="welcome-logo">
+      <i class="ph-bold ph-chart-line-up"></i>
+    </div>
+    <h1 class="welcome-title">MKB Dashboard</h1>
+    <p class="welcome-sub">Dashboard gerencial do Grupo Markbuilding · BPS4 Contabilidade</p>
+    <a href="{{ url_for('ingest') }}" class="btn btn-primary welcome-cta">
+      <i class="ph-bold ph-cloud-arrow-up"></i>
+      Importar dados do Protheus para começar
+    </a>
+  </div>
+
+  <p class="welcome-modules-label">Módulos disponíveis</p>
+  <div class="welcome-hub">
+    {{ hub_cards('2026-04') }}
+  </div>
 </div>
 
+{# ════════════════════════════════════════════════════════════════════════════ #}
+{# ESTADO COM DADOS — dashboard completo                                        #}
+{# ════════════════════════════════════════════════════════════════════════════ #}
 {% else %}
 
-{# ── CABEÇALHO COM CHECKBOXES DE MESES ────────────────────────────────────── #}
+{# ── Hub de acesso rápido ────────────────────────────────────────────────── #}
+{{ hub_cards(ultima, compact=true) }}
+
+{# ── Cabeçalho com período ───────────────────────────────────────────────── #}
 <div class="dash-header-wrap">
   <div class="dash-header-top">
     <div>
@@ -31,12 +94,15 @@
       </p>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
-      <a href="{{ url_for('dre_resumida', competencia=ultima, modo='meses') }}" class="btn btn-secondary">📊 DRE Meses</a>
-      <a href="{{ url_for('dre_resumida', competencia=ultima) }}" class="btn btn-primary">Ver DRE →</a>
+      <a href="{{ url_for('dre_resumida', competencia=ultima, modo='meses') }}" class="btn btn-secondary">
+        <i class="ph-bold ph-calendar-dots" style="margin-right:4px"></i>DRE Meses
+      </a>
+      <a href="{{ url_for('dre_resumida', competencia=ultima) }}" class="btn btn-primary">
+        Ver DRE →
+      </a>
     </div>
   </div>
 
-  {# Checkboxes de meses — submete automático ao mudar #}
   <form method="GET" action="{{ url_for('index') }}" id="form-meses-dash" class="dash-check-form">
     <span class="selector-label">Período:</span>
     {% for comp in todas_competencias %}
@@ -53,13 +119,13 @@
   </form>
 </div>
 
-{# ── KPI CARDS ─────────────────────────────────────────────────────────────── #}
+{# ── KPI Cards ────────────────────────────────────────────────────────────── #}
 <div class="kpi-grid">
   {% set kpi_items = [
-    ('ROB',   'Receita Bruta',        'kpi-card',           False),
-    ('ROL',   'Receita Líquida',      'kpi-card',           False),
-    ('EBITDA','EBITDA',               'kpi-card kpi-highlight', True),
-    ('LL',    'Resultado Líquido',    'kpi-card',           True),
+    ('ROB',   'Receita Bruta',     'kpi-card',               False),
+    ('ROL',   'Receita Líquida',   'kpi-card',               False),
+    ('EBITDA','EBITDA',            'kpi-card kpi-highlight',  True),
+    ('LL',    'Resultado Líquido', 'kpi-card',                True),
   ] %}
   {% for lid, lbl, cls, danger in kpi_items %}
     {% set v    = ytd.get(lid, 0) %}
@@ -85,79 +151,132 @@
   {% endfor %}
 </div>
 
-{# ── GRÁFICOS — LINHA 1: PIZZA + ROB MENSAL ────────────────────────────────── #}
-<div class="graficos-grid-2">
+{# ── Resumo de Endividamento (Tributário + Bancário) — MKB + Gnileb ──────── #}
+<div class="section-card" style="margin-bottom:20px;">
+  <h2>🏦 Endividamento Consolidado — Tributário + Bancário</h2>
+  <p class="ingest-desc">MKB + Gnileb somados, comparado à Receita Bruta consolidada acumulada (YTD) do período acima.</p>
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Desembolso Mensal Total</div>
+      <div class="kpi-value">{{ fmt_brl(resumo_endividamento.desembolso_total) }}</div>
+      <div class="kpi-sub">Tributário + Bancário, próxima parcela de cada</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Dívida Tributária</div>
+      <div class="kpi-value">{{ fmt_brl(resumo_endividamento.divida_tributaria) }}</div>
+      <div class="kpi-sub">Saldo devedor atual via Razão</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Dívida Bancária</div>
+      <div class="kpi-value">{{ fmt_brl(resumo_endividamento.divida_bancaria) }}</div>
+      <div class="kpi-sub">Empréstimos · saldo a pagar atual</div>
+    </div>
+    <div class="kpi-card kpi-highlight">
+      <div class="kpi-label">Dívida Total / Receita Bruta</div>
+      <div class="kpi-value">{{ fmt_brl(resumo_endividamento.divida_total) }}</div>
+      <div class="kpi-sub">
+        {% if resumo_endividamento.pct_divida_rob is not none %}
+          {{ "%.1f"|format(resumo_endividamento.pct_divida_rob) }}% da Receita Bruta consolidada (YTD)
+        {% else %}
+          sem Receita Bruta no período pra comparar
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
 
+{# ── Parcelas pagas por mês × Receita Bruta acumulada ─────────────────────── #}
+<div class="graficos-grid-2" style="margin-bottom:20px;">
   <div class="grafico-card">
     <div class="grafico-titulo">
-      🍕 Receita Bruta por Segmento (Acumulado)
+      <i class="ph-bold ph-percent" style="color:#0ea5e9;font-size:15px"></i>
+      Parcelas Pagas × Receita Bruta Acumulada
+      <span class="grafico-sub">Barra = valor pago no mês (R$ mil) · Linha = % sobre ROB acumulado (Jan → mês)</span>
+    </div>
+    <div class="grafico-wrap"><canvas id="chartEndividamentoMensal"></canvas></div>
+  </div>
+  <div class="section-card" style="margin:0;">
+    <h2>📋 Detalhamento mês a mês</h2>
+    <table class="table-simple">
+      <thead>
+        <tr><th>Mês</th><th>Parcelas Pagas</th><th>Dívida Acumulada</th><th>ROB do Mês</th><th>% s/ ROB Acum.</th></tr>
+      </thead>
+      <tbody>
+        {% for l in serie_endividamento_mensal %}
+        <tr>
+          <td>{{ mes_label(l.competencia) }}</td>
+          <td>{{ fmt_brl(l.valor_pago) }}</td>
+          <td>{{ fmt_brl(l.divida_acumulada) }}</td>
+          <td>{{ fmt_brl(l.rob_mes) }}</td>
+          <td>{% if l.pct is not none %}{{ "%.1f"|format(l.pct) }}%{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ── Gráficos — linha 1: pizza + ROB mensal ──────────────────────────────── #}
+<div class="graficos-grid-2">
+  <div class="grafico-card">
+    <div class="grafico-titulo">
+      <i class="ph-bold ph-chart-pie" style="color:#a78bfa;font-size:15px"></i>
+      Receita Bruta por Segmento (Acumulado)
       <span class="grafico-sub">Composição da receita no período</span>
     </div>
-    <div class="grafico-wrap-pizza">
-      <canvas id="chartPizza"></canvas>
+    <div class="pizza-flex">
+      <div class="grafico-wrap-pizza"><canvas id="chartPizza"></canvas></div>
+      <div id="legendaPizza" class="legenda-html"></div>
     </div>
   </div>
-
   <div class="grafico-card">
     <div class="grafico-titulo">
-      📊 Receita Bruta por Mês — Consolidado
+      <i class="ph-bold ph-chart-bar" style="color:#6366f1;font-size:15px"></i>
+      Receita Bruta por Mês — Consolidado
       <span class="grafico-sub">Evolução mensal da receita (R$ mil)</span>
     </div>
-    <div class="grafico-wrap">
-      <canvas id="chartRob"></canvas>
-    </div>
+    <div class="grafico-wrap"><canvas id="chartRob"></canvas></div>
   </div>
-
 </div>
 
-{# ── GRÁFICOS — LINHA 2: LUCRO BRUTO + EBITDA ─────────────────────────────── #}
+{# ── Gráficos — linha 2: lucro bruto + ebitda ────────────────────────────── #}
 <div class="graficos-grid-2">
-
   <div class="grafico-card">
     <div class="grafico-titulo">
-      💰 Lucro Bruto por Mês
+      <i class="ph-bold ph-currency-dollar" style="color:#10b981;font-size:15px"></i>
+      Lucro Bruto por Mês
       <span class="grafico-sub">Barra = valor (R$ mil) · Linha = margem % sobre ROB</span>
     </div>
-    <div class="grafico-wrap">
-      <canvas id="chartLB"></canvas>
-    </div>
+    <div class="grafico-wrap"><canvas id="chartLB"></canvas></div>
   </div>
-
   <div class="grafico-card">
     <div class="grafico-titulo">
-      ⚡ EBITDA por Mês
+      <i class="ph-bold ph-lightning" style="color:#8b5cf6;font-size:15px"></i>
+      EBITDA por Mês
       <span class="grafico-sub">Barra = valor (R$ mil) · Linha = margem % sobre ROB</span>
     </div>
-    <div class="grafico-wrap">
-      <canvas id="chartEbitda"></canvas>
-    </div>
+    <div class="grafico-wrap"><canvas id="chartEbitda"></canvas></div>
   </div>
-
 </div>
 
-{# ── GRÁFICOS — LINHA 3: TOP 10 CUSTO + TOP 10 DESPESA ────────────────────── #}
+{# ── Gráficos — linha 3: top 10 custo + top 10 despesa ───────────────────── #}
 <div class="graficos-grid-2">
-
   <div class="grafico-card">
     <div class="grafico-titulo">
-      🔴 Top 10 — Custo das Vendas (CPV)
+      <i class="ph-bold ph-arrow-circle-up" style="color:#dc2626;font-size:15px"></i>
+      Top 10 — Custo das Vendas (CPV)
       <span class="grafico-sub">Contas de custo operacional acumulado no período — R$ mil</span>
     </div>
-    <div class="grafico-wrap-top10">
-      <canvas id="chartCusto"></canvas>
-    </div>
+    <div class="grafico-wrap-top10"><canvas id="chartCusto"></canvas></div>
   </div>
-
   <div class="grafico-card">
     <div class="grafico-titulo">
-      🟠 Top 10 — Despesas Administrativas
+      <i class="ph-bold ph-arrow-circle-up" style="color:#f97316;font-size:15px"></i>
+      Top 10 — Despesas Administrativas
       <span class="grafico-sub">Contas de despesa administrativa acumulada no período — R$ mil</span>
     </div>
-    <div class="grafico-wrap-top10">
-      <canvas id="chartDespesa"></canvas>
-    </div>
+    <div class="grafico-wrap-top10"><canvas id="chartDespesa"></canvas></div>
   </div>
-
 </div>
 
 {% endif %}
@@ -168,95 +287,57 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script>
-/* ─── DADOS DO SERVIDOR ─────────────────────────────────────────────────── */
 const serie    = {{ grafico_serie | safe }};
 const segmentos= {{ grafico_segmento | safe }};
 const custo    = {{ grafico_custo | safe }};
 const despesa  = {{ grafico_despesa | safe }};
+const endividamentoValor = {{ grafico_endividamento_valor | safe }};
+const endividamentoPct   = {{ grafico_endividamento_pct | safe }};
 
-/* ─── PALETA DARK HARMONIZADA ───────────────────────────────────────────── */
-// Pizza: cores vibrantes que destacam no fundo escuro
 const CORES = ['#6366f1','#10b981','#f59e0b','#ec4899','#8b5cf6','#14b8a6','#f97316'];
+const AZUL  = '#6366f1';
+const VERDE = '#10b981';
+const MUTED = '#6b6b9a';
+const COR_CUSTO_INI = '#dc2626';  const COR_CUSTO_FIM = '#fca5a5';
+const COR_DESP_INI  = '#4f46e5';  const COR_DESP_FIM  = '#c4b5fd';
 
-const AZUL   = '#6366f1';   // índigo vibrante — ROB
-const VERDE  = '#10b981';   // esmeralda — Lucro Bruto
-const MUTED  = '#6b6b9a';
-
-// Gradiente top custo: vermelho vivo → rosê
-const COR_CUSTO_INI  = '#dc2626';
-const COR_CUSTO_FIM  = '#fca5a5';
-
-// Gradiente top despesa: índigo → lavanda
-const COR_DESP_INI   = '#4f46e5';
-const COR_DESP_FIM   = '#c4b5fd';
-
-/* helper: valor em mil */
 function mil(v) { return Math.round(v / 1000); }
 
-/* ─── DEFAULTS GLOBAIS (tema escuro) ────────────────────────────────────── */
-Chart.defaults.font.family     = "'Segoe UI', system-ui, sans-serif";
-Chart.defaults.font.size       = 12;
-Chart.defaults.color           = '#6b6b9a';    /* muted roxo-cinza */
+Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+Chart.defaults.font.size   = 12;
+Chart.defaults.color       = '#6b6b9a';
 Chart.defaults.plugins.legend.labels.boxWidth  = 12;
-Chart.defaults.plugins.legend.labels.color     = '#e2e8f0';  /* branco */
+Chart.defaults.plugins.legend.labels.color     = '#e2e8f0';
 Chart.defaults.plugins.tooltip.backgroundColor = '#1a1a35';
 Chart.defaults.plugins.tooltip.titleColor      = '#a78bfa';
 Chart.defaults.plugins.tooltip.bodyColor       = '#e2e8f0';
 Chart.defaults.plugins.tooltip.borderColor     = '#1e1e3a';
 Chart.defaults.plugins.tooltip.borderWidth     = 1;
-
-/* Registra o plugin de labels (necessário para gráficos que o usam) */
 Chart.register(ChartDataLabels);
-/* Desativa globalmente — só ativa explicitamente por gráfico */
 Chart.defaults.plugins.datalabels.display = false;
 
 const gridLine = { color: '#1e1e3a', lineWidth: 1 };
 const noGrid   = { display: false };
 
-/* ─── 1. PIZZA: Receita por Segmento ────────────────────────────────────── */
+/* 1. Pizza */
 new Chart(document.getElementById('chartPizza'), {
   type: 'doughnut',
   data: {
     labels: segmentos.map(s => s.label),
     datasets: [{
-      data:            segmentos.map(s => mil(s.valor)),
-      backgroundColor: CORES,
-      borderWidth: 2,
-      borderColor: '#12121f',   /* cor do card — sem "emenda" branca */
-      hoverOffset: 6,
+      data: segmentos.map(s => mil(s.valor)),
+      backgroundColor: CORES, borderWidth: 2, borderColor: '#12121f', hoverOffset: 6,
     }]
   },
   options: {
-    cutout: '52%',
-    layout: { padding: 4 },
+    cutout: '52%', layout: { padding: 4 },
     plugins: {
-      legend: {
-        position: 'bottom',
-        labels: {
-          color: '#ffffff',
-          font: { size: 12 },
-          padding: 16,
-          boxWidth: 14,
-          boxHeight: 10,
-          generateLabels: chart => {
-            const data = chart.data;
-            const total = data.datasets[0].data.reduce((a,b) => a+b, 0);
-            return data.labels.map((label, i) => {
-              const val = data.datasets[0].data[i];
-              const pct = Math.round((val / total) * 100);
-              return {
-                text: `${label}  (${pct}%)`,
-                fillStyle: CORES[i % CORES.length],
-                strokeStyle: 'transparent',
-                lineWidth: 0,
-                fontColor: '#ffffff',
-                color: '#ffffff',
-                index: i,
-              };
-            });
-          }
-        }
-      },
+      // Legenda nativa do Chart.js desligada -- é desenhada dentro do
+      // <canvas>, e o "Force Dark"/auto-dark-mode de alguns navegadores
+      // reprocessa pixels de canvas ignorando a cor configurada aqui.
+      // Legenda real é montada como HTML normal logo abaixo (ver
+      // montarLegendaPizza) -- texto HTML não sofre essa reescrita.
+      legend: { display: false },
       tooltip: {
         callbacks: {
           label: ctx => {
@@ -269,34 +350,40 @@ new Chart(document.getElementById('chartPizza'), {
       datalabels: {
         display: ctx => {
           const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
-          const pct   = ctx.dataset.data[ctx.dataIndex] / total * 100;
-          return pct >= 4;   // Só mostra se segmento ≥ 4%
+          return ctx.dataset.data[ctx.dataIndex] / total * 100 >= 4;
         },
         formatter: (value, ctx) => {
           const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
           return Math.round(value / total * 100) + '%';
         },
-        color: '#ffffff',
-        font: { weight: 'bold', size: 10 },
-        textShadowBlur: 4,
-        textShadowColor: 'rgba(0,0,0,0.4)',
+        color: '#ffffff', font: { weight: 'bold', size: 10 },
+        textShadowBlur: 4, textShadowColor: 'rgba(0,0,0,0.4)',
       }
     }
   }
 });
 
-/* ─── 2. BARRAS: ROB Mensal ──────────────────────────────────────────────── */
+/* Legenda HTML do gráfico de pizza (ver comentário acima sobre canvas) */
+(function montarLegendaPizza() {
+  const total = segmentos.reduce((a, s) => a + mil(s.valor), 0);
+  const html = segmentos.map((s, i) => {
+    const pct = total ? Math.round((mil(s.valor) / total) * 100) : 0;
+    return `
+      <div class="legenda-item">
+        <span class="legenda-swatch" style="background:${CORES[i % CORES.length]}"></span>
+        <span class="legenda-texto">${s.label}&nbsp;&nbsp;(${pct}%)</span>
+      </div>`;
+  }).join('');
+  document.getElementById('legendaPizza').innerHTML = html;
+})();
+
+/* 2. ROB mensal */
 new Chart(document.getElementById('chartRob'), {
   type: 'bar',
   data: {
     labels: serie.labels,
-    datasets: [{
-      label: 'Receita Bruta (R$ mil)',
-      data: serie.rob.map(mil),
-      backgroundColor: AZUL,
-      borderRadius: 5,
-      borderSkipped: false,
-    }]
+    datasets: [{ label: 'Receita Bruta (R$ mil)', data: serie.rob.map(mil),
+                 backgroundColor: AZUL, borderRadius: 5, borderSkipped: false }]
   },
   options: {
     responsive: true, maintainAspectRatio: false,
@@ -305,47 +392,29 @@ new Chart(document.getElementById('chartRob'), {
       legend: { display: false },
       tooltip: { callbacks: { label: c => ` R$ ${c.parsed.y.toLocaleString('pt-BR')}K` } },
       datalabels: {
-        display: true,
-        anchor: 'end', align: 'end',
+        display: true, anchor: 'end', align: 'end',
         formatter: v => `R$ ${v.toLocaleString('pt-BR')}K`,
-        color: '#a78bfa',
-        font: { weight: '600', size: 11 },
+        color: '#a78bfa', font: { weight: '600', size: 11 },
       }
     },
-    scales: {
-      x: { grid: noGrid },
-      y: { display: false }
-    }
+    scales: { x: { grid: noGrid }, y: { display: false } }
   }
 });
 
-/* ─── helper: gráfico misto (barra + linha de margem) ───────────────────── */
-function graficoDuplo(canvasId, label, dados, margens, corBarra) {
+/* helper: gráfico misto (barra + linha de %) */
+function graficoDuplo(canvasId, label, dados, margens, corBarra, labelLinha = 'Margem %') {
   new Chart(document.getElementById(canvasId), {
     type: 'bar',
     data: {
       labels: serie.labels,
       datasets: [
-        {
-          type: 'bar',
-          label: label + ' (R$ mil)',
-          data: dados.map(mil),
+        { type: 'bar', label: label + ' (R$ mil)', data: dados.map(mil),
           backgroundColor: dados.map(v => v >= 0 ? corBarra : '#fca5a5'),
-          borderRadius: 5,
-          yAxisID: 'y',
-        },
-        {
-          type: 'line',
-          label: 'Margem %',
-          data: margens,
-          borderColor: '#fbbf24',
-          backgroundColor: 'transparent',
-          pointBackgroundColor: '#fbbf24',
-          pointRadius: 4,
-          borderWidth: 2,
-          yAxisID: 'y2',
-          tension: 0.3,
-        }
+          borderRadius: 5, yAxisID: 'y' },
+        { type: 'line', label: labelLinha, data: margens,
+          borderColor: '#fbbf24', backgroundColor: 'transparent',
+          pointBackgroundColor: '#fbbf24', pointRadius: 4,
+          borderWidth: 2, yAxisID: 'y2', tension: 0.3 }
       ]
     },
     options: {
@@ -355,61 +424,47 @@ function graficoDuplo(canvasId, label, dados, margens, corBarra) {
           callbacks: {
             label: c => c.datasetIndex === 0
               ? ` R$ ${c.parsed.y.toLocaleString('pt-BR')}K`
-              : ` Margem: ${c.parsed.y.toLocaleString('pt-BR')}%`
+              : ` ${labelLinha}: ${c.parsed.y.toLocaleString('pt-BR')}%`
           }
         }
       },
       scales: {
         x: { grid: noGrid },
-        y: {
-          grid: gridLine,
-          ticks: { callback: v => `${v.toLocaleString('pt-BR')}K` }
-        },
-        y2: {
-          position: 'right', grid: { display: false },
-          ticks: { callback: v => `${v}%`, color: '#fbbf24' }
-        }
+        y: { grid: gridLine, ticks: { callback: v => `${v.toLocaleString('pt-BR')}K` } },
+        y2: { position: 'right', grid: { display: false },
+              ticks: { callback: v => `${v}%`, color: '#fbbf24' } }
       }
     }
   });
 }
 
-/* ─── 3. Lucro Bruto ─────────────────────────────────────────────────────── */
+/* 3. Lucro Bruto */
 graficoDuplo('chartLB', 'Lucro Bruto', serie.lb, serie.margem_lb, VERDE);
-
-/* ─── 4. EBITDA (violeta) ───────────────────────────────────────────────── */
+/* 4. EBITDA */
 graficoDuplo('chartEbitda', 'EBITDA', serie.ebitda, serie.margem_ebitda, '#8b5cf6');
+/* 5. Parcelas pagas (Tributário + Bancário) × % sobre ROB acumulado */
+graficoDuplo('chartEndividamentoMensal', 'Parcelas Pagas', endividamentoValor, endividamentoPct, '#0ea5e9', '% s/ ROB acum.');
 
-/* ─── helper: gráfico horizontal de ranking ──────────────────────────────── */
+/* helper: ranking horizontal */
 function graficoRanking(canvasId, dados, corInicio, corFim) {
-  const n = dados.length;
-  const cores = dados.map((_, i) => {
-    const t = n <= 1 ? 0 : i / (n - 1);
-    return lerpCor(corInicio, corFim, t);
-  });
+  const n    = dados.length;
+  const cores = dados.map((_, i) => lerpCor(corInicio, corFim, n <= 1 ? 0 : i / (n - 1)));
   new Chart(document.getElementById(canvasId), {
     type: 'bar',
     data: {
       labels: dados.map(t => t.label),
-      datasets: [{
-        data: dados.map(t => mil(t.valor)),
-        backgroundColor: cores,
-        borderRadius: 4,
-      }]
+      datasets: [{ data: dados.map(t => mil(t.valor)), backgroundColor: cores, borderRadius: 4 }]
     },
     options: {
-      indexAxis: 'y',
-      responsive: true, maintainAspectRatio: false,
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
       layout: { padding: { right: 60 } },
       plugins: {
         legend: { display: false },
         tooltip: { callbacks: { label: c => ` R$ ${c.parsed.x.toLocaleString('pt-BR')}K` } },
         datalabels: {
-          display: true,
-          anchor: 'end', align: 'end',
+          display: true, anchor: 'end', align: 'end',
           formatter: v => `R$ ${v.toLocaleString('pt-BR')}K`,
-          color: '#a78bfa',
-          font: { weight: '600', size: 11 },
+          color: '#a78bfa', font: { weight: '600', size: 11 },
         }
       },
       scales: {
@@ -420,20 +475,15 @@ function graficoRanking(canvasId, dados, corInicio, corFim) {
   });
 }
 
-/* interpola cor hex entre dois pontos */
 function lerpCor(c1, c2, t) {
   const hex = h => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
   const [r1,g1,b1] = hex(c1), [r2,g2,b2] = hex(c2);
-  const r = Math.round(r1 + (r2-r1)*t);
-  const g = Math.round(g1 + (g2-g1)*t);
-  const b = Math.round(b1 + (b2-b1)*t);
-  return `rgb(${r},${g},${b})`;
+  return `rgb(${Math.round(r1+(r2-r1)*t)},${Math.round(g1+(g2-g1)*t)},${Math.round(b1+(b2-b1)*t)})`;
 }
 
-/* ─── 5. Top 10 Custo (vinho → borgonha) ────────────────────────────────── */
+/* 5. Top 10 Custo */
 graficoRanking('chartCusto',  custo,   COR_CUSTO_INI, COR_CUSTO_FIM);
-
-/* ─── 6. Top 10 Despesa (marinha → índigo suave) ────────────────────────── */
+/* 6. Top 10 Despesa */
 graficoRanking('chartDespesa', despesa, COR_DESP_INI, COR_DESP_FIM);
 </script>
 {% endif %}

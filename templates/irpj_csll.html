@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}IRPJ/CSLL — {{ mes_label_atual }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div>
+      <h1>🧮 IRPJ/CSLL — Apuração de Lucro Real</h1>
+      <p class="subtitle">
+        Empresa: <strong>{{ empresa | upper }}</strong> &nbsp;|&nbsp;
+        Referência: <strong>{{ mes_label_atual }}</strong>
+      </p>
+    </div>
+
+    {# ── Toggle: CSLL / IRPJ ──────────────────────────────────────────── #}
+    <div class="toggle-dre-tipo">
+      <a href="{{ url_for('irpj', empresa=empresa, competencia=competencia, secao='CSLL', meses=meses_param) }}"
+         class="btn-toggle-tipo {% if secao == 'CSLL' %}ativo{% endif %}">
+        📋 CSLL
+      </a>
+      <a href="{{ url_for('irpj', empresa=empresa, competencia=competencia, secao='IRPJ', meses=meses_param) }}"
+         class="btn-toggle-tipo {% if secao == 'IRPJ' %}ativo{% endif %}">
+        📋 IRPJ
+      </a>
+    </div>
+  </div>
+</div>
+
+{# ── Seletor de mês de referência + empresa ───────────────────────────── #}
+<div class="mes-selector">
+  <span class="selector-label">Mês de referência:</span>
+  {% for comp in competencias %}
+    <a href="{{ url_for('irpj', empresa=empresa, competencia=comp, secao=secao, meses=meses_param) }}"
+       class="btn-mes {% if comp == competencia %}btn-mes-ativo{% endif %}">
+      {{ mes_label(comp) }}
+    </a>
+  {% endfor %}
+  <span class="sep-emp">|</span>
+  <span class="selector-label">Empresa:</span>
+  <a href="{{ url_for('irpj', empresa='mkb', competencia=competencia, secao=secao, meses=meses_param) }}"
+     class="btn-mes {% if empresa == 'mkb' %}btn-mes-ativo{% endif %}">MKB</a>
+  <a href="{{ url_for('irpj', empresa='gnileb', competencia=competencia, secao=secao, meses=meses_param) }}"
+     class="btn-mes {% if empresa == 'gnileb' %}btn-mes-ativo{% endif %}">Gnileb</a>
+</div>
+
+{# ── Seletor de período da tabela comparativa ─────────────────────────── #}
+<div class="mes-selector">
+  <span class="selector-label">Período:</span>
+  <a href="{{ url_for('irpj', empresa=empresa, competencia=competencia, secao=secao, meses='ano') }}"
+     class="btn-mes {% if meses_param == 'ano' %}btn-mes-ativo{% endif %}">
+    Jan a {{ mes_label_atual.split('/')[0] }} (ano atual)
+  </a>
+  <a href="{{ url_for('irpj', empresa=empresa, competencia=competencia, secao=secao, meses='todas') }}"
+     class="btn-mes {% if meses_param == 'todas' %}btn-mes-ativo{% endif %}">
+    Todas as competências
+  </a>
+</div>
+
+{# ── Cards de resumo (mês de referência) ──────────────────────────────── #}
+<div class="kpi-grid">
+  <div class="kpi-card kpi-highlight">
+    <div class="kpi-label">CSLL a Pagar — {{ mes_label_atual }}</div>
+    <div class="kpi-value">{{ csll_final | brl if csll_final is not none else '—' }}</div>
+    <div class="kpi-sub">Alíquota 9% sobre base de cálculo</div>
+  </div>
+  <div class="kpi-card kpi-highlight">
+    <div class="kpi-label">IRPJ a Pagar — {{ mes_label_atual }}</div>
+    <div class="kpi-value">{{ irpj_final | brl if irpj_final is not none else '—' }}</div>
+    <div class="kpi-sub">Alíquota 15% + adicional 10%</div>
+  </div>
+</div>
+
+{# ── Tabela comparativa (meses em colunas) ────────────────────────────── #}
+<div class="card-full">
+  {% if linhas %}
+  <table class="table-mensal tabela-irpj">
+    <thead>
+      <tr>
+        <th class="col-linha-m">{{ secao }} — Descrição</th>
+        {% for comp in janela %}
+          <th class="num">{{ mes_label(comp) }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in linhas %}
+      <tr class="{% if l.destaque %}dre-resultado_final{% elif l.subtotal %}linha-subtotal{% endif %}">
+        <td class="col-linha-m">{{ l.descricao }}</td>
+        {% for comp in janela %}
+          {% set v = l.valores.get(comp) %}
+          <td class="num">{{ v | brl if v else '—' }}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-muted" style="padding:20px;">
+    Nenhuma linha com valor diferente de zero nesta seção/período.
+  </p>
+  {% endif %}
+</div>
+
+<div class="info-box" style="margin-top:20px;">
+  Dados importados manualmente via planilha ANUAL (aba "ANUAL") em
+  <a href="{{ url_for('ingest') }}">Importar Dados</a>. Linhas com valor zero em todo o
+  período exibido ficam ocultas. Esta apuração é independente da provisão contábil de
+  IRPJ/CSLL exibida no DRE (conta 4.5.x).
+</div>
+{% endblock %}

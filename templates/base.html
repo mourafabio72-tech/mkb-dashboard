@@ -4,7 +4,126 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}MKB Dashboard{% endblock %} — BPS4</title>
+
+  {# ── Phosphor Icons (bold + regular) ── #}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    /* ── Navbar · ícones Phosphor ─────────────────────────────────────────── */
+    .nav-links a {
+      display: flex; align-items: center; gap: 5px;
+    }
+    .nav-links a .ph-bold,
+    .nav-links a .ph {
+      font-size: 15px; flex-shrink: 0;
+    }
+
+    /* ── Hub de módulos (base — usado no dashboard) ───────────────────────── */
+    .hub-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+    .hub-card {
+      display: flex; flex-direction: column; align-items: center;
+      text-align: center; gap: 8px; padding: 20px 10px;
+      background: var(--card2); border: 1px solid var(--border);
+      border-radius: 12px; text-decoration: none;
+      transition: border-color .2s, transform .2s, box-shadow .2s;
+      position: relative; overflow: hidden;
+    }
+    .hub-card::before {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(135deg, var(--hub-c, transparent) 0%, transparent 60%);
+      opacity: 0; transition: opacity .25s;
+    }
+    .hub-card:hover::before { opacity: .06; }
+    .hub-card:hover {
+      border-color: var(--hub-c, var(--accent));
+      box-shadow: 0 6px 24px rgba(0,0,0,.3), 0 0 0 1px var(--hub-c, var(--accent));
+      transform: translateY(-2px);
+    }
+    .hub-icon {
+      width: 52px; height: 52px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; position: relative; z-index: 1;
+    }
+    .hub-label { font-size: 12px; font-weight: 700; color: var(--text); position: relative; z-index: 1; }
+    .hub-sub   { font-size: 10px; color: var(--muted); line-height: 1.35; position: relative; z-index: 1; }
+
+    /* Hub compacto — lista de botões pequenos, alinhada à esquerda (dashboard com dados) */
+    .hub-list {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-bottom: 24px;
+    }
+    .hub-pill {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 8px 14px; border-radius: 8px;
+      background: var(--card2); border: 1px solid var(--border);
+      color: var(--text); text-decoration: none;
+      font-size: 13px; font-weight: 600;
+      transition: border-color .15s, background .15s, transform .15s;
+    }
+    .hub-pill i { font-size: 15px; color: var(--hub-c, var(--accent)); flex-shrink: 0; }
+    .hub-pill:hover {
+      border-color: var(--hub-c, var(--accent));
+      background: rgba(139,92,246,.08);
+      background: color-mix(in srgb, var(--hub-c, var(--accent)) 10%, var(--card2));
+      transform: translateY(-1px);
+    }
+
+    /* Tela de boas-vindas (sem dados) */
+    .welcome-wrap {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 48px 0 32px; gap: 0;
+    }
+    .welcome-hero {
+      text-align: center; margin-bottom: 40px;
+    }
+    .welcome-logo {
+      width: 72px; height: 72px; border-radius: 20px;
+      background: rgba(167,139,250,.12); border: 1px solid rgba(167,139,250,.3);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px; font-size: 36px; color: var(--primary);
+    }
+    .welcome-title {
+      font-size: 28px; font-weight: 800; color: var(--text);
+      letter-spacing: -.5px; margin-bottom: 8px;
+    }
+    .welcome-sub {
+      font-size: 14px; color: var(--muted); margin-bottom: 24px;
+    }
+    .welcome-cta {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 14px; padding: 12px 28px;
+    }
+    .welcome-modules-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .8px; color: var(--muted); text-align: center;
+      margin-bottom: 12px;
+    }
+    .welcome-hub {
+      width: 100%; max-width: 840px;
+    }
+    .welcome-hub .hub-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .welcome-hub .hub-card { padding: 28px 16px; }
+    .welcome-hub .hub-icon { width: 64px; height: 64px; font-size: 32px; border-radius: 18px; }
+    .welcome-hub .hub-label { font-size: 13px; }
+    .welcome-hub .hub-sub   { font-size: 11px; }
+
+    @media (max-width: 900px) {
+      .hub-grid { grid-template-columns: repeat(3, 1fr); }
+      .welcome-hub .hub-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 560px) {
+      .hub-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
 </head>
 <body>
 
@@ -18,54 +137,27 @@
       <span class="nav-sub">Grupo Markbuilding</span>
     </div>
   </a>
+
   <ul class="nav-links">
     <li>
       <a href="{{ url_for('index') }}"
          {% if request.endpoint == 'index' %}class="active"{% endif %}>
-        Início
+        <i class="ph-bold ph-squares-four"></i> Início
       </a>
     </li>
-    {% set ultima_comp = request.view_args.get('competencia', '') %}
+    {% if session.usuario_logado and session.usuario_logado.role == 'admin' %}
     <li>
-      <a href="{{ url_for('dre_resumida', competencia=ultima_comp or '2026-04') }}"
-         {% if request.endpoint in ['dre_resumida','dre_detalhada'] %}class="active"{% endif %}>
-        DRE
+      <a href="{{ url_for('usuarios') }}"
+         {% if request.endpoint in ['usuarios','usuarios_novo'] %}class="active"{% endif %}>
+        <i class="ph-bold ph-users"></i> Usuários
       </a>
     </li>
-    <li>
-      <a href="{{ url_for('irpj', empresa='mkb', competencia=ultima_comp or '2026-04') }}"
-         {% if request.endpoint == 'irpj' %}class="active"{% endif %}>
-        IRPJ / CSLL
-      </a>
-    </li>
-    <li>
-      <a href="{{ url_for('comparativo', empresa='mkb') }}"
-         {% if request.endpoint == 'comparativo' %}class="active"{% endif %}>
-        Comparativo
-      </a>
-    </li>
-    <li>
-      <a href="{{ url_for('receita_clientes', empresa='mkb') }}"
-         {% if request.endpoint == 'receita_clientes' %}class="active"{% endif %}>
-        💼 Receita por Cliente
-      </a>
-    </li>
-    <li>
-      <a href="{{ url_for('despesas_fornecedores', empresa='mkb') }}"
-         {% if request.endpoint == 'despesas_fornecedores' %}class="active"{% endif %}>
-        🧾 Despesas por Fornecedor
-      </a>
-    </li>
-    <li>
-      <a href="{{ url_for('ingest') }}"
-         {% if request.endpoint == 'ingest' %}class="active"{% endif %}>
-        ⬆ Importar
-      </a>
-    </li>
+    {% endif %}
   </ul>
+
   {% if session.usuario_logado %}
   <div class="nav-user">
-    <span class="nav-user-nome">{{ session.usuario_logado }}</span>
+    <span class="nav-user-nome">{{ session.usuario_logado.nome }}</span>
     <a href="{{ url_for('logout') }}" class="nav-logout">Sair</a>
   </div>
   {% endif %}

@@ -4,7 +4,54 @@
 {% block content %}
 <div class="page-header">
   <h1>⬆ Importar Dados do Protheus</h1>
-  <p class="subtitle">Escolha o formato de exportação e importe os dados para o banco.</p>
+  <p class="subtitle">No dia a dia, só Razão Contábil e IRPJ/CSLL precisam de atenção manual — o resto é automático ou raro.</p>
+</div>
+
+{# ── MÊS COMPLETO: localização automática (1 clique) ─────────────────── #}
+<div class="section-card" style="margin-bottom:20px;">
+  <h2>🚀 Importar Mês Completo <span class="badge-recom">Automático</span></h2>
+  <p class="ingest-desc">
+    Localiza e importa direto das pastas do Protheus, sem precisar selecionar arquivo:
+    <strong>DRE</strong> (MKB + Gnileb), <strong>Razão CT1</strong> (MKB + Gnileb) e
+    <strong>IRPJ/CSLL ANUAL</strong> (MKB). O que não for encontrado fica indicado
+    no aviso — só esses precisam dos uploads manuais abaixo.
+  </p>
+
+  <form method="POST" action="{{ url_for('ingest') }}" class="form-ingest">
+    <input type="hidden" name="formato" value="mes_completo">
+
+    <div class="form-row">
+      <label>Ano</label>
+      <input type="number" name="ano" value="{{ ano_atual }}" min="2023" max="2030" class="input-sm">
+    </div>
+
+    <div class="form-row">
+      <label>Mês</label>
+      <select name="mes" class="input-sm">
+        {% set nomes = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'] %}
+        {% for m in range(1, 13) %}
+          <option value="{{ m }}" {% if m == mes_atual %}selected{% endif %}>
+            {{ m }} — {{ nomes[m] }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-row">
+      <label>Empresas</label>
+      <div class="radio-group">
+        <label><input type="checkbox" name="empresa_mes" value="mkb"    checked> MKB</label>
+        <label><input type="checkbox" name="empresa_mes" value="gnileb" checked> Gnileb</label>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">🚀 Importar Mês Completo</button>
+  </form>
+
+  <div class="info-box" style="margin-top:14px;">
+    <strong>Continuam manuais:</strong><br>
+    Endividamento Tributário (só quando a lista de tributos mudar) · IRPJ/CSLL Gnileb (trimestral, nome irregular)
+  </div>
 </div>
 
 <div class="graficos-grid-2">
@@ -44,22 +91,55 @@
     </div>
   </div>
 
-  {# ── Plano de Contas: descrição oficial das contas ────────────────────── #}
+  {# ── IRPJ/CSLL: planilha ANUAL (apuração de Lucro Real) ──────────────── #}
   <div class="section-card">
-    <h2>📚 Plano de Contas — Descrição oficial</h2>
+    <h2>🧮 IRPJ/CSLL — Apuração Anual (Lucro Real)</h2>
     <p class="ingest-desc">
-      Export do cadastro de contas do Protheus (CSV "Conta;Descricao").<br>
-      Fonte <strong>oficial</strong> da descrição de cada conta — alimenta a classificação por
-      <strong>Conta Contábil</strong> em "🧾 Despesas por Fornecedor" (ex.: "SERV DE INFORMATICA"
-      em vez do grupo DRE genérico). Sobrescreve descrições aproximadas herdadas de outras importações.
+      Planilha de apuração manual do contador (aba <strong>ANUAL</strong>): coluna A =
+      conta, coluna B = descrição, colunas C+ = um mês cada.<br>
+      Um único arquivo cobre o <strong>ano inteiro</strong> — independente do CT2/CT1,
+      sem relação com a provisão contábil de IRPJ/CSLL do DRE.
     </p>
 
     <form method="POST" action="{{ url_for('ingest') }}" enctype="multipart/form-data" class="form-ingest">
-      <input type="hidden" name="formato" value="plano_contas">
+      <input type="hidden" name="formato" value="irpj_csll">
 
       <div class="form-row">
         <label>Empresa</label>
-        <select name="empresa_plano_contas" class="input-sm">
+        <select name="empresa_irpj_csll" class="input-sm">
+          {% for chave, emp in EMPRESAS.items() %}
+            <option value="{{ chave }}">{{ emp.sigla }} — {{ emp.nome[:35] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label>Arquivo Excel (.xlsx)</label>
+        <input type="file" name="arquivo_irpj_csll" accept=".xlsx,.xls" class="input-file" required>
+        <small class="input-hint">Aba: "ANUAL"</small>
+      </div>
+
+      <button type="submit" class="btn btn-primary">⬆ Importar IRPJ/CSLL</button>
+    </form>
+  </div>
+
+  {# ── ENDIVIDAMENTO: vinculação parcelamento x conta contábil ──────────── #}
+  <div class="section-card">
+    <h2>🧾 Endividamento Tributário — Vinculação <span class="badge-recom" style="background:var(--card2);color:var(--muted)">Uso raro</span></h2>
+    <p class="ingest-desc">
+      <strong>Não precisa subir todo mês.</strong> O saldo devedor (CP/LP) já é calculado
+      em tempo real a partir do Razão importado — esta planilha só cadastra/atualiza a
+      <strong>lista de tributos/negociações</strong> (Tributo, Processo, Conta CP/LP, qtd.
+      parcelas, datas, desembolso mensal). Suba de novo só quando essa lista mudar:
+      um parcelamento novo, um que terminou, ou troca de conta vinculada.
+    </p>
+
+    <form method="POST" action="{{ url_for('ingest') }}" enctype="multipart/form-data" class="form-ingest">
+      <input type="hidden" name="formato" value="endividamento">
+
+      <div class="form-row">
+        <label>Empresa</label>
+        <select name="empresa_endividamento" class="input-sm">
           {% for chave, emp in EMPRESAS.items() %}
             <option value="{{ chave }}">{{ emp.sigla }} — {{ emp.nome[:35] }}</option>
           {% endfor %}
@@ -68,71 +148,12 @@
 
       <div class="form-row">
         <label>Arquivo CSV (.csv)</label>
-        <input type="file" name="arquivo_plano_contas" accept=".csv" class="input-file" required>
-        <small class="input-hint">Colunas: "Conta;Descricao" — encoding latin-1, ';'-delimitado</small>
+        <input type="file" name="arquivo_endividamento" accept=".csv" class="input-file" required>
+        <small class="input-hint">Linha "Competência: MM/AAAA" no topo</small>
       </div>
 
-      <button type="submit" class="btn btn-primary">⬆ Importar Plano de Contas</button>
+      <button type="submit" class="btn btn-primary">⬆ Importar Endividamento</button>
     </form>
-
-    <div class="info-box" style="margin-top:14px;">
-      <strong>Como gerar no Protheus:</strong><br>
-      SIGACON → Atualizações → Cadastros → Plano de Contas → Exportar (CSV "Conta;Descricao")
-    </div>
-  </div>
-
-  {# ── CT2: Comparativo Conta x 12 Meses ────────────────────────────────── #}
-  <div class="section-card">
-    <h2>📊 CT2 — Comparativo Conta x 12 Meses</h2>
-    <p class="ingest-desc">
-      Lê a aba <strong>Template DRE Protheus</strong> dos arquivos mensais.<br>
-      Saldo mensal por conta — compatível com o fluxo atual.
-    </p>
-
-    <form method="POST" action="{{ url_for('ingest') }}" class="form-ingest">
-      <input type="hidden" name="formato" value="ct2">
-
-      <div class="form-row">
-        <label>Ano</label>
-        <input type="number" name="ano" value="{{ ano_atual }}" min="2023" max="2030" class="input-sm">
-      </div>
-
-      <div class="form-row">
-        <label>Mês</label>
-        <select name="mes" class="input-sm">
-          {% set nomes = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'] %}
-          {% for m in range(1, 13) %}
-            <option value="{{ m }}" {% if m == mes_atual %}selected{% endif %}>
-              {{ m }} — {{ nomes[m] }}
-            </option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="form-row">
-        <label>Empresas</label>
-        <div class="radio-group">
-          <label><input type="checkbox" name="empresa_ct2" value="mkb"    checked> MKB — Mark Building Gerenciamento</label>
-          <label><input type="checkbox" name="empresa_ct2" value="gnileb" checked> Gnileb — MKB Participações</label>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <label>Modo</label>
-        <div class="radio-group">
-          <label><input type="radio" name="modo" value="mes" checked> Apenas este mês</label>
-          <label><input type="radio" name="modo" value="ano"> Todos os meses até este</label>
-        </div>
-      </div>
-
-      <button type="submit" class="btn btn-secondary">⬆ Importar CT2</button>
-    </form>
-
-    <div class="info-box" style="margin-top:14px;">
-      <strong>Localização automática dos arquivos:</strong><br>
-      <code>…/MKB/Apresentação Mensal/BPS4/{ano}/{mm}/1 - MKB - DRE {mm}{ano}.xlsx</code><br>
-      <code>…/Gnileb/Apresentação GNILEB/{ano}/{mm}/MKB Participações - DRE {mm}.{ano}.xlsx</code>
-    </div>
   </div>
 
 </div>
@@ -141,8 +162,36 @@
 <div class="section-card" style="margin-top:20px;">
   <h2>📦 Dados no banco</h2>
 
-  {% if stats_razao or stats_ct2 %}
+  {% if stats_razao or stats_ct2 or stats_irpj or stats_endividamento %}
   <div class="graficos-grid-2">
+
+    {% if stats_endividamento %}
+    <div>
+      <h3 style="font-size:13px;color:var(--primary);margin-bottom:10px;">Endividamento Tributário — Vinculação</h3>
+      <table class="table-simple">
+        <thead><tr><th>Empresa</th><th>Competência ref.</th><th>Parcelamentos</th></tr></thead>
+        <tbody>
+          {% for r in stats_endividamento %}
+          <tr><td>{{ r[0] }}</td><td>{{ mes_label(r[1]) }}</td><td>{{ r[2] }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {% if stats_irpj %}
+    <div>
+      <h3 style="font-size:13px;color:var(--primary);margin-bottom:10px;">IRPJ/CSLL — Apuração Anual</h3>
+      <table class="table-simple">
+        <thead><tr><th>Empresa</th><th>Competência</th><th>Linhas</th></tr></thead>
+        <tbody>
+          {% for r in stats_irpj %}
+          <tr><td>{{ r[0] }}</td><td>{{ mes_label(r[1]) }}</td><td>{{ r[2] }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
 
     {% if stats_razao %}
     <div>

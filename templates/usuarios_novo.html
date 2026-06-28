@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Novo Usuário{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>👥 Novo Usuário</h1>
+  <p class="subtitle">Cadastro manual — só administradores criam contas (sem auto-registro).</p>
+</div>
+
+<div class="section-card">
+  <form method="POST" action="{{ url_for('usuarios_novo') }}" class="form-ingest">
+    <div class="form-row">
+      <label>Usuário (login)</label>
+      <input type="text" name="usuario" class="input-sm" style="width:240px" placeholder="ex.: fabio" required>
+    </div>
+
+    <div class="form-row">
+      <label>Nome completo</label>
+      <input type="text" name="nome" class="input-sm" style="width:320px" required>
+    </div>
+
+    <div class="form-row">
+      <label>E-mail (opcional)</label>
+      <input type="email" name="email" class="input-sm" style="width:320px">
+    </div>
+
+    <div class="form-row">
+      <label>Senha (mín. 6 caracteres)</label>
+      <input type="password" name="senha" class="input-sm" style="width:240px" required minlength="6">
+    </div>
+
+    <div class="form-row">
+      <label>Perfil</label>
+      <select name="role" class="input-sm">
+        <option value="leitura" selected>Leitura — só visualiza os dashboards</option>
+        <option value="admin">Admin — acesso total (inclui Importar e Cadastros)</option>
+      </select>
+    </div>
+
+    <button type="submit" class="btn btn-primary">💾 Criar Usuário</button>
+  </form>
+</div>
+{% endblock %}

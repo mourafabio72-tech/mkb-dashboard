@@ -53,8 +53,26 @@ def criar_schema(conn: sqlite3.Connection) -> None:
     cols = {row[1] for row in conn.execute("PRAGMA table_info(razao)").fetchall()}
     if "parceiro_cod" not in cols:
         conn.execute("ALTER TABLE razao ADD COLUMN parceiro_cod TEXT")
+    if "saldo_atual" not in cols:
+        conn.execute("ALTER TABLE razao ADD COLUMN saldo_atual REAL")
+
+    # Migração: bancos criados antes da coluna `is_subtotal` em irpj_csll
+    cols_irpj = {row[1] for row in conn.execute("PRAGMA table_info(irpj_csll)").fetchall()}
+    if "is_subtotal" not in cols_irpj:
+        conn.execute("ALTER TABLE irpj_csll ADD COLUMN is_subtotal INTEGER DEFAULT 0")
+
+    # Migração: bancos criados antes da coluna `saldo_contabilidade_snapshot`
+    # em parcelamentos (peso de rateio p/ contas compartilhadas)
+    cols_parcel = {row[1] for row in conn.execute("PRAGMA table_info(parcelamentos)").fetchall()}
+    if cols_parcel and "saldo_contabilidade_snapshot" not in cols_parcel:
+        conn.execute("ALTER TABLE parcelamentos ADD COLUMN saldo_contabilidade_snapshot REAL")
 
     conn.commit()
+
+    # Seed do 1º admin a partir do DASHBOARD_USERS antigo (só se `usuarios`
+    # estiver vazia -- ver auth.py). Import local pra evitar ciclo de import.
+    from auth import bootstrap_usuarios
+    bootstrap_usuarios(conn)
 
 
 def seed_empresas(conn: sqlite3.Connection) -> None:

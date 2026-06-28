@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Usuários{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>👥 Usuários</h1>
+  <p class="subtitle">Login individual, 2 níveis de acesso: admin (tudo) e leitura (só visualização).</p>
+</div>
+
+<div class="mes-selector">
+  <a href="{{ url_for('usuarios_novo') }}" class="btn-mes btn-mes-ativo">+ Novo usuário</a>
+</div>
+
+<div class="section-card" style="margin-top:14px;">
+  <table class="table-simple">
+    <thead>
+      <tr>
+        <th>Usuário</th>
+        <th>Nome</th>
+        <th>E-mail</th>
+        <th>Perfil</th>
+        <th>Status</th>
+        <th>Criado em</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in usuarios %}
+      <tr>
+        <td>{{ u.usuario }}</td>
+        <td>{{ u.nome }}</td>
+        <td>{{ u.email or '—' }}</td>
+        <td>{{ 'Admin' if u.role == 'admin' else 'Leitura' }}</td>
+        <td>{% if u.ativo %}<span style="color:var(--success);">Ativo</span>{% else %}<span style="color:var(--danger);">Inativo</span>{% endif %}</td>
+        <td>{{ u.criado_em }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('usuarios_alternar', usuario_id=u.id) }}" style="display:inline;">
+            <button type="submit" class="btn btn-secondary" style="font-size:11px;padding:4px 10px;">
+              {{ 'Desativar' if u.ativo else 'Reativar' }}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

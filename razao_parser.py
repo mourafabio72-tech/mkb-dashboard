@@ -18,6 +18,7 @@ from pathlib import Path
 import openpyxl
 
 from config import EMPRESAS
+from ingestion import parse_valor  # "1.234,56 C"/"1.234,56 D" -> float com sinal
 
 # ─── PADRÕES ────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,24 @@ def _parse_num(val) -> float:
 def _is_data(val) -> bool:
     """Retorna True se o valor for uma data (openpyxl converte cells de data para datetime)."""
     return isinstance(val, (_dt_mod.datetime, _dt_mod.date))
+
+
+def _parse_saldo(val) -> float | None:
+    """
+    Converte a coluna "SALDO ATUAL" ('1.234,56 C'/'1.234,56 D') usando
+    `parse_valor` (ingestion.py). Quando o saldo zera, o Protheus mostra
+    "0,00" SEM sufixo C/D -- `parse_valor` exige o sufixo e retornaria None
+    para esse caso, então tratamos esse formato explicitamente como zero.
+    """
+    if val is None:
+        return None
+    v = parse_valor(str(val))
+    if v is not None:
+        return v
+    t = str(val).strip()
+    if t in ("0,00", "0.00", "0"):
+        return 0.0
+    return None
 
 
 def _extrair_data(val) -> tuple:
@@ -101,6 +120,7 @@ def parse_razao(caminho: Path, empresa_id: int) -> list:
         col_f = str(row[5] if row[5] is not None else "").strip()  # centro de custo
         deb_raw  = row[8] if len(row) > 8 else None   # coluna I
         cred_raw = row[9] if len(row) > 9 else None   # coluna J
+        saldo_raw = row[10] if len(row) > 10 else None  # coluna K -- "SALDO ATUAL"
 
         # ─── 1. Cabeçalho de conta individual ─────────────────────────────
         m_conta = _RE_CONTA.match(col_a)
@@ -133,6 +153,13 @@ def parse_razao(caminho: Path, empresa_id: int) -> list:
             if deb == 0 and cred == 0:
                 continue   # lançamento zerado — ignorar
 
+            # Saldo acumulado da conta após este lançamento (coluna "SALDO
+            # ATUAL", formato "1.234,56 C"/"1.234,56 D") -- usado por
+            # Endividamento Tributário para saber o saldo devedor em
+            # qualquer competência sem precisar reconstruir a partir do
+            # saldo anterior (que este parser não captura). Não afeta DRE.
+            saldo_atual = _parse_saldo(saldo_raw)
+
             registros.append({
                 "empresa_id":   empresa_id,
                 "competencia":  competencia,
@@ -146,6 +173,7 @@ def parse_razao(caminho: Path, empresa_id: int) -> list:
                 "debito":       deb,
                 "credito":      cred,
                 "valor":        valor,
+                "saldo_atual":  saldo_atual,
             })
 
     wb.close()
@@ -163,19 +191,21 @@ def salvar_razao(conn: sqlite3.Connection, registros: list, arquivo: Path) -> in
     if not registros:
         return 0
 
-    # Garante que todo registro tem `parceiro_cod` (campo opcional -- só os
-    # importadores de CT2-detalhe o preenchem; o parser do Razão CT1 não)
+    # Garante que todo registro tem `parceiro_cod`/`saldo_atual` (campos
+    # opcionais -- só o parser do Razão CT1 preenche `saldo_atual`; só os
+    # importadores de CT2-detalhe preenchem `parceiro_cod`)
     for r in registros:
         r.setdefault("parceiro_cod", None)
+        r.setdefault("saldo_atual", None)
 
     conn.executemany(
         """
         INSERT INTO razao
             (empresa_id, competencia, data_lanc, conta_cod, documento,
-             historico, conta_partida, filial, centro_custo, debito, credito, valor, parceiro_cod)
+             historico, conta_partida, filial, centro_custo, debito, credito, valor, parceiro_cod, saldo_atual)
         VALUES
             (:empresa_id, :competencia, :data_lanc, :conta_cod, :documento,
-             :historico, :conta_partida, :filial, :centro_custo, :debito, :credito, :valor, :parceiro_cod)
+             :historico, :conta_partida, :filial, :centro_custo, :debito, :credito, :valor, :parceiro_cod, :saldo_atual)
         ON CONFLICT (empresa_id, data_lanc, documento, conta_cod)
         DO UPDATE SET
             historico     = excluded.historico,
@@ -185,7 +215,8 @@ def salvar_razao(conn: sqlite3.Connection, registros: list, arquivo: Path) -> in
             debito        = excluded.debito,
             credito       = excluded.credito,
             valor         = excluded.valor,
-            parceiro_cod  = excluded.parceiro_cod
+            parceiro_cod  = excluded.parceiro_cod,
+            saldo_atual   = excluded.saldo_atual
         """,
         registros,
     )

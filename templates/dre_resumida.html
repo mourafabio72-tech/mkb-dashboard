@@ -189,6 +189,17 @@
 
       {% for linha_id, label, tipo_l, secao in dre_meta %}
 
+        {# Linhas "totalizadoras" também são drilláveis, mantendo o estilo
+           visual original (resultado/subtotal/resultado_final):
+             ROL        → drill combinado ROB + DED
+             CPV_TOTAL  → drill combinado de todos os grupos CPV_* (Custos Operacionais)
+             DADM_TOTAL → drill combinado de todos os grupos DADM_* (Despesas Operacionais)
+             ENC_FIN    → drill combinado Despesas + Receitas Financeiras (Resultado Financeiro)
+             LL         → "ponte" de subtotais ROL→...→LL (Resultado Final)
+             EBITDA     → "ponte" a partir do Resultado Líquido (EBITDA Ajustado) #}
+        {% set drillavel = (tipo_l in ('grupo', 'grupo_pos'))
+                            or (linha_id in ('ROL', 'CPV_TOTAL', 'DADM_TOTAL', 'ENC_FIN', 'LL', 'EBITDA')) %}
+
         {# ── Separador de seção — dispara na PRIMEIRA linha de cada seção ─────── #}
         {% if secao != secao_atual.val %}
           {% set secao_atual.val = secao %}
@@ -236,15 +247,22 @@
 
         {# ── Linha principal ─────────────────────────────────────────────────── #}
         <tr class="dre-row dre-{{ tipo_l }}"
-            {% if tipo_l in ('grupo', 'grupo_pos') %}
+            {% if drillavel %}
               data-grupo="{{ linha_id }}"
-              data-secao="{{ secao }}"
+              {% if tipo_l in ('grupo', 'grupo_pos') %}
+                {# data-secao só nas linhas de DETALHE (CPV_*/DADM_*): é o que
+                   toggleSecao()/expandirTodos() recolhem/expandem junto com a
+                   seção. As linhas "totalizadoras" (CPV_TOTAL, DADM_TOTAL,
+                   ENC_FIN, ROL, LL, EBITDA) NÃO entram aqui — senão o
+                   recolher/expandir da seção esconderia o próprio subtotal. #}
+                data-secao="{{ secao }}"
+              {% endif %}
               onclick="toggleGrupo(this)"
               title="Clique para ver as contas deste grupo"
             {% endif %}>
 
           <td class="col-linha">
-            {% if tipo_l in ('grupo', 'grupo_pos') %}
+            {% if drillavel %}
               <span class="expand-icon" id="icon-{{ linha_id }}">▶</span>
             {% endif %}
             {{ label }}
@@ -277,7 +295,7 @@
         </tr>
 
         {# ── Linhas de contas (nível 2) — ocultas por padrão ─────────────────── #}
-        {% if tipo_l in ('grupo', 'grupo_pos') %}
+        {% if drillavel %}
           {% set contas = det_merged.get(linha_id, []) %}
           {% if contas %}
 
@@ -436,13 +454,33 @@
 
         {% for linha_id, label, tipo_l, secao in dre_meta %}
 
-          {# Separadores de seção #}
+          {# Linhas "totalizadoras" também são drilláveis — ver comentário
+             equivalente no bloco "modo === mes" acima. #}
+          {% set drillavel = (tipo_l in ('grupo', 'grupo_pos'))
+                              or (linha_id in ('ROL', 'CPV_TOTAL', 'DADM_TOTAL', 'ENC_FIN', 'LL', 'EBITDA')) %}
+
+          {# Separadores de seção — custo/despesa são clicáveis e expandem
+             diretamente o totalizador da seção (CPV_TOTAL / DADM_TOTAL) #}
           {% if secao != secao_men.val %}
             {% set secao_men.val = secao %}
             {% if secao == 'custo' %}
-              <tr class="dre-sec-sep"><td colspan="999" class="dre-sec-label">▸ CUSTOS OPERACIONAIS</td></tr>
+              <tr class="dre-sec-sep dre-sec-collapsible"
+                  onclick="toggleSecaoM('custo')"
+                  title="Clique para recolher/expandir os custos operacionais">
+                <td colspan="999" class="dre-sec-label">
+                  <span class="expand-icon" id="icon-sec-m-custo">▼</span>
+                  CUSTOS OPERACIONAIS
+                </td>
+              </tr>
             {% elif secao == 'despesa' %}
-              <tr class="dre-sec-sep"><td colspan="999" class="dre-sec-label">▸ DESPESAS OPERACIONAIS</td></tr>
+              <tr class="dre-sec-sep dre-sec-collapsible"
+                  onclick="toggleSecaoM('despesa')"
+                  title="Clique para recolher/expandir as despesas operacionais">
+                <td colspan="999" class="dre-sec-label">
+                  <span class="expand-icon" id="icon-sec-m-despesa">▼</span>
+                  DESPESAS OPERACIONAIS
+                </td>
+              </tr>
             {% elif secao == 'financeiro' %}
               <tr class="dre-sec-sep"><td colspan="999" class="dre-sec-label">▸ RESULTADO FINANCEIRO E OUTROS</td></tr>
             {% elif secao == 'resultado' %}
@@ -455,13 +493,20 @@
 
           {# ── Linha de dados ──────────────────────────────────────────────── #}
           <tr class="dre-row dre-{{ tipo_l }}"
-              {% if tipo_l in ('grupo', 'grupo_pos') %}
+              {% if drillavel %}
                 data-grupo-m="{{ linha_id }}"
+                {% if tipo_l in ('grupo', 'grupo_pos') %}
+                  {# data-secao nas linhas de DETALHE: toggleSecaoM() usa esse
+                     seletor para recolher/expandir a seção inteira. As linhas
+                     totalizadoras (CPV_TOTAL, DADM_TOTAL…) NÃO recebem
+                     data-secao para que permaneçam visíveis ao recolher. #}
+                  data-secao="{{ secao }}"
+                {% endif %}
                 onclick="toggleGrupoMensal(this)"
                 title="Clique para ver as contas deste grupo"
               {% endif %}>
             <td class="col-linha">
-              {% if tipo_l in ('grupo', 'grupo_pos') %}
+              {% if drillavel %}
                 <span class="expand-icon" id="icon-m-{{ linha_id }}">▶</span>
               {% endif %}
               {{ label }}
@@ -509,7 +554,7 @@
           </tr>
 
           {# ── Sub-rows de conta (nível 2) — expansíveis ───────────────────── #}
-          {% if tipo_l in ('grupo', 'grupo_pos') %}
+          {% if drillavel %}
             {% set contas_g = contas_meses.get(linha_id, []) %}
             {% if contas_g %}
 
@@ -582,6 +627,37 @@
 
 {% block scripts %}
 <script>
+/* ── Recolhe/expande seção inteira no Multi-Mês (equivalente a toggleSecao
+   do Mês Único). Clique em "▼ CUSTOS OPERACIONAIS" oculta todas as linhas
+   CPV_* (data-secao="custo") deixando apenas "(=) Custos Operacionais"
+   visível; outro clique as reexibe. Idem para DESPESAS OPERACIONAIS. ── */
+function toggleSecaoM(secao) {
+  const grupoRows = document.querySelectorAll(`.dre-row[data-secao="${secao}"]`);
+  const iconIds   = { custo: 'icon-sec-m-custo', despesa: 'icon-sec-m-despesa' };
+  const icon      = document.getElementById(iconIds[secao]);
+  if (!grupoRows.length) return;
+
+  // Decide abrir ou fechar pelo estado da primeira linha de detalhe
+  const abrir = grupoRows[0].style.display === 'none';
+
+  grupoRows.forEach(row => {
+    row.style.display = abrir ? '' : 'none';
+    // Ao fechar: recolhe também qualquer drill-down aberto nesta linha
+    if (!abrir) {
+      const grupoId = row.dataset.grupoM;
+      const hdr    = document.getElementById(`filha-m-hdr-${grupoId}`);
+      const filhas = document.querySelectorAll(`[id^="filha-m-${grupoId}-"]`);
+      if (hdr) hdr.style.display = 'none';
+      filhas.forEach(f => { f.style.display = 'none'; });
+      const iconG = document.getElementById(`icon-m-${grupoId}`);
+      if (iconG) iconG.textContent = '▶';
+      row.classList.remove('grupo-expandido');
+    }
+  });
+
+  if (icon) icon.textContent = abrir ? '▼' : '▶';
+}
+
 /* ── Toggle grupo no modo Multi-Mês (nível 1 → 2) ───────────────────────── */
 function toggleGrupoMensal(row) {
   const grupoId = row.dataset.grupoM;
