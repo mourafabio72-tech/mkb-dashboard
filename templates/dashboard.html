@@ -33,11 +33,13 @@
 <div class="hub-grid">
   {% for item in itens %}
   <a href="{{ url_for(item.endpoint, **item.params) }}" class="hub-card" style="--hub-c:{{ item.cor }}">
-    <div class="hub-icon" style="color:{{ item.cor }};background:{{ item.cor }}22">
+    <div class="hub-icon" style="color:{{ item.cor }};background:{{ item.cor }}1a">
       <i class="ph {{ item.icone }}"></i>
     </div>
-    <span class="hub-label">{{ item.label }}</span>
-    <span class="hub-sub">{{ item.sub }}</span>
+    <div class="hub-text">
+      <span class="hub-label">{{ item.label }}</span>
+      <span class="hub-sub">{{ item.sub }}</span>
+    </div>
   </a>
   {% endfor %}
 </div>
