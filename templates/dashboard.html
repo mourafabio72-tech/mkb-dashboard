@@ -3,9 +3,7 @@
 
 {% block content %}
 
-{# ── Macro: hub de módulos (reusado em estado vazio e estado com dados) ────
-   compact=false → cards grandes (tela de boas-vindas, sem dados)
-   compact=true  → lista de botões pequenos, alinhada à esquerda (dashboard) #}
+{# ── Macro: hub de módulos ───────────────────────────────────────────────── #}
 {% macro hub_cards(c, compact=false) %}
 {% set uc = c or '2026-04' %}
 {% set itens = [
@@ -47,168 +45,153 @@
 {% endmacro %}
 
 {# ════════════════════════════════════════════════════════════════════════════ #}
-{# ESTADO SEM DADOS — tela de abertura                                         #}
+{# ESTADO SEM DADOS                                                            #}
 {# ════════════════════════════════════════════════════════════════════════════ #}
 {% if not ultima %}
 
-<div class="welcome-wrap">
-  <div class="welcome-hero">
-    <div class="welcome-logo">
+<div class="min-welcome">
+  <div class="min-welcome-header">
+    <div class="min-welcome-icon">
       <i class="ph-bold ph-chart-line-up"></i>
     </div>
-    <h1 class="welcome-title">MKB Dashboard</h1>
-    <p class="welcome-sub">Dashboard gerencial do Grupo Markbuilding · BPS4 Contabilidade</p>
-    <a href="{{ url_for('ingest') }}" class="btn btn-primary welcome-cta">
-      <i class="ph-bold ph-cloud-arrow-up"></i>
-      Importar dados do Protheus para começar
+    <h1>MKB Dashboard</h1>
+    <p>Dashboard gerencial do Grupo Markbuilding</p>
+    <a href="{{ url_for('ingest') }}" class="min-cta">
+      <i class="ph-bold ph-cloud-arrow-up"></i> Importar dados
     </a>
   </div>
-
-  <p class="welcome-modules-label">Módulos disponíveis</p>
-  <div class="welcome-hub">
+  <div class="min-modules">
+    <span class="min-modules-label">Módulos</span>
     {{ hub_cards('2026-04') }}
   </div>
 </div>
 
 {# ════════════════════════════════════════════════════════════════════════════ #}
-{# ESTADO COM DADOS — dashboard completo                                        #}
+{# ESTADO COM DADOS                                                            #}
 {# ════════════════════════════════════════════════════════════════════════════ #}
 {% else %}
 
-{# ── Hub de acesso rápido ────────────────────────────────────────────────── #}
-{{ hub_cards(ultima, compact=true) }}
-
-{# ── Cabeçalho com período ───────────────────────────────────────────────── #}
-<div class="dash-header-wrap">
-  <div class="dash-header-top">
-    <div>
-      <h1>Dashboard Gerencial</h1>
-      <p class="subtitle">
-        Grupo Markbuilding &nbsp;·&nbsp;
-        {% if competencias|length == todas_competencias|length %}
-          Acumulado <strong>{{ mes_label(competencias[0]) }} — {{ mes_label(ultima) }}</strong>
-        {% else %}
-          <strong>{{ competencias|length }} mês{{ 'es' if competencias|length > 1 else '' }} selecionado{{ 's' if competencias|length > 1 else '' }}</strong>:
-          {% for c in competencias %}<strong>{{ mes_label(c) }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}
-        {% endif %}
-      </p>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <a href="{{ url_for('dre_resumida', competencia=ultima, modo='meses') }}" class="btn btn-secondary">
-        <i class="ph-bold ph-calendar-dots" style="margin-right:4px"></i>DRE Meses
-      </a>
-      <a href="{{ url_for('dre_resumida', competencia=ultima) }}" class="btn btn-primary">
-        Ver DRE →
-      </a>
-    </div>
+{# ── Cabeçalho ───────────────────────────────────────────────────────────── #}
+<div class="min-header">
+  <div class="min-header-left">
+    <h1>Dashboard</h1>
+    <span class="min-header-period">
+      {% if competencias|length == todas_competencias|length %}
+        {{ mes_label(competencias[0]) }} — {{ mes_label(ultima) }}
+      {% else %}
+        {{ competencias|length }} mês{{ 'es' if competencias|length > 1 else '' }}:
+        {% for c in competencias %}{{ mes_label(c) }}{% if not loop.last %}, {% endif %}{% endfor %}
+      {% endif %}
+    </span>
   </div>
-
-  <form method="GET" action="{{ url_for('index') }}" id="form-meses-dash" class="dash-check-form">
-    <span class="selector-label">Período:</span>
-    {% for comp in todas_competencias %}
-      <label class="check-mes-label {% if comp in competencias %}check-mes-ativo{% endif %}">
-        <input type="checkbox" name="meses" value="{{ comp }}"
-               {% if comp in competencias %}checked{% endif %}
-               onchange="document.getElementById('form-meses-dash').submit()">
-        {{ mes_label(comp) }}
-      </label>
-    {% endfor %}
-    {% if competencias|length < todas_competencias|length %}
-      <a href="{{ url_for('index') }}" class="btn-mes" style="margin-left:8px;">✕ Limpar filtro</a>
-    {% endif %}
-  </form>
+  <div class="min-header-right">
+    <a href="{{ url_for('dre_resumida', competencia=ultima, modo='meses') }}" class="min-btn-ghost">
+      <i class="ph ph-calendar-dots"></i> Meses
+    </a>
+    <a href="{{ url_for('dre_resumida', competencia=ultima) }}" class="min-btn-solid">
+      Ver DRE <i class="ph ph-arrow-right"></i>
+    </a>
+  </div>
 </div>
 
-{# ── KPI Cards ────────────────────────────────────────────────────────────── #}
-<div class="kpi-grid">
+{# ── Filtro de período ───────────────────────────────────────────────────── #}
+<form method="GET" action="{{ url_for('index') }}" id="form-meses-dash" class="min-period-bar">
+  {% for comp in todas_competencias %}
+    <label class="min-chip {% if comp in competencias %}min-chip-on{% endif %}">
+      <input type="checkbox" name="meses" value="{{ comp }}"
+             {% if comp in competencias %}checked{% endif %}
+             onchange="document.getElementById('form-meses-dash').submit()">
+      {{ mes_label(comp) }}
+    </label>
+  {% endfor %}
+  {% if competencias|length < todas_competencias|length %}
+    <a href="{{ url_for('index') }}" class="min-chip-clear">Limpar</a>
+  {% endif %}
+</form>
+
+{# ── Hub de módulos ──────────────────────────────────────────────────────── #}
+{{ hub_cards(ultima, compact=true) }}
+
+{# ── KPIs ────────────────────────────────────────────────────────────────── #}
+<div class="min-kpi-row">
   {% set kpi_items = [
-    ('ROB',   'Receita Bruta',     'kpi-card',               False),
-    ('ROL',   'Receita Líquida',   'kpi-card',               False),
-    ('EBITDA','EBITDA',            'kpi-card kpi-highlight',  True),
-    ('LL',    'Resultado Líquido', 'kpi-card',                True),
+    ('ROB',   'Receita Bruta',     false),
+    ('ROL',   'Receita Líquida',   false),
+    ('EBITDA','EBITDA',             true),
+    ('LL',    'Resultado Líquido', true),
   ] %}
-  {% for lid, lbl, cls, danger in kpi_items %}
+  {% for lid, lbl, danger in kpi_items %}
     {% set v    = ytd.get(lid, 0) %}
     {% set rob  = ytd.get('ROB', 1) or 1 %}
     {% set vult = kpis.get(lid, 0) %}
     {% set vant = kpis_ant.get(lid, 0) %}
     {% set vp   = variacao_pct(vult, vant) %}
-    <div class="{{ cls }}">
-      <div class="kpi-label">{{ lbl }} — YTD</div>
-      <div class="kpi-value {% if danger and v < 0 %}text-danger{% endif %}">
-        {{ fmt_brl(v) }}
-      </div>
-      <div class="kpi-sub">{{ pct_rob(v, rob) }} da Rec. Bruta</div>
+    <div class="min-kpi {% if lid == 'EBITDA' %}min-kpi-hl{% endif %}">
+      <span class="min-kpi-label">{{ lbl }}</span>
+      <span class="min-kpi-value {% if danger and v < 0 %}text-danger{% endif %}">{{ fmt_brl(v) }}</span>
+      <span class="min-kpi-sub">{{ pct_rob(v, rob) }} da ROB</span>
       {% if vp[0] is not none %}
-        <div class="kpi-var">
-          <span class="var-{{ vp[2] }}">
-            {% if vp[2] == 'pos' %}▲{% else %}▼{% endif %}
-            {{ vp[1] }} no último mês
-          </span>
-        </div>
+        <span class="min-kpi-var var-{{ vp[2] }}">
+          {% if vp[2] == 'pos' %}+{% else %}-{% endif %}{{ vp[1] }}
+        </span>
       {% endif %}
     </div>
   {% endfor %}
 </div>
 
-{# ── Resumo de Endividamento (Tributário + Bancário) — MKB + Gnileb ──────── #}
-<div class="section-card" style="margin-bottom:20px;">
-  <h2>🏦 Endividamento Consolidado — Tributário + Bancário</h2>
-  <p class="ingest-desc">MKB + Gnileb somados, comparado à Receita Bruta consolidada acumulada (YTD) do período acima.</p>
-  <div class="kpi-grid">
-    <div class="kpi-card">
-      <div class="kpi-label">Desembolso Mensal Total</div>
-      <div class="kpi-value">{{ fmt_brl(resumo_endividamento.desembolso_total) }}</div>
-      <div class="kpi-sub">Tributário + Bancário, próxima parcela de cada</div>
+{# ── Endividamento resumo ────────────────────────────────────────────────── #}
+<div class="min-section">
+  <div class="min-section-head">
+    <h2>Endividamento Consolidado</h2>
+    <span class="min-section-sub">MKB + Gnileb · Tributário + Bancário</span>
+  </div>
+  <div class="min-kpi-row">
+    <div class="min-kpi">
+      <span class="min-kpi-label">Desembolso Mensal</span>
+      <span class="min-kpi-value">{{ fmt_brl(resumo_endividamento.desembolso_total) }}</span>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Dívida Tributária</div>
-      <div class="kpi-value">{{ fmt_brl(resumo_endividamento.divida_tributaria) }}</div>
-      <div class="kpi-sub">Saldo devedor atual via Razão</div>
+    <div class="min-kpi">
+      <span class="min-kpi-label">Dívida Tributária</span>
+      <span class="min-kpi-value">{{ fmt_brl(resumo_endividamento.divida_tributaria) }}</span>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Dívida Bancária</div>
-      <div class="kpi-value">{{ fmt_brl(resumo_endividamento.divida_bancaria) }}</div>
-      <div class="kpi-sub">Empréstimos · saldo a pagar atual</div>
+    <div class="min-kpi">
+      <span class="min-kpi-label">Dívida Bancária</span>
+      <span class="min-kpi-value">{{ fmt_brl(resumo_endividamento.divida_bancaria) }}</span>
     </div>
-    <div class="kpi-card kpi-highlight">
-      <div class="kpi-label">Dívida Total / Receita Bruta</div>
-      <div class="kpi-value">{{ fmt_brl(resumo_endividamento.divida_total) }}</div>
-      <div class="kpi-sub">
+    <div class="min-kpi min-kpi-hl">
+      <span class="min-kpi-label">Dívida Total / ROB</span>
+      <span class="min-kpi-value">{{ fmt_brl(resumo_endividamento.divida_total) }}</span>
+      <span class="min-kpi-sub">
         {% if resumo_endividamento.pct_divida_rob is not none %}
-          {{ "%.1f"|format(resumo_endividamento.pct_divida_rob) }}% da Receita Bruta consolidada (YTD)
+          {{ "%.1f"|format(resumo_endividamento.pct_divida_rob) }}% da ROB (YTD)
         {% else %}
-          sem Receita Bruta no período pra comparar
+          —
         {% endif %}
-      </div>
+      </span>
     </div>
   </div>
 </div>
 
-{# ── Parcelas pagas por mês × Receita Bruta acumulada ─────────────────────── #}
-<div class="graficos-grid-2" style="margin-bottom:20px;">
-  <div class="grafico-card">
-    <div class="grafico-titulo">
-      <i class="ph-bold ph-percent" style="color:#0ea5e9;font-size:15px"></i>
-      Parcelas Pagas × Receita Bruta Acumulada
-      <span class="grafico-sub">Barra = valor pago no mês (R$ mil) · Linha = % sobre ROB acumulado (Jan → mês)</span>
-    </div>
+{# ── Gráficos ────────────────────────────────────────────────────────────── #}
+<div class="min-grid-2">
+  <div class="min-chart-card">
+    <span class="min-chart-title">Parcelas Pagas × ROB Acumulada</span>
     <div class="grafico-wrap"><canvas id="chartEndividamentoMensal"></canvas></div>
   </div>
-  <div class="section-card" style="margin:0;">
-    <h2>📋 Detalhamento mês a mês</h2>
-    <table class="table-simple">
+  <div class="min-chart-card">
+    <span class="min-chart-title">Detalhamento Mensal</span>
+    <table class="table-simple" style="font-size:12px;">
       <thead>
-        <tr><th>Mês</th><th>Parcelas Pagas</th><th>Dívida Acumulada</th><th>ROB do Mês</th><th>% s/ ROB Acum.</th></tr>
+        <tr><th>Mês</th><th class="num">Parc. Pagas</th><th class="num">Dív. Acum.</th><th class="num">ROB</th><th class="num">%</th></tr>
       </thead>
       <tbody>
         {% for l in serie_endividamento_mensal %}
         <tr>
           <td>{{ mes_label(l.competencia) }}</td>
-          <td>{{ fmt_brl(l.valor_pago) }}</td>
-          <td>{{ fmt_brl(l.divida_acumulada) }}</td>
-          <td>{{ fmt_brl(l.rob_mes) }}</td>
-          <td>{% if l.pct is not none %}{{ "%.1f"|format(l.pct) }}%{% else %}—{% endif %}</td>
+          <td class="num">{{ fmt_brl(l.valor_pago) }}</td>
+          <td class="num">{{ fmt_brl(l.divida_acumulada) }}</td>
+          <td class="num">{{ fmt_brl(l.rob_mes) }}</td>
+          <td class="num">{% if l.pct is not none %}{{ "%.1f"|format(l.pct) }}%{% else %}—{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -216,65 +199,38 @@
   </div>
 </div>
 
-{# ── Gráficos — linha 1: pizza + ROB mensal ──────────────────────────────── #}
-<div class="graficos-grid-2">
-  <div class="grafico-card">
-    <div class="grafico-titulo">
-      <i class="ph-bold ph-chart-pie" style="color:#a78bfa;font-size:15px"></i>
-      Receita Bruta por Segmento (Acumulado)
-      <span class="grafico-sub">Composição da receita no período</span>
-    </div>
+<div class="min-grid-2">
+  <div class="min-chart-card">
+    <span class="min-chart-title">Receita Bruta por Segmento</span>
     <div class="pizza-flex">
       <div class="grafico-wrap-pizza"><canvas id="chartPizza"></canvas></div>
       <div id="legendaPizza" class="legenda-html"></div>
     </div>
   </div>
-  <div class="grafico-card">
-    <div class="grafico-titulo">
-      <i class="ph-bold ph-chart-bar" style="color:#6366f1;font-size:15px"></i>
-      Receita Bruta por Mês — Consolidado
-      <span class="grafico-sub">Evolução mensal da receita (R$ mil)</span>
-    </div>
+  <div class="min-chart-card">
+    <span class="min-chart-title">Receita Bruta Mensal</span>
     <div class="grafico-wrap"><canvas id="chartRob"></canvas></div>
   </div>
 </div>
 
-{# ── Gráficos — linha 2: lucro bruto + ebitda ────────────────────────────── #}
-<div class="graficos-grid-2">
-  <div class="grafico-card">
-    <div class="grafico-titulo">
-      <i class="ph-bold ph-currency-dollar" style="color:#10b981;font-size:15px"></i>
-      Lucro Bruto por Mês
-      <span class="grafico-sub">Barra = valor (R$ mil) · Linha = margem % sobre ROB</span>
-    </div>
+<div class="min-grid-2">
+  <div class="min-chart-card">
+    <span class="min-chart-title">Lucro Bruto</span>
     <div class="grafico-wrap"><canvas id="chartLB"></canvas></div>
   </div>
-  <div class="grafico-card">
-    <div class="grafico-titulo">
-      <i class="ph-bold ph-lightning" style="color:#8b5cf6;font-size:15px"></i>
-      EBITDA por Mês
-      <span class="grafico-sub">Barra = valor (R$ mil) · Linha = margem % sobre ROB</span>
-    </div>
+  <div class="min-chart-card">
+    <span class="min-chart-title">EBITDA</span>
     <div class="grafico-wrap"><canvas id="chartEbitda"></canvas></div>
   </div>
 </div>
 
-{# ── Gráficos — linha 3: top 10 custo + top 10 despesa ───────────────────── #}
-<div class="graficos-grid-2">
-  <div class="grafico-card">
-    <div class="grafico-titulo">
-      <i class="ph-bold ph-arrow-circle-up" style="color:#dc2626;font-size:15px"></i>
-      Top 10 — Custo das Vendas (CPV)
-      <span class="grafico-sub">Contas de custo operacional acumulado no período — R$ mil</span>
-    </div>
+<div class="min-grid-2">
+  <div class="min-chart-card">
+    <span class="min-chart-title">Top 10 — Custo (CPV)</span>
     <div class="grafico-wrap-top10"><canvas id="chartCusto"></canvas></div>
   </div>
-  <div class="grafico-card">
-    <div class="grafico-titulo">
-      <i class="ph-bold ph-arrow-circle-up" style="color:#f97316;font-size:15px"></i>
-      Top 10 — Despesas Administrativas
-      <span class="grafico-sub">Contas de despesa administrativa acumulada no período — R$ mil</span>
-    </div>
+  <div class="min-chart-card">
+    <span class="min-chart-title">Top 10 — Despesas Adm.</span>
     <div class="grafico-wrap-top10"><canvas id="chartDespesa"></canvas></div>
   </div>
 </div>
@@ -297,46 +253,50 @@ const endividamentoPct   = {{ grafico_endividamento_pct | safe }};
 const CORES = ['#6366f1','#10b981','#f59e0b','#ec4899','#8b5cf6','#14b8a6','#f97316'];
 const AZUL  = '#6366f1';
 const VERDE = '#10b981';
-const MUTED = '#6b6b9a';
+
+/* Detecta tema para cores do Chart.js */
+function isDark() { return document.documentElement.getAttribute('data-theme') !== 'light'; }
+const MUTED  = isDark() ? '#6b6b9a' : '#9ca3af';
+const TXT    = isDark() ? '#e2e8f0' : '#374151';
+const CARD_BG = isDark() ? '#1a1a35' : '#ffffff';
+const GRID_C  = isDark() ? '#1e1e3a' : '#e5e7eb';
+const LABEL_C = isDark() ? '#a78bfa' : '#7c3aed';
+
 const COR_CUSTO_INI = '#dc2626';  const COR_CUSTO_FIM = '#fca5a5';
 const COR_DESP_INI  = '#4f46e5';  const COR_DESP_FIM  = '#c4b5fd';
 
 function mil(v) { return Math.round(v / 1000); }
 
 Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
-Chart.defaults.font.size   = 12;
-Chart.defaults.color       = '#6b6b9a';
-Chart.defaults.plugins.legend.labels.boxWidth  = 12;
-Chart.defaults.plugins.legend.labels.color     = '#e2e8f0';
-Chart.defaults.plugins.tooltip.backgroundColor = '#1a1a35';
-Chart.defaults.plugins.tooltip.titleColor      = '#a78bfa';
-Chart.defaults.plugins.tooltip.bodyColor       = '#e2e8f0';
-Chart.defaults.plugins.tooltip.borderColor     = '#1e1e3a';
+Chart.defaults.font.size   = 11;
+Chart.defaults.color       = MUTED;
+Chart.defaults.plugins.legend.labels.boxWidth  = 10;
+Chart.defaults.plugins.legend.labels.color     = TXT;
+Chart.defaults.plugins.tooltip.backgroundColor = CARD_BG;
+Chart.defaults.plugins.tooltip.titleColor      = LABEL_C;
+Chart.defaults.plugins.tooltip.bodyColor       = TXT;
+Chart.defaults.plugins.tooltip.borderColor     = GRID_C;
 Chart.defaults.plugins.tooltip.borderWidth     = 1;
 Chart.register(ChartDataLabels);
 Chart.defaults.plugins.datalabels.display = false;
 
-const gridLine = { color: '#1e1e3a', lineWidth: 1 };
+const gridLine = { color: GRID_C, lineWidth: 1 };
 const noGrid   = { display: false };
 
-/* 1. Pizza */
+/* Pizza */
 new Chart(document.getElementById('chartPizza'), {
   type: 'doughnut',
   data: {
     labels: segmentos.map(s => s.label),
     datasets: [{
       data: segmentos.map(s => mil(s.valor)),
-      backgroundColor: CORES, borderWidth: 2, borderColor: '#12121f', hoverOffset: 6,
+      backgroundColor: CORES, borderWidth: 2,
+      borderColor: isDark() ? '#12121f' : '#ffffff', hoverOffset: 6,
     }]
   },
   options: {
-    cutout: '52%', layout: { padding: 4 },
+    cutout: '55%', layout: { padding: 4 },
     plugins: {
-      // Legenda nativa do Chart.js desligada -- é desenhada dentro do
-      // <canvas>, e o "Force Dark"/auto-dark-mode de alguns navegadores
-      // reprocessa pixels de canvas ignorando a cor configurada aqui.
-      // Legenda real é montada como HTML normal logo abaixo (ver
-      // montarLegendaPizza) -- texto HTML não sofre essa reescrita.
       legend: { display: false },
       tooltip: {
         callbacks: {
@@ -363,7 +323,6 @@ new Chart(document.getElementById('chartPizza'), {
   }
 });
 
-/* Legenda HTML do gráfico de pizza (ver comentário acima sobre canvas) */
 (function montarLegendaPizza() {
   const total = segmentos.reduce((a, s) => a + mil(s.valor), 0);
   const html = segmentos.map((s, i) => {
@@ -371,37 +330,37 @@ new Chart(document.getElementById('chartPizza'), {
     return `
       <div class="legenda-item">
         <span class="legenda-swatch" style="background:${CORES[i % CORES.length]}"></span>
-        <span class="legenda-texto">${s.label}&nbsp;&nbsp;(${pct}%)</span>
+        <span class="legenda-texto">${s.label} (${pct}%)</span>
       </div>`;
   }).join('');
   document.getElementById('legendaPizza').innerHTML = html;
 })();
 
-/* 2. ROB mensal */
+/* ROB mensal */
 new Chart(document.getElementById('chartRob'), {
   type: 'bar',
   data: {
     labels: serie.labels,
-    datasets: [{ label: 'Receita Bruta (R$ mil)', data: serie.rob.map(mil),
-                 backgroundColor: AZUL, borderRadius: 5, borderSkipped: false }]
+    datasets: [{ label: 'ROB (R$ mil)', data: serie.rob.map(mil),
+                 backgroundColor: AZUL, borderRadius: 4, borderSkipped: false }]
   },
   options: {
     responsive: true, maintainAspectRatio: false,
-    layout: { padding: { top: 24 } },
+    layout: { padding: { top: 20 } },
     plugins: {
       legend: { display: false },
       tooltip: { callbacks: { label: c => ` R$ ${c.parsed.y.toLocaleString('pt-BR')}K` } },
       datalabels: {
         display: true, anchor: 'end', align: 'end',
-        formatter: v => `R$ ${v.toLocaleString('pt-BR')}K`,
-        color: '#a78bfa', font: { weight: '600', size: 11 },
+        formatter: v => `${v.toLocaleString('pt-BR')}K`,
+        color: LABEL_C, font: { weight: '600', size: 10 },
       }
     },
     scales: { x: { grid: noGrid }, y: { display: false } }
   }
 });
 
-/* helper: gráfico misto (barra + linha de %) */
+/* Gráfico misto (barra + linha %) */
 function graficoDuplo(canvasId, label, dados, margens, corBarra, labelLinha = 'Margem %') {
   new Chart(document.getElementById(canvasId), {
     type: 'bar',
@@ -410,10 +369,10 @@ function graficoDuplo(canvasId, label, dados, margens, corBarra, labelLinha = 'M
       datasets: [
         { type: 'bar', label: label + ' (R$ mil)', data: dados.map(mil),
           backgroundColor: dados.map(v => v >= 0 ? corBarra : '#fca5a5'),
-          borderRadius: 5, yAxisID: 'y' },
+          borderRadius: 4, yAxisID: 'y' },
         { type: 'line', label: labelLinha, data: margens,
           borderColor: '#fbbf24', backgroundColor: 'transparent',
-          pointBackgroundColor: '#fbbf24', pointRadius: 4,
+          pointBackgroundColor: '#fbbf24', pointRadius: 3,
           borderWidth: 2, yAxisID: 'y2', tension: 0.3 }
       ]
     },
@@ -438,14 +397,10 @@ function graficoDuplo(canvasId, label, dados, margens, corBarra, labelLinha = 'M
   });
 }
 
-/* 3. Lucro Bruto */
 graficoDuplo('chartLB', 'Lucro Bruto', serie.lb, serie.margem_lb, VERDE);
-/* 4. EBITDA */
 graficoDuplo('chartEbitda', 'EBITDA', serie.ebitda, serie.margem_ebitda, '#8b5cf6');
-/* 5. Parcelas pagas (Tributário + Bancário) × % sobre ROB acumulado */
 graficoDuplo('chartEndividamentoMensal', 'Parcelas Pagas', endividamentoValor, endividamentoPct, '#0ea5e9', '% s/ ROB acum.');
 
-/* helper: ranking horizontal */
 function graficoRanking(canvasId, dados, corInicio, corFim) {
   const n    = dados.length;
   const cores = dados.map((_, i) => lerpCor(corInicio, corFim, n <= 1 ? 0 : i / (n - 1)));
@@ -453,23 +408,23 @@ function graficoRanking(canvasId, dados, corInicio, corFim) {
     type: 'bar',
     data: {
       labels: dados.map(t => t.label),
-      datasets: [{ data: dados.map(t => mil(t.valor)), backgroundColor: cores, borderRadius: 4 }]
+      datasets: [{ data: dados.map(t => mil(t.valor)), backgroundColor: cores, borderRadius: 3 }]
     },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      layout: { padding: { right: 60 } },
+      layout: { padding: { right: 50 } },
       plugins: {
         legend: { display: false },
         tooltip: { callbacks: { label: c => ` R$ ${c.parsed.x.toLocaleString('pt-BR')}K` } },
         datalabels: {
           display: true, anchor: 'end', align: 'end',
-          formatter: v => `R$ ${v.toLocaleString('pt-BR')}K`,
-          color: '#a78bfa', font: { weight: '600', size: 11 },
+          formatter: v => `${v.toLocaleString('pt-BR')}K`,
+          color: LABEL_C, font: { weight: '600', size: 10 },
         }
       },
       scales: {
         x: { display: false },
-        y: { grid: noGrid, ticks: { font: { size: 11 }, color: '#9b9bc0' } }
+        y: { grid: noGrid, ticks: { font: { size: 10 }, color: MUTED } }
       }
     }
   });
@@ -481,9 +436,7 @@ function lerpCor(c1, c2, t) {
   return `rgb(${Math.round(r1+(r2-r1)*t)},${Math.round(g1+(g2-g1)*t)},${Math.round(b1+(b2-b1)*t)})`;
 }
 
-/* 5. Top 10 Custo */
 graficoRanking('chartCusto',  custo,   COR_CUSTO_INI, COR_CUSTO_FIM);
-/* 6. Top 10 Despesa */
 graficoRanking('chartDespesa', despesa, COR_DESP_INI, COR_DESP_FIM);
 </script>
 {% endif %}

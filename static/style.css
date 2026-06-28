@@ -786,3 +786,147 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
   .table-dre .pct-col { display: none; }
   .col-acum, .col-media { display: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* MINIMALISTA — Dashboard Início                                           */
+/* ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Welcome (sem dados) ─────────────────────────────────────────────────── */
+.min-welcome {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 56px 0 32px; gap: 48px;
+}
+.min-welcome-header { text-align: center; }
+.min-welcome-icon {
+  width: 64px; height: 64px; border-radius: 16px;
+  background: rgba(139,92,246,.1); display: flex;
+  align-items: center; justify-content: center;
+  margin: 0 auto 20px; font-size: 30px; color: var(--accent);
+}
+.min-welcome-header h1 {
+  font-size: 26px; font-weight: 800; color: var(--text);
+  letter-spacing: -.3px; margin-bottom: 6px;
+}
+.min-welcome-header p { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+.min-cta {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 24px; border-radius: 8px;
+  background: var(--accent); color: #fff;
+  font-size: 13px; font-weight: 700; text-decoration: none;
+  transition: opacity .15s;
+}
+.min-cta:hover { opacity: .88; }
+.min-modules { width: 100%; max-width: 840px; }
+.min-modules-label {
+  display: block; text-align: center; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 12px;
+}
+
+/* ── Header (com dados) ──────────────────────────────────────────────────── */
+.min-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 16px; gap: 16px;
+}
+.min-header-left h1 {
+  font-size: 22px; font-weight: 800; color: var(--text);
+  letter-spacing: -.3px; margin: 0;
+}
+.min-header-period {
+  font-size: 12px; color: var(--muted); margin-top: 2px; display: block;
+}
+.min-header-right { display: flex; gap: 8px; align-items: center; }
+.min-btn-ghost {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 7px 14px; border-radius: 7px;
+  font-size: 12px; font-weight: 600; color: var(--muted);
+  background: transparent; border: 1px solid var(--border);
+  text-decoration: none; transition: all .15s;
+}
+.min-btn-ghost:hover { border-color: var(--accent); color: var(--primary); }
+.min-btn-solid {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 7px 16px; border-radius: 7px;
+  font-size: 12px; font-weight: 700; color: #fff;
+  background: var(--accent); border: none;
+  text-decoration: none; transition: opacity .15s;
+}
+.min-btn-solid:hover { opacity: .88; }
+
+/* ── Period chips ────────────────────────────────────────────────────────── */
+.min-period-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 5px;
+  margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border);
+}
+.min-chip {
+  display: flex; align-items: center; gap: 4px; cursor: pointer;
+  padding: 4px 10px; border-radius: 6px;
+  font-size: 11px; font-weight: 500; color: var(--muted);
+  background: transparent; border: 1px solid var(--border);
+  transition: all .15s; user-select: none;
+}
+.min-chip input { accent-color: var(--accent); width: 12px; height: 12px; cursor: pointer; }
+.min-chip:hover { border-color: var(--accent); color: var(--primary); }
+.min-chip-on { background: rgba(139,92,246,.1); border-color: var(--accent); color: var(--primary); font-weight: 700; }
+.min-chip-clear {
+  font-size: 11px; color: var(--muted); text-decoration: none; margin-left: 4px;
+  padding: 4px 8px; border-radius: 6px; transition: color .15s;
+}
+.min-chip-clear:hover { color: var(--danger); }
+
+/* ── KPI row ─────────────────────────────────────────────────────────────── */
+.min-kpi-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  margin-bottom: 20px;
+}
+.min-kpi {
+  background: var(--card2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.min-kpi-hl { border-left: 3px solid var(--accent); }
+.min-kpi-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .5px; color: var(--muted);
+}
+.min-kpi-value { font-size: 18px; font-weight: 800; color: var(--text); }
+.min-kpi-sub { font-size: 11px; color: var(--muted); }
+.min-kpi-var { font-size: 11px; font-weight: 600; margin-top: 2px; }
+
+/* ── Section ─────────────────────────────────────────────────────────────── */
+.min-section { margin-bottom: 20px; }
+.min-section-head { margin-bottom: 12px; }
+.min-section-head h2 {
+  font-size: 15px; font-weight: 700; color: var(--text); margin: 0;
+}
+.min-section-sub { font-size: 11px; color: var(--muted); }
+
+/* ── Grid 2 colunas ──────────────────────────────────────────────────────── */
+.min-grid-2 {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  margin-bottom: 14px;
+}
+
+/* ── Chart card ──────────────────────────────────────────────────────────── */
+.min-chart-card {
+  background: var(--card2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 18px 20px;
+}
+.min-chart-title {
+  display: block; font-size: 12px; font-weight: 700;
+  color: var(--text); margin-bottom: 12px; letter-spacing: .1px;
+}
+
+/* ── Light overrides ─────────────────────────────────────────────────────── */
+[data-theme="light"] .min-kpi { box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+[data-theme="light"] .min-chart-card { box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+[data-theme="light"] .min-chip-on { background: rgba(124,58,237,.08); }
+
+/* ── Responsivo ──────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .min-kpi-row { grid-template-columns: 1fr 1fr; }
+  .min-grid-2  { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .min-kpi-row { grid-template-columns: 1fr; }
+  .min-header  { flex-direction: column; align-items: flex-start; }
+}
