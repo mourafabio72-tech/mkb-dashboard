@@ -90,7 +90,20 @@
 [data-theme="light"] .hub-pill:hover {
   box-shadow: inset 0 1px 0 rgba(255,255,255,.75),
               0 6px 18px rgba(90,70,40,.16),
-              0 0 14px -3px var(--hub-c, var(--accent));
+              0 0 14px -3px #6e7f63;
+}
+/* Orbe em verde floresta escuro — destaca sobre a pílula creme */
+[data-theme="light"] .hub-icon {
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255,255,255,.3), transparent 46%),
+    linear-gradient(135deg, #4a5a44, #2f3b2f);
+  box-shadow: 0 1px 5px rgba(47,59,47,.35), inset 0 1px 2px rgba(255,255,255,.2);
+}
+[data-theme="light"] .hub-pill i {
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255,255,255,.3), transparent 46%),
+    linear-gradient(135deg, #4a5a44, #2f3b2f);
+  box-shadow: 0 1px 4px rgba(47,59,47,.3), inset 0 1px 2px rgba(255,255,255,.2);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

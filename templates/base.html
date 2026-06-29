@@ -30,8 +30,8 @@
     }
     .hub-card {
       display: flex; flex-direction: row; align-items: center;
-      justify-content: space-between; gap: 12px;
-      padding: 9px 10px 9px 24px;
+      justify-content: flex-start; gap: 14px;
+      padding: 9px 20px 9px 9px;
       border-radius: 999px; text-decoration: none;
       background: linear-gradient(145deg, #21213b 0%, #0d0d18 100%);
       border: 1px solid rgba(255,255,255,.09);
@@ -55,9 +55,9 @@
       display: flex; align-items: center; justify-content: center;
       font-size: 19px; color: #fff;
       background:
-        radial-gradient(circle at 32% 28%, rgba(255,255,255,.55), transparent 46%),
-        linear-gradient(135deg, var(--hub-c, #8b5cf6), color-mix(in srgb, var(--hub-c, #8b5cf6) 50%, #000));
-      box-shadow: 0 0 16px -3px var(--hub-c, #8b5cf6), inset 0 1px 2px rgba(255,255,255,.35);
+        radial-gradient(circle at 32% 28%, rgba(255,255,255,.45), transparent 46%),
+        linear-gradient(135deg, #9bb39a, #2f3b2f);
+      box-shadow: 0 0 14px -4px #9bb39a, inset 0 1px 2px rgba(255,255,255,.3);
     }
 
     /* Hub compacto — mini-pílulas glossy (dashboard com dados) */
@@ -80,9 +80,9 @@
       display: flex; align-items: center; justify-content: center;
       font-size: 15px; color: #fff;
       background:
-        radial-gradient(circle at 32% 28%, rgba(255,255,255,.5), transparent 46%),
-        linear-gradient(135deg, var(--hub-c, #8b5cf6), color-mix(in srgb, var(--hub-c, #8b5cf6) 50%, #000));
-      box-shadow: 0 0 10px -2px var(--hub-c, #8b5cf6), inset 0 1px 2px rgba(255,255,255,.3);
+        radial-gradient(circle at 32% 28%, rgba(255,255,255,.4), transparent 46%),
+        linear-gradient(135deg, #9bb39a, #2f3b2f);
+      box-shadow: 0 0 10px -3px #9bb39a, inset 0 1px 2px rgba(255,255,255,.3);
     }
     .hub-pill:hover {
       transform: translateY(-1px);
