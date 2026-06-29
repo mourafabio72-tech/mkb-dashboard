@@ -1274,6 +1274,37 @@ def ingest():
     )
 
 
+@app.route("/razao/excluir", methods=["POST"])
+@login_required
+@admin_required
+def razao_excluir():
+    """Exclui o Razão (CT1) de uma empresa+competência, para permitir
+    reimportar o mês limpo (sem lançamentos fantasma de um upload anterior)."""
+    empresa_sigla = request.form.get("empresa", "")
+    competencia   = request.form.get("competencia", "")
+
+    emp = next((e for e in EMPRESAS.values() if e["sigla"] == empresa_sigla), None)
+    if not emp or not competencia:
+        flash("Empresa ou competência inválida.", "danger")
+        return redirect(url_for("ingest"))
+
+    conn = get_conn()
+    cur = conn.execute(
+        "DELETE FROM razao WHERE empresa_id=? AND competencia=?",
+        (emp["id"], competencia)
+    )
+    n = cur.rowcount
+    conn.commit()
+    conn.close()
+
+    flash(
+        f"Razão excluído: {n} lançamentos de {emp['sigla']} — {_mes_label(competencia)}. "
+        f"Pode reimportar o mês agora.",
+        "success"
+    )
+    return redirect(url_for("ingest"))
+
+
 # --- ROTA: API ---------------------------------------------------------------
 
 @app.route("/api/dre/<competencia>")

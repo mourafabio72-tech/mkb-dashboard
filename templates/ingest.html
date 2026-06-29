@@ -234,13 +234,31 @@
     <div>
       <h3 style="font-size:13px;color:var(--primary);margin-bottom:10px;">CT1 — Razão (lançamentos individuais)</h3>
       <table class="table-simple">
-        <thead><tr><th>Empresa</th><th>Competência</th><th>Lançamentos</th></tr></thead>
+        <thead><tr><th>Empresa</th><th>Competência</th><th>Lançamentos</th><th></th></tr></thead>
         <tbody>
           {% for r in stats_razao %}
-          <tr><td>{{ r[0] }}</td><td>{{ mes_label(r[1]) }}</td><td>{{ r[2] }}</td></tr>
+          <tr>
+            <td>{{ r[0] }}</td>
+            <td>{{ mes_label(r[1]) }}</td>
+            <td>{{ r[2] }}</td>
+            <td style="text-align:right">
+              <form method="POST" action="{{ url_for('razao_excluir') }}" style="display:inline"
+                    onsubmit="return confirm('Excluir o Razão de {{ r[0] }} — {{ mes_label(r[1]) }}?\n\nIsso apaga os {{ r[2] }} lançamentos desse mês. Use antes de reimportar o mês corrigido.');">
+                <input type="hidden" name="empresa" value="{{ r[0] }}">
+                <input type="hidden" name="competencia" value="{{ r[1] }}">
+                <button type="submit" class="btn-sm" title="Excluir este mês para reimportar"
+                        style="background:rgba(178,91,76,.12);color:var(--danger);border:1px solid var(--border);border-radius:5px;cursor:pointer;padding:3px 9px;font-size:11px;font-weight:700">
+                  ✕ Excluir
+                </button>
+              </form>
+            </td>
+          </tr>
           {% endfor %}
         </tbody>
       </table>
+      <p class="text-muted" style="font-size:11px;margin-top:6px">
+        Exclua o mês antes de subir uma versão corrigida do Razão — evita lançamentos duplicados/fantasma.
+      </p>
     </div>
     {% endif %}
 
