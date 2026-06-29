@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Validação DRE × Balancete{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>✓ Validação · DRE × Balancete</h1>
+  <p class="subtitle">
+    Compara o <strong>movimento acumulado da DRE</strong> (Razão, Jan → mês) com o
+    <strong>saldo do balancete</strong>, conta a conta (resultado 3.x / 4.x). As linhas abaixo
+    são só as que <strong>divergem</strong> — é onde está a diferença do Resultado.
+  </p>
+</div>
+
+{# ── Filtros: empresa + competência ──────────────────────────────────────── #}
+<div class="toggle-modo" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
+  <div class="toggle-dre-tipo">
+    {% for chave, emp in EMPRESAS.items() %}
+      <a href="{{ url_for('validacao', empresa=chave, competencia=competencia) }}"
+         class="btn-toggle-tipo {% if empresa == chave %}ativo{% endif %}">{{ emp.sigla }}</a>
+    {% endfor %}
+  </div>
+  {% if comps_bal %}
+  <form method="GET" action="{{ url_for('validacao') }}" style="display:flex;gap:8px;align-items:center">
+    <input type="hidden" name="empresa" value="{{ empresa }}">
+    <span class="selector-label">Competência (balancete)</span>
+    <select name="competencia" class="input-sm" onchange="this.form.submit()">
+      {% for c in comps_bal %}
+        <option value="{{ c }}" {% if c == competencia %}selected{% endif %}>{{ mes_label(c) }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
+</div>
+
+{% if not comps_bal %}
+<div class="empty-state">
+  <div class="empty-icon">📋</div>
+  <h2>Nenhum balancete importado</h2>
+  <p>Suba o Balancete de Verificação na tela de importação para validar a DRE.</p>
+  <a href="{{ url_for('ingest') }}" class="btn btn-primary">⬆ Importar Balancete</a>
+</div>
+{% elif resultado %}
+
+{# ── Resumo ──────────────────────────────────────────────────────────────── #}
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+  <div class="kpi-card">
+    <div class="kpi-label">Resultado acum. — DRE (Razão)</div>
+    <div class="kpi-value">{{ fmt_brl(resultado.tot_dre) }}</div>
+    <div class="kpi-sub">Soma do movimento 3.x + 4.x</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Resultado acum. — Balancete</div>
+    <div class="kpi-value">{{ fmt_brl(resultado.tot_bal) }}</div>
+    <div class="kpi-sub">Soma do saldo 3.x + 4.x</div>
+  </div>
+  <div class="kpi-card kpi-highlight">
+    <div class="kpi-label">Diferença (DRE − Balancete)</div>
+    <div class="kpi-value {% if resultado.tot_diff != 0 %}text-danger{% else %}text-success{% endif %}">
+      {{ fmt_brl(resultado.tot_diff) }}
+    </div>
+    <div class="kpi-sub">{{ resultado.qtd_diff }} conta(s) divergente(s)</div>
+  </div>
+</div>
+
+{# ── Tabela de divergências ──────────────────────────────────────────────── #}
+<div class="card-full">
+  {% if resultado.linhas %}
+  <table class="table-det">
+    <thead>
+      <tr>
+        <th class="col-cod">Conta</th>
+        <th>Descrição / Linha DRE</th>
+        <th class="num">DRE (Razão)</th>
+        <th class="num">Balancete</th>
+        <th class="num">Diferença</th>
+        <th>Situação</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in resultado.linhas %}
+      <tr class="det-conta">
+        <td class="col-cod">{{ l.cod }}</td>
+        <td>
+          {{ l.descricao or '—' }}
+          <span class="text-muted" style="font-size:11px">· {{ l.grupo_label }}</span>
+        </td>
+        <td class="num">{{ fmt_brl(l.dre) }}</td>
+        <td class="num">{{ fmt_brl(l.balancete) }}</td>
+        <td class="num {% if l.diff != 0 %}text-danger{% endif %}" style="font-weight:700">
+          {{ fmt_brl(l.diff) }}
+        </td>
+        <td>
+          {% if l.so_balancete %}
+            <span class="badge-ct2">só no balancete</span>
+          {% elif l.so_dre %}
+            <span class="badge-ct1">só na DRE</span>
+          {% else %}
+            <span class="text-muted" style="font-size:11px">valor difere</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="text-muted" style="font-size:11px;margin-top:10px">
+    “Só no balancete” = conta com saldo mas sem movimento no Razão importado (ex.: meses anteriores
+    não importados, ou conta sem lançamento no período). “Só na DRE” = movimento sem saldo no balancete.
+  </p>
+  {% else %}
+  <div style="text-align:center;padding:40px">
+    <div style="font-size:40px;margin-bottom:10px">✅</div>
+    <h2 style="color:var(--success);font-size:18px">DRE bate com o balancete</h2>
+    <p class="text-muted">Nenhuma conta de resultado diverge em {{ mes_label(competencia) }}.</p>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

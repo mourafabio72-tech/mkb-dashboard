@@ -60,6 +60,85 @@ def grupos_disponiveis() -> list[tuple[str, str]]:
     return [(g, GRUPO_LABELS.get(g, g)) for g in _ORDEM_GRUPOS if g != "NAO_CLASSIFICADO"]
 
 
+def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
+    """Compara a DRE detalhada (movimento acumulado do Razão até a competência)
+    contra o saldo do balancete, conta a conta (contas de resultado 3.x/4.x).
+    Retorna as diferenças ordenadas por valor absoluto + totais."""
+    ano      = competencia[:4]
+    comp_ini = f"{ano}-01"
+
+    conn = get_conn()
+    tbl = _tabela_lancamentos(conn)
+
+    # DRE: movimento acumulado por conta (Jan → competência), só resultado
+    dre_rows = conn.execute(
+        f"""
+        SELECT conta_cod, SUM(valor)
+        FROM {tbl}
+        WHERE empresa_id = ? AND competencia >= ? AND competencia <= ?
+          AND (conta_cod LIKE '3.%' OR conta_cod LIKE '4.%')
+        GROUP BY conta_cod
+        """,
+        (empresa_id, comp_ini, competencia)
+    ).fetchall()
+    dre = {c: round(v or 0.0, 2) for c, v in dre_rows}
+
+    tem_bal = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='balancete'"
+    ).fetchone()
+    bal_rows = conn.execute(
+        """
+        SELECT conta_cod, descricao, saldo_atual
+        FROM balancete
+        WHERE empresa_id = ? AND competencia = ?
+          AND (conta_cod LIKE '3.%' OR conta_cod LIKE '4.%')
+        """,
+        (empresa_id, competencia)
+    ).fetchall() if tem_bal else []
+    conn.close()
+
+    # Só contas analíticas (folha) do balancete -- evita somar sintéticas
+    bal_codes = {r[0] for r in bal_rows}
+    def _is_leaf(c: str) -> bool:
+        return not any(o != c and o.startswith(c + ".") for o in bal_codes)
+    bal = {
+        r[0]: {"desc": r[1], "saldo": round(r[2] or 0.0, 2)}
+        for r in bal_rows if _is_leaf(r[0])
+    }
+
+    linhas = []
+    tot_dre = tot_bal = 0.0
+    for cod in (set(dre) | set(bal)):
+        dv = dre.get(cod, 0.0)
+        bv = bal.get(cod, {}).get("saldo", 0.0)
+        tot_dre += dv
+        tot_bal += bv
+        diff = round(dv - bv, 2)
+        if abs(diff) >= 0.01:
+            grupo = classificar_conta(cod)
+            linhas.append({
+                "cod":       cod,
+                "descricao": bal.get(cod, {}).get("desc", ""),
+                "dre":       dv,
+                "balancete": bv,
+                "diff":      diff,
+                "grupo":     grupo,
+                "grupo_label": GRUPO_LABELS.get(grupo, grupo),
+                "so_balancete": cod not in dre,
+                "so_dre":       cod not in bal,
+            })
+
+    linhas.sort(key=lambda x: -abs(x["diff"]))
+    return {
+        "linhas":     linhas,
+        "tot_dre":    round(tot_dre, 2),
+        "tot_bal":    round(tot_bal, 2),
+        "tot_diff":   round(tot_dre - tot_bal, 2),
+        "qtd_diff":   len(linhas),
+        "tem_balancete": bool(bal),
+    }
+
+
 def contas_nao_classificadas() -> list[dict]:
     """Contas presentes nos dados (Razão/CT2) que não casam com nenhum prefixo
     do de-para — somem da DRE em silêncio. Retorna com valor para diagnóstico."""

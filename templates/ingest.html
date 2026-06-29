@@ -91,6 +91,53 @@
   </form>
 </div>
 
+{# ── BALANCETE: validação da DRE ──────────────────────────────────────────── #}
+<div class="section-card" style="margin-bottom:20px;">
+  <h2>✓ Balancete de Verificação <span class="badge-recom">Valida a DRE</span></h2>
+  <p class="ingest-desc">
+    Balancete do Protheus (aba <strong>"12-00 - Balancete de Verificac"</strong>).
+    Guarda o <strong>saldo acumulado por conta</strong> para conferir contra a DRE detalhada
+    em <a href="{{ url_for('validacao') }}">Validação DRE × Balancete</a> e achar diferenças.
+    Selecione o <strong>mês de fechamento</strong> (saldo acumulado até ele).
+  </p>
+
+  <form method="POST" action="{{ url_for('ingest') }}" enctype="multipart/form-data" class="form-ingest">
+    <input type="hidden" name="formato" value="balancete">
+
+    <div class="form-row">
+      <label>Empresa</label>
+      <select name="empresa_balancete" class="input-sm">
+        {% for chave, emp in EMPRESAS.items() %}
+          <option value="{{ chave }}">{{ emp.sigla }} — {{ emp.nome[:35] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-row">
+      <label>Ano</label>
+      <input type="number" name="ano_balancete" value="{{ ano_atual }}" min="2023" max="2030" class="input-sm">
+    </div>
+
+    <div class="form-row">
+      <label>Mês de fechamento</label>
+      <select name="mes_balancete" class="input-sm">
+        {% set nomes = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'] %}
+        {% for m in range(1, 13) %}
+          <option value="{{ m }}" {% if m == mes_atual %}selected{% endif %}>{{ m }} — {{ nomes[m] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-row">
+      <label>Arquivo Excel (.xlsx)</label>
+      <input type="file" name="arquivo_balancete" accept=".xlsx,.xls" class="input-file" required>
+      <small class="input-hint">Aba: "12-00 - Balancete de Verificac"</small>
+    </div>
+
+    <button type="submit" class="btn btn-primary">⬆ Importar Balancete</button>
+  </form>
+</div>
+
 <div class="graficos-grid-2">
 
   {# ── CT1: Razão Contábil ──────────────────────────────────────────────── #}

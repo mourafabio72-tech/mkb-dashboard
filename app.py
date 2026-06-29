@@ -29,7 +29,9 @@ from dre_engine import (
     GRUPOS_AGREGADOS_GER, montar_bridge_ebitda, montar_bridge_resultado_final,
     _tabela_lancamentos,
     contas_nao_classificadas, grupos_disponiveis, invalidar_prefixos, GRUPO_LABELS,
+    conciliar_balancete,
 )
+from balancete_parser import importar_balancete
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -1101,6 +1103,48 @@ def ingest():
                     pass
             return redirect(url_for("ingest"))
 
+        # ─── BALANCETE: saldo acumulado por conta (validação da DRE) ────────
+        if formato == "balancete":
+            arquivo_bal = request.files.get("arquivo_balancete")
+            empresa_bal = request.form.get("empresa_balancete", "mkb")
+            ano_bal     = int(request.form.get("ano_balancete", ano_atual))
+            mes_bal     = int(request.form.get("mes_balancete", mes_atual))
+            competencia = f"{ano_bal}-{mes_bal:02d}"
+
+            if not arquivo_bal or not arquivo_bal.filename:
+                flash("Selecione o arquivo Excel do Balancete.", "warning")
+                return redirect(url_for("ingest"))
+
+            import tempfile, os
+            ext = Path(arquivo_bal.filename).suffix
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                arquivo_bal.save(tmp.name)
+                tmp_path = Path(tmp.name)
+
+            try:
+                conn = get_conn()
+                criar_schema(conn)
+                seed_empresas(conn)
+                res = importar_balancete(tmp_path, empresa_bal, competencia, conn)
+                conn.close()
+                if "erro" in res:
+                    flash(f"Erro ao importar Balancete: {res['erro']}", "danger")
+                else:
+                    flash(
+                        f"Balancete importado: {res['registros']} contas "
+                        f"({res['empresa']}) — competência {_mes_label(competencia)}. "
+                        f"Confira em Validação DRE × Balancete.",
+                        "success"
+                    )
+            except Exception as e:
+                flash(f"Erro ao importar Balancete: {e}", "danger")
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+            return redirect(url_for("ingest"))
+
         # ─── IRPJ/CSLL: planilha ANUAL (apuração de Lucro Real) ─────────────
         if formato == "irpj_csll":
             arquivo_irpj = request.files.get("arquivo_irpj_csll")
@@ -1313,6 +1357,43 @@ def razao_excluir():
 @admin_required
 def cadastro():
     return render_template("cadastro.html")
+
+
+# --- ROTA: VALIDAÇÃO DRE × BALANCETE -----------------------------------------
+
+@app.route("/validacao")
+@login_required
+@admin_required
+def validacao():
+    competencias = _competencias_disponiveis()
+    empresa = request.args.get("empresa", "mkb")
+    if empresa not in EMPRESAS:
+        empresa = "mkb"
+
+    # competências que têm balancete importado (para o seletor)
+    conn = get_conn()
+    criar_schema(conn)
+    tem_bal = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='balancete'"
+    ).fetchone()
+    comps_bal = [r[0] for r in conn.execute(
+        "SELECT DISTINCT competencia FROM balancete WHERE empresa_id=? ORDER BY competencia",
+        (EMPRESAS[empresa]["id"],)
+    ).fetchall()] if tem_bal else []
+    conn.close()
+
+    competencia = request.args.get("competencia") or (comps_bal[-1] if comps_bal else (competencias[-1] if competencias else ""))
+
+    resultado = conciliar_balancete(EMPRESAS[empresa]["id"], competencia) if competencia else None
+
+    return render_template(
+        "validacao.html",
+        empresa=empresa,
+        competencia=competencia,
+        comps_bal=comps_bal,
+        resultado=resultado,
+        fmt_brl=fmt_brl,
+    )
 
 
 # --- ROTA: DE-PARA (mapeamento conta → linha da DRE) -------------------------

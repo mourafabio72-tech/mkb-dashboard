@@ -178,6 +178,23 @@ CREATE TABLE IF NOT EXISTS fornecedores_cadastro (
     importado_em  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+-- ─── BALANCETE de Verificação (saldo acumulado por conta) ──────────────────
+-- Upload manual do balancete do Protheus (aba "12-00 - Balancete de Verificac").
+-- Usado pela tela /validacao para conferir a DRE detalhada (movimento acumulado
+-- do Razão) contra o saldo do balancete, conta a conta, e achar diferenças.
+-- saldo_atual é ASSINADO na convenção da DRE: crédito = +, débito = -.
+CREATE TABLE IF NOT EXISTS balancete (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    empresa_id   INTEGER NOT NULL,
+    competencia  TEXT NOT NULL,   -- 'YYYY-MM' (mês de fechamento; saldo acumulado)
+    conta_cod    TEXT NOT NULL,
+    descricao    TEXT,
+    saldo_atual  REAL NOT NULL,   -- assinado: C = +, D = -
+    mov_periodo  REAL,
+    UNIQUE (empresa_id, competencia, conta_cod)
+);
+CREATE INDEX IF NOT EXISTS idx_balancete_emp_comp ON balancete (empresa_id, competencia);
+
 -- ─── DE-PARA customizado (conta/prefixo → grupo DRE) ───────────────────────
 -- Estende/sobrepõe o account_map.json (de-para por prefixo embutido no código).
 -- Editável pela tela /de-para; persiste no volume /data, sobrevive a redeploys.
