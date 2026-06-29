@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Cadastro{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🗂 Cadastro</h1>
+  <p class="subtitle">Importação de dados e configuração do de-para de contas.</p>
+</div>
+
+<div class="hub-grid" style="max-width:560px">
+  <a href="{{ url_for('ingest') }}" class="hub-card" style="background:#2f3b2f;color:#fff;--hub-c:#2f3b2f">
+    <div class="hub-icon"><i class="ph ph-cloud-arrow-up"></i></div>
+    <div class="hub-text">
+      <span class="hub-label">Importar</span>
+      <span class="hub-sub">Razão, DRE, IRPJ/CSLL e mês completo</span>
+    </div>
+  </a>
+  <a href="{{ url_for('de_para') }}" class="hub-card" style="background:#6e7f63;color:#fff;--hub-c:#6e7f63">
+    <div class="hub-icon"><i class="ph ph-link"></i></div>
+    <div class="hub-text">
+      <span class="hub-label">De-Para</span>
+      <span class="hub-sub">Mapear contas → linhas da DRE</span>
+    </div>
+  </a>
+</div>
+{% endblock %}

@@ -13,7 +13,7 @@
   {'endpoint': 'endividamento_bancario',       'params': {'empresa': 'gnileb'},           'cor': '#3f5147', 'txt': '#ffffff', 'icone': 'ph-bank',           'label': 'Endividamento Bancário',  'sub': 'Empréstimos · contratado, pago e saldo'},
   {'endpoint': 'receita_clientes',             'params': {'empresa': 'mkb'},              'cor': '#cdb487', 'txt': '#2f3b2f', 'icone': 'ph-briefcase',      'label': 'Receita',                 'sub': 'Por cliente · pivot mensal'},
   {'endpoint': 'despesas_fornecedores',        'params': {'empresa': 'mkb'},              'cor': '#b07d5a', 'txt': '#ffffff', 'icone': 'ph-receipt',        'label': 'Despesas',                'sub': 'Por fornecedor · conta contábil'},
-  {'endpoint': 'ingest',                       'params': {},                              'cor': '#2f3b2f', 'txt': '#ffffff', 'icone': 'ph-cloud-arrow-up', 'label': 'Importar',                'sub': 'Razão, IRPJ/CSLL e mês completo', 'admin_apenas': true},
+  {'endpoint': 'cadastro',                     'params': {},                              'cor': '#2f3b2f', 'txt': '#ffffff', 'icone': 'ph-folder',        'label': 'Cadastro',                'sub': 'Importar dados e de-para de contas', 'admin_apenas': true},
 ] %}
 {% set eh_admin = session.usuario_logado and session.usuario_logado.role == 'admin' %}
 {% if not eh_admin %}

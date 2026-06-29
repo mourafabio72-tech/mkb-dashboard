@@ -1306,6 +1306,15 @@ def razao_excluir():
     return redirect(url_for("ingest"))
 
 
+# --- ROTA: CADASTRO (agrupa Importar + De-Para) ------------------------------
+
+@app.route("/cadastro")
+@login_required
+@admin_required
+def cadastro():
+    return render_template("cadastro.html")
+
+
 # --- ROTA: DE-PARA (mapeamento conta → linha da DRE) -------------------------
 
 @app.route("/de-para")
@@ -1324,6 +1333,7 @@ def de_para():
         nao_classificadas=contas_nao_classificadas(),
         grupos=grupos_disponiveis(),
         grupo_labels=GRUPO_LABELS,
+        fmt_brl=fmt_brl,
     )
 
 
