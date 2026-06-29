@@ -28,6 +28,7 @@ from dre_engine import (
     fmt_brl, pct_rob, variacao_pct, DRE_META, DRE_META_GERENCIAL,
     GRUPOS_AGREGADOS_GER, montar_bridge_ebitda, montar_bridge_resultado_final,
     _tabela_lancamentos,
+    contas_nao_classificadas, grupos_disponiveis, invalidar_prefixos, GRUPO_LABELS,
 )
 
 app = Flask(__name__)
@@ -1303,6 +1304,67 @@ def razao_excluir():
         "success"
     )
     return redirect(url_for("ingest"))
+
+
+# --- ROTA: DE-PARA (mapeamento conta → linha da DRE) -------------------------
+
+@app.route("/de-para")
+@login_required
+@admin_required
+def de_para():
+    conn = get_conn()
+    criar_schema(conn)
+    custom = conn.execute(
+        "SELECT prefixo, grupo, criado_em FROM account_map_custom ORDER BY prefixo"
+    ).fetchall()
+    conn.close()
+    return render_template(
+        "de_para.html",
+        custom=custom,
+        nao_classificadas=contas_nao_classificadas(),
+        grupos=grupos_disponiveis(),
+        grupo_labels=GRUPO_LABELS,
+    )
+
+
+@app.route("/de-para/add", methods=["POST"])
+@login_required
+@admin_required
+def de_para_add():
+    prefixo = (request.form.get("prefixo") or "").strip()
+    grupo   = (request.form.get("grupo") or "").strip()
+    if not prefixo or not grupo:
+        flash("Informe a conta/prefixo e o grupo da DRE.", "warning")
+        return redirect(url_for("de_para"))
+
+    conn = get_conn()
+    criar_schema(conn)
+    conn.execute(
+        """
+        INSERT INTO account_map_custom (prefixo, grupo) VALUES (?, ?)
+        ON CONFLICT (prefixo) DO UPDATE SET grupo = excluded.grupo
+        """,
+        (prefixo, grupo)
+    )
+    conn.commit()
+    conn.close()
+    invalidar_prefixos()
+    flash(f"Mapeamento salvo: {prefixo} → {GRUPO_LABELS.get(grupo, grupo)}.", "success")
+    return redirect(url_for("de_para"))
+
+
+@app.route("/de-para/excluir", methods=["POST"])
+@login_required
+@admin_required
+def de_para_excluir():
+    prefixo = (request.form.get("prefixo") or "").strip()
+    conn = get_conn()
+    conn.execute("DELETE FROM account_map_custom WHERE prefixo = ?", (prefixo,))
+    conn.commit()
+    conn.close()
+    invalidar_prefixos()
+    flash(f"Mapeamento removido: {prefixo}.", "success")
+    return redirect(url_for("de_para"))
 
 
 # --- ROTA: API ---------------------------------------------------------------

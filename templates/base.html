@@ -161,6 +161,12 @@
     </li>
     {% if session.usuario_logado and session.usuario_logado.role == 'admin' %}
     <li>
+      <a href="{{ url_for('de_para') }}"
+         {% if request.endpoint == 'de_para' %}class="active"{% endif %}>
+        <i class="ph-bold ph-link"></i> De-Para
+      </a>
+    </li>
+    <li>
       <a href="{{ url_for('usuarios') }}"
          {% if request.endpoint in ['usuarios','usuarios_novo'] %}class="active"{% endif %}>
         <i class="ph-bold ph-users"></i> Usuários

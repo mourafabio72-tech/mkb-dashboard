@@ -178,6 +178,18 @@ CREATE TABLE IF NOT EXISTS fornecedores_cadastro (
     importado_em  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+-- ─── DE-PARA customizado (conta/prefixo → grupo DRE) ───────────────────────
+-- Estende/sobrepõe o account_map.json (de-para por prefixo embutido no código).
+-- Editável pela tela /de-para; persiste no volume /data, sobrevive a redeploys.
+-- Prefixo mais longo tem prioridade (igual ao JSON); custom sobrepõe o JSON
+-- quando o prefixo é idêntico. Use o código completo da conta para mapear uma
+-- conta específica, ou um prefixo (terminado em ".") para um grupo de contas.
+CREATE TABLE IF NOT EXISTS account_map_custom (
+    prefixo     TEXT PRIMARY KEY,   -- código completo OU prefixo da conta
+    grupo       TEXT NOT NULL,      -- grupo DRE (ex.: CPV_DESLOC)
+    criado_em   TEXT DEFAULT (datetime('now','localtime'))
+);
+
 -- ─── Log de importações ───────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS importacoes (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,

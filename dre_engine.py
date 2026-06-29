@@ -22,8 +22,30 @@ def _get_prefixos() -> list[tuple[str, str]]:
         with open(_MAP_PATH, encoding="utf-8") as f:
             data = json.load(f)
         mapa = {k: v for k, v in data.items() if not k.startswith("_")}
+        # De-para customizado (banco) estende/sobrepõe o JSON. Mesmo prefixo →
+        # custom vence; prefixo novo → adicionado. Prioridade ainda é por
+        # comprimento (prefixo mais longo casa primeiro).
+        try:
+            conn = get_conn()
+            tem_tabela = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='account_map_custom'"
+            ).fetchone()
+            if tem_tabela:
+                for prefixo, grupo in conn.execute(
+                    "SELECT prefixo, grupo FROM account_map_custom"
+                ).fetchall():
+                    mapa[prefixo] = grupo
+            conn.close()
+        except Exception:
+            pass
         _PREFIXOS = sorted(mapa.items(), key=lambda x: len(x[0]), reverse=True)
     return _PREFIXOS
+
+
+def invalidar_prefixos() -> None:
+    """Zera o cache do de-para — chamar após editar account_map_custom."""
+    global _PREFIXOS
+    _PREFIXOS = []
 
 
 def classificar_conta(cod: str) -> str:
@@ -31,6 +53,38 @@ def classificar_conta(cod: str) -> str:
         if cod.startswith(prefixo):
             return grupo
     return "NAO_CLASSIFICADO"
+
+
+def grupos_disponiveis() -> list[tuple[str, str]]:
+    """Lista (grupo, label) para o seletor do de-para — exclui NAO_CLASSIFICADO."""
+    return [(g, GRUPO_LABELS.get(g, g)) for g in _ORDEM_GRUPOS if g != "NAO_CLASSIFICADO"]
+
+
+def contas_nao_classificadas() -> list[dict]:
+    """Contas presentes nos dados (Razão/CT2) que não casam com nenhum prefixo
+    do de-para — somem da DRE em silêncio. Retorna com valor para diagnóstico."""
+    conn = get_conn()
+    tbl = _tabela_lancamentos(conn)
+    rows = conn.execute(
+        f"""
+        SELECT l.conta_cod, COALESCE(c.descricao, ''), SUM(l.valor) AS total, e.sigla
+        FROM {tbl} l
+        LEFT JOIN contas c   ON l.conta_cod = c.cod AND l.empresa_id = c.empresa_id
+        JOIN empresas e      ON e.id = l.empresa_id
+        GROUP BY l.empresa_id, l.conta_cod
+        """
+    ).fetchall()
+    conn.close()
+
+    out = []
+    for cod, desc, total, sigla in rows:
+        if classificar_conta(cod) == "NAO_CLASSIFICADO" and total and abs(total) > 0.005:
+            out.append({
+                "cod": cod, "descricao": desc,
+                "total": round(total), "empresa": sigla,
+            })
+    out.sort(key=lambda x: -abs(x["total"]))
+    return out
 
 
 # ─── CONTAS DE EQUIVALÊNCIA PATRIMONIAL (eliminadas no consolidado) ───────────

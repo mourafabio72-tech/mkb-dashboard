@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}De-Para de Contas{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🔗 De-Para de Contas → DRE</h1>
+  <p class="subtitle">
+    Mapeie contas que não estão entrando na DRE. O mapeamento por prefixo já vem embutido
+    (account_map.json); aqui você <strong>estende ou corrige</strong> esse mapa — salvo no banco,
+    sobrevive a redeploys. Prefixo mais longo tem prioridade.
+  </p>
+</div>
+
+{# ── Form: adicionar mapeamento ───────────────────────────────────────────── #}
+<div class="section-card" style="margin-bottom:20px;">
+  <h2>➕ Novo mapeamento</h2>
+  <p class="ingest-desc">
+    Informe o <strong>código completo</strong> de uma conta (ex.: <code>4.1.1.03.07.007</code>)
+    para mapear só ela, ou um <strong>prefixo terminado em ponto</strong> (ex.: <code>4.1.1.09.</code>)
+    para um grupo inteiro de contas. Escolha a linha da DRE de destino.
+  </p>
+
+  <form method="POST" action="{{ url_for('de_para_add') }}" class="form-ingest">
+    <div class="form-row">
+      <label>Conta ou prefixo</label>
+      <input type="text" name="prefixo" id="campo-prefixo" class="input-sm" style="width:240px"
+             placeholder="4.1.1.03.07.007" required>
+    </div>
+    <div class="form-row">
+      <label>Linha / grupo da DRE</label>
+      <select name="grupo" class="input-sm" style="width:320px" required>
+        <option value="">— selecione —</option>
+        {% for g, label in grupos %}
+          <option value="{{ g }}">{{ label }} ({{ g }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Salvar mapeamento</button>
+  </form>
+</div>
+
+{# ── Contas não classificadas (diagnóstico) ──────────────────────────────── #}
+<div class="section-card" style="margin-bottom:20px;">
+  <h2>⚠️ Contas não classificadas
+    <span class="badge-recom" style="background:rgba(178,91,76,.15);color:var(--danger)">
+      {{ nao_classificadas | length }}
+    </span>
+  </h2>
+  <p class="ingest-desc">
+    Contas que aparecem nos dados (Razão/CT2) mas <strong>não casam com nenhum prefixo</strong> —
+    por isso ficam de fora da DRE. Clique em “Mapear” para preencher o formulário acima.
+  </p>
+
+  {% if nao_classificadas %}
+  <table class="table-simple">
+    <thead>
+      <tr><th>Empresa</th><th>Conta</th><th>Descrição</th><th class="num">Valor (período)</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for c in nao_classificadas %}
+      <tr>
+        <td>{{ c.empresa }}</td>
+        <td style="font-family:monospace">{{ c.cod }}</td>
+        <td>{{ c.descricao or '—' }}</td>
+        <td class="num">{{ fmt_brl(c.total) }}</td>
+        <td style="text-align:right">
+          <button type="button" class="btn-sm"
+                  onclick="preencher('{{ c.cod }}')"
+                  style="background:rgba(139,92,246,.12);color:var(--accent);border:1px solid var(--border);border-radius:5px;cursor:pointer;padding:3px 10px;font-size:11px;font-weight:700">
+            Mapear ↑
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-muted">Nenhuma conta fora da DRE 🎉 — todo o movimento está classificado.</p>
+  {% endif %}
+</div>
+
+{# ── Mapeamentos customizados existentes ─────────────────────────────────── #}
+<div class="section-card">
+  <h2>📒 Mapeamentos customizados</h2>
+  {% if custom %}
+  <table class="table-simple">
+    <thead>
+      <tr><th>Conta / prefixo</th><th>Linha da DRE</th><th>Criado em</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for m in custom %}
+      <tr>
+        <td style="font-family:monospace">{{ m[0] }}</td>
+        <td>{{ grupo_labels.get(m[1], m[1]) }} <span class="text-muted">({{ m[1] }})</span></td>
+        <td class="text-muted">{{ m[2] }}</td>
+        <td style="text-align:right">
+          <form method="POST" action="{{ url_for('de_para_excluir') }}" style="display:inline"
+                onsubmit="return confirm('Remover o mapeamento {{ m[0] }} → {{ m[1] }}?');">
+            <input type="hidden" name="prefixo" value="{{ m[0] }}">
+            <button type="submit" class="btn-sm"
+                    style="background:rgba(178,91,76,.12);color:var(--danger);border:1px solid var(--border);border-radius:5px;cursor:pointer;padding:3px 9px;font-size:11px;font-weight:700">
+              ✕ Remover
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-muted">Nenhum mapeamento customizado ainda — só o de-para padrão (account_map.json) está ativo.</p>
+  {% endif %}
+</div>
+
+<script>
+function preencher(cod) {
+  var campo = document.getElementById('campo-prefixo');
+  campo.value = cod;
+  campo.scrollIntoView({behavior:'smooth', block:'center'});
+  campo.focus();
+}
+</script>
+{% endblock %}
