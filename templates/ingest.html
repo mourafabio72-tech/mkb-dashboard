@@ -54,6 +54,43 @@
   </div>
 </div>
 
+{# ── DRE: upload manual (gera o dashboard) ─────────────────────────────── #}
+<div class="section-card" style="margin-bottom:20px;">
+  <h2>📊 DRE — Template Protheus <span class="badge-recom">Gera o dashboard</span></h2>
+  <p class="ingest-desc">
+    Arquivo Excel da <strong>DRE</strong> com a aba <strong>"Template DRE Protheus"</strong>.
+    É o que alimenta o dashboard (KPIs, gráficos e DRE Gerencial) — <strong>separado do Razão CT1</strong>.
+    Um único arquivo cobre o <strong>ano inteiro</strong> (uma coluna por mês). Use este upload
+    quando o "Importar Mês Completo" automático não localizar os arquivos (ex.: acesso remoto).
+  </p>
+
+  <form method="POST" action="{{ url_for('ingest') }}" enctype="multipart/form-data" class="form-ingest">
+    <input type="hidden" name="formato" value="dre">
+
+    <div class="form-row">
+      <label>Empresa</label>
+      <select name="empresa_dre" class="input-sm">
+        {% for chave, emp in EMPRESAS.items() %}
+          <option value="{{ chave }}">{{ emp.sigla }} — {{ emp.nome[:35] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-row">
+      <label>Ano</label>
+      <input type="number" name="ano_dre" value="{{ ano_atual }}" min="2023" max="2030" class="input-sm">
+    </div>
+
+    <div class="form-row">
+      <label>Arquivo Excel (.xlsx)</label>
+      <input type="file" name="arquivo_dre" accept=".xlsx,.xls" class="input-file" required>
+      <small class="input-hint">Aba: "Template DRE Protheus" — suba um arquivo por empresa</small>
+    </div>
+
+    <button type="submit" class="btn btn-primary">⬆ Importar DRE</button>
+  </form>
+</div>
+
 <div class="graficos-grid-2">
 
   {# ── CT1: Razão Contábil ──────────────────────────────────────────────── #}

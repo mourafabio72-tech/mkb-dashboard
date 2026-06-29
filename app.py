@@ -12,7 +12,7 @@ from werkzeug.security import generate_password_hash
 
 from config import SECRET_KEY, PORT, DEBUG, EMPRESAS
 from auth import login_required, admin_required, verificar_credenciais
-from ingestion import get_conn, criar_schema, seed_empresas, importar
+from ingestion import get_conn, criar_schema, seed_empresas, importar, ler_template_dre, salvar_lancamentos
 from importar_mes import importar_mes_completo
 from razao_parser import importar_razao
 from emprestimo_bancario_parser import importar_cronograma
@@ -1039,6 +1039,54 @@ def ingest():
                 )
             except Exception as e:
                 flash(f"Erro ao importar Razão: {e}", "danger")
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+            return redirect(url_for("ingest"))
+
+        # ─── DRE: planilha "Template DRE Protheus" (gera o dashboard) ───────
+        # Um arquivo cobre o ano inteiro (12 colunas de período). Usado quando
+        # o "Mês Completo" automático não acha os arquivos (ex.: deploy remoto
+        # sem acesso às pastas do OneDrive).
+        if formato == "dre":
+            arquivo_dre = request.files.get("arquivo_dre")
+            empresa_dre = request.form.get("empresa_dre", "mkb")
+            ano_dre     = int(request.form.get("ano_dre", ano_atual))
+
+            if not arquivo_dre or not arquivo_dre.filename:
+                flash("Selecione o arquivo Excel da DRE (Template DRE Protheus).", "warning")
+                return redirect(url_for("ingest"))
+
+            import tempfile, os
+            ext = Path(arquivo_dre.filename).suffix
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                arquivo_dre.save(tmp.name)
+                tmp_path = Path(tmp.name)
+
+            try:
+                regs = ler_template_dre(tmp_path, empresa_dre, ano_dre)
+                if not regs:
+                    flash(
+                        "Nenhum registro lido — confira se o arquivo tem a aba "
+                        "'Template DRE Protheus' e se o ano selecionado bate com o do arquivo.",
+                        "warning"
+                    )
+                else:
+                    conn = get_conn()
+                    criar_schema(conn)
+                    seed_empresas(conn)
+                    n = salvar_lancamentos(conn, regs, tmp_path)
+                    conn.close()
+                    comps = sorted({r["competencia"] for r in regs})
+                    flash(
+                        f"DRE importada: {n} lançamentos ({empresa_dre.upper()}) — "
+                        f"competências: {', '.join(comps)}",
+                        "success"
+                    )
+            except Exception as e:
+                flash(f"Erro ao importar DRE: {e}", "danger")
             finally:
                 try:
                     os.unlink(tmp_path)
