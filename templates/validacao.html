@@ -117,15 +117,6 @@
           {% else %}<span class="text-muted" style="font-size:11px">difere</span>{% endif %}
         </td>
       </tr>
-      {% if c.dre != 0 and c.balancete != 0 and (c.balancete - c.dre)|round(2) != 0 %}
-      <tr class="dre-neta neta-de-{{ cid }}" style="display:none">
-        <td style="padding-left:52px" class="text-muted">Saldo de abertura <span style="font-size:10px">(exercício anterior)</span></td>
-        <td class="num text-muted">{{ fmt_brl(c.balancete - c.dre) }}</td>
-        <td class="num">—</td>
-        <td class="num">—</td>
-        <td><span class="text-muted" style="font-size:10px">não movimentado em 2026</span></td>
-      </tr>
-      {% endif %}
       {% for mes in c.meses %}
       <tr class="dre-neta neta-de-{{ cid }}" style="display:none">
         <td style="padding-left:52px" class="text-muted">{{ mes_label(mes.competencia) }} <span style="font-size:10px">(razão)</span></td>
@@ -135,6 +126,15 @@
         <td></td>
       </tr>
       {% endfor %}
+      {% if c.nao_detalhado and c.nao_detalhado|round(2) != 0 %}
+      <tr class="dre-neta neta-de-{{ cid }}" style="display:none">
+        <td style="padding-left:52px" class="text-muted">Lançamento não detalhado <span style="font-size:10px">(consta no saldo, não nos movimentos)</span></td>
+        <td class="num text-muted">{{ fmt_brl(c.nao_detalhado) }}</td>
+        <td class="num">—</td>
+        <td class="num">—</td>
+        <td></td>
+      </tr>
+      {% endif %}
       {% endfor %}
       {% endfor %}
     </tbody>

@@ -76,16 +76,25 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
     conn = get_conn()
     tbl = _tabela_lancamentos(conn)
 
-    # DRE: movimento acumulado por conta (Jan → competência), só resultado
+    # RAZÃO: saldo acumulado por conta = SALDO ATUAL do último lançamento
+    # (≤ competência) de cada conta. Compara saldo × saldo com o balancete.
+    # Usar o saldo (e não a soma dos movimentos) captura lançamentos que entram
+    # só no saldo corrido do Protheus -- ex.: lançamento retroativo que aparece
+    # no SALDO ANTERIOR do mês seguinte mas não como linha em nenhum razão.
     dre_rows = conn.execute(
-        f"""
-        SELECT conta_cod, SUM(valor)
-        FROM {tbl}
-        WHERE empresa_id = ? AND competencia >= ? AND competencia <= ?
-          AND (conta_cod LIKE '3.%' OR conta_cod LIKE '4.%')
-        GROUP BY conta_cod
+        """
+        SELECT r.conta_cod, r.saldo_atual
+        FROM razao r
+        JOIN (
+            SELECT conta_cod, MAX(id) AS mid
+            FROM razao
+            WHERE empresa_id = ? AND competencia <= ?
+              AND saldo_atual IS NOT NULL
+              AND (conta_cod LIKE '3.%' OR conta_cod LIKE '4.%')
+            GROUP BY conta_cod
+        ) m ON r.id = m.mid
         """,
-        (empresa_id, comp_ini, competencia)
+        (empresa_id, competencia)
     ).fetchall()
     dre = {c: round(v or 0.0, 2) for c, v in dre_rows}
 
@@ -184,10 +193,14 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
                     for comp, val in sorted(dre_mes.get(c, {}).items())
                     if abs(val) >= 0.01
                 ]
+                mov_sum = round(sum(m["valor"] for m in meses), 2)
                 contas.append({
                     "cod": c, "descricao": cdesc,
                     "dre": round(cdv, 2), "balancete": round(cbv, 2), "diff": cdiff,
                     "meses": meses,
+                    # diferença entre o saldo do razão e a soma dos movimentos
+                    # detalhados (lançamento que entra só no saldo corrido)
+                    "nao_detalhado": round(cdv - mov_sum, 2),
                 })
         contas.sort(key=lambda x: -abs(x["diff"]))
 
