@@ -7,13 +7,13 @@
 {% macro hub_cards(c, compact=false) %}
 {% set uc = c or '2026-04' %}
 {% set itens = [
-  {'endpoint': 'dre_resumida',                 'params': {'competencia': uc},            'cor': '#8b5cf6', 'icone': 'ph-trend-up',       'label': 'DRE Gerencial',           'sub': 'Resultado mensal e acumulado'},
-  {'endpoint': 'irpj',                         'params': {'empresa': 'mkb', 'competencia': uc}, 'cor': '#f59e0b', 'icone': 'ph-calculator',     'label': 'IRPJ / CSLL',             'sub': 'Apuração fiscal trimestral'},
-  {'endpoint': 'endividamento',                'params': {'empresa': 'mkb', 'competencia': uc}, 'cor': '#10b981', 'icone': 'ph-bank',           'label': 'Endividamento Tributário','sub': 'Saldo devedor × Receita Bruta'},
-  {'endpoint': 'endividamento_bancario',       'params': {'empresa': 'gnileb'},           'cor': '#0ea5e9', 'icone': 'ph-bank',           'label': 'Endividamento Bancário',  'sub': 'Empréstimos · contratado, pago e saldo'},
-  {'endpoint': 'receita_clientes',             'params': {'empresa': 'mkb'},              'cor': '#06b6d4', 'icone': 'ph-briefcase',      'label': 'Receita',                 'sub': 'Por cliente · pivot mensal'},
-  {'endpoint': 'despesas_fornecedores',        'params': {'empresa': 'mkb'},              'cor': '#ec4899', 'icone': 'ph-receipt',        'label': 'Despesas',                'sub': 'Por fornecedor · conta contábil'},
-  {'endpoint': 'ingest',                       'params': {},                              'cor': '#14b8a6', 'icone': 'ph-cloud-arrow-up', 'label': 'Importar',                'sub': 'Razão, IRPJ/CSLL e mês completo', 'admin_apenas': true},
+  {'endpoint': 'dre_resumida',                 'params': {'competencia': uc},            'cor': '#6e7f63', 'icone': 'ph-trend-up',       'label': 'DRE Gerencial',           'sub': 'Resultado mensal e acumulado'},
+  {'endpoint': 'irpj',                         'params': {'empresa': 'mkb', 'competencia': uc}, 'cor': '#c9a77f', 'icone': 'ph-calculator',     'label': 'IRPJ / CSLL',             'sub': 'Apuração fiscal trimestral'},
+  {'endpoint': 'endividamento',                'params': {'empresa': 'mkb', 'competencia': uc}, 'cor': '#9bb39a', 'icone': 'ph-bank',           'label': 'Endividamento Tributário','sub': 'Saldo devedor × Receita Bruta'},
+  {'endpoint': 'endividamento_bancario',       'params': {'empresa': 'gnileb'},           'cor': '#7d8f6e', 'icone': 'ph-bank',           'label': 'Endividamento Bancário',  'sub': 'Empréstimos · contratado, pago e saldo'},
+  {'endpoint': 'receita_clientes',             'params': {'empresa': 'mkb'},              'cor': '#cdb487', 'icone': 'ph-briefcase',      'label': 'Receita',                 'sub': 'Por cliente · pivot mensal'},
+  {'endpoint': 'despesas_fornecedores',        'params': {'empresa': 'mkb'},              'cor': '#b07d5a', 'icone': 'ph-receipt',        'label': 'Despesas',                'sub': 'Por fornecedor · conta contábil'},
+  {'endpoint': 'ingest',                       'params': {},                              'cor': '#566b4a', 'icone': 'ph-cloud-arrow-up', 'label': 'Importar',                'sub': 'Razão, IRPJ/CSLL e mês completo', 'admin_apenas': true},
 ] %}
 {% set eh_admin = session.usuario_logado and session.usuario_logado.role == 'admin' %}
 {% if not eh_admin %}
