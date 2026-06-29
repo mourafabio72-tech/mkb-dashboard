@@ -16,6 +16,12 @@ from config import EMPRESAS
 _MAP_PATH = Path(__file__).parent / "account_map.json"
 _PREFIXOS: list[tuple[str, str]] = []
 
+# Contas-reflexo do balancete a ignorar na conciliação DRE × Balancete.
+# Espelham um total já detalhado em outro ramo e dobrariam o valor:
+#   3.1.2.01.02 "Impostos Incidentes s/ Receita" espelha o detalhe de
+#   PIS/COFINS/ISS em 3.1.3.* (que é onde o razão de fato lança).
+EXCLUIR_BALANCETE = ("3.1.2.01.02",)
+
 def _get_prefixos() -> list[tuple[str, str]]:
     global _PREFIXOS
     if not _PREFIXOS:
@@ -97,25 +103,36 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
     ).fetchall() if tem_bal else []
     conn.close()
 
-    # Só contas analíticas (folha) do balancete -- evita somar sintéticas
+    # Só contas analíticas (folha) do balancete -- evita somar sintéticas.
+    # Exclui também as contas-reflexo do balancete (EXCLUIR_BALANCETE): contas
+    # que espelham um total já detalhado em outro ramo (ex.: 3.1.2.01.02
+    # "Impostos Incidentes" espelha o detalhe em 3.1.3.* PIS/COFINS/ISS) e
+    # dobrariam o valor na conciliação.
     bal_codes = {r[0] for r in bal_rows}
     def _is_leaf(c: str) -> bool:
         return not any(o != c and o.startswith(c + ".") for o in bal_codes)
-    bal_leaves = [(r[0], r[1], round(r[2] or 0.0, 2)) for r in bal_rows if _is_leaf(r[0])]
+    def _excluida(c: str) -> bool:
+        return any(c == p or c.startswith(p) for p in EXCLUIR_BALANCETE)
+    bal_leaves = [
+        (r[0], r[1], round(r[2] or 0.0, 2))
+        for r in bal_rows if _is_leaf(r[0]) and not _excluida(r[0])
+    ]
 
-    # Agrega cada fonte por GRUPO da DRE (mesma régua account_map / de-para).
-    # Balancete e razão às vezes usam códigos diferentes para o mesmo item
-    # (ex.: impostos sobre receita -- balancete em 3.1.2.01.02, razão em
-    # 3.1.3.*). Comparar por código bruto gera diferenças falsas; por grupo da
-    # DRE, ambos caem no mesmo grupo e se conciliam. As linhas que sobram são
-    # as diferenças reais.
+    # Agrega cada fonte por GRUPO da DRE (mesma régua account_map / de-para) e
+    # guarda as contas que compõem cada grupo, para drill-down.
     from collections import defaultdict
     g_dre = defaultdict(float)
+    contas_dre = defaultdict(dict)   # grupo -> {cod: valor}
     for cod, val in dre.items():
-        g_dre[classificar_conta(cod)] += val
+        g = classificar_conta(cod)
+        g_dre[g] += val
+        contas_dre[g][cod] = round(val, 2)
     g_bal = defaultdict(float)
-    for cod, _desc, saldo in bal_leaves:
-        g_bal[classificar_conta(cod)] += saldo
+    contas_bal = defaultdict(dict)   # grupo -> {cod: (desc, saldo)}
+    for cod, desc, saldo in bal_leaves:
+        g = classificar_conta(cod)
+        g_bal[g] += saldo
+        contas_bal[g][cod] = (desc, round(saldo, 2))
 
     tot_dre = round(sum(g_dre.values()), 2)
     tot_bal = round(sum(g_bal.values()), 2)
@@ -125,16 +142,33 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
         dv = round(g_dre.get(grupo, 0.0), 2)
         bv = round(g_bal.get(grupo, 0.0), 2)
         diff = round(dv - bv, 2)
-        if abs(diff) >= 0.01:
-            linhas.append({
-                "grupo":       grupo,
-                "grupo_label": GRUPO_LABELS.get(grupo, grupo),
-                "dre":         dv,
-                "balancete":   bv,
-                "diff":        diff,
-                "so_dre":       bv == 0.0,
-                "so_balancete": dv == 0.0,
-            })
+        if abs(diff) < 0.01:
+            continue
+
+        # Drill-down: contas do grupo (união dos códigos das duas fontes)
+        cods = set(contas_dre.get(grupo, {})) | set(contas_bal.get(grupo, {}))
+        contas = []
+        for c in cods:
+            cdv = contas_dre.get(grupo, {}).get(c, 0.0)
+            cdesc, cbv = contas_bal.get(grupo, {}).get(c, ("", 0.0))
+            cdiff = round(cdv - cbv, 2)
+            if abs(cdiff) >= 0.01:
+                contas.append({
+                    "cod": c, "descricao": cdesc,
+                    "dre": round(cdv, 2), "balancete": round(cbv, 2), "diff": cdiff,
+                })
+        contas.sort(key=lambda x: -abs(x["diff"]))
+
+        linhas.append({
+            "grupo":       grupo,
+            "grupo_label": GRUPO_LABELS.get(grupo, grupo),
+            "dre":         dv,
+            "balancete":   bv,
+            "diff":        diff,
+            "so_dre":       bv == 0.0,
+            "so_balancete": dv == 0.0,
+            "contas":      contas,
+        })
 
     linhas.sort(key=lambda x: -abs(x["diff"]))
     return {
