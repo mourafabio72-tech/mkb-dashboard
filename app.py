@@ -26,7 +26,8 @@ from dre_engine import (
     calcular_dre_detalhada_gerencial, analisar_receita_clientes,
     analisar_despesas_fornecedores,
     fmt_brl, pct_rob, variacao_pct, DRE_META, DRE_META_GERENCIAL,
-    GRUPOS_AGREGADOS_GER, montar_bridge_ebitda, montar_bridge_resultado_final
+    GRUPOS_AGREGADOS_GER, montar_bridge_ebitda, montar_bridge_resultado_final,
+    _tabela_lancamentos,
 )
 
 app = Flask(__name__)
@@ -68,8 +69,13 @@ def inject_globals():
 def _competencias_disponiveis() -> list:
     try:
         conn = get_conn()
+        # Usa a view v_lancamentos (Razão CT1 agregado + CT2) quando existir,
+        # para que a DRE/dashboard gerem só com o Razão importado — sem precisar
+        # subir o "Template DRE Protheus". O de-para conta→linha já é feito por
+        # prefixo em account_map.json (ver dre_engine.classificar_conta).
+        tbl = _tabela_lancamentos(conn)
         rows = conn.execute(
-            "SELECT DISTINCT competencia FROM lancamentos ORDER BY competencia"
+            f"SELECT DISTINCT competencia FROM {tbl} ORDER BY competencia"
         ).fetchall()
         conn.close()
         return [r[0] for r in rows]
@@ -1283,9 +1289,10 @@ def api_lancamentos():
     comp    = request.args.get("competencia", "")
     emp_id  = EMPRESAS.get(empresa, {}).get("id", 1)
     conn = get_conn()
+    tbl = _tabela_lancamentos(conn)
     rows = conn.execute(
-        "SELECT l.conta_cod, c.descricao, l.valor "
-        "FROM lancamentos l "
+        f"SELECT l.conta_cod, c.descricao, l.valor "
+        f"FROM {tbl} l "
         "LEFT JOIN contas c ON l.conta_cod=c.cod AND l.empresa_id=c.empresa_id "
         "WHERE l.empresa_id=? AND l.competencia=? ORDER BY l.conta_cod",
         (emp_id, comp)
