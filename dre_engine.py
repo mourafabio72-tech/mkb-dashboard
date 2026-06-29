@@ -89,6 +89,23 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
     ).fetchall()
     dre = {c: round(v or 0.0, 2) for c, v in dre_rows}
 
+    # Movimento do razão por conta E por mês (para localizar em que mês está a
+    # diferença de uma conta).
+    from collections import defaultdict
+    dre_mes_rows = conn.execute(
+        f"""
+        SELECT conta_cod, competencia, SUM(valor)
+        FROM {tbl}
+        WHERE empresa_id = ? AND competencia >= ? AND competencia <= ?
+          AND (conta_cod LIKE '3.%' OR conta_cod LIKE '4.%')
+        GROUP BY conta_cod, competencia
+        """,
+        (empresa_id, comp_ini, competencia)
+    ).fetchall()
+    dre_mes: dict[str, dict[str, float]] = defaultdict(dict)
+    for cod, comp, val in dre_mes_rows:
+        dre_mes[cod][comp] = round(val or 0.0, 2)
+
     tem_bal = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='balancete'"
     ).fetchone()
@@ -120,7 +137,6 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
 
     # Agrega cada fonte por GRUPO da DRE (mesma régua account_map / de-para) e
     # guarda as contas que compõem cada grupo, para drill-down.
-    from collections import defaultdict
     g_dre = defaultdict(float)
     contas_dre = defaultdict(dict)   # grupo -> {cod: valor}
     for cod, val in dre.items():
@@ -163,9 +179,15 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
             cdesc, cbv = contas_bal.get(grupo, {}).get(c, ("", 0.0))
             cdiff = round(cdv - cbv, 2)
             if abs(cdiff) >= 0.01:
+                meses = [
+                    {"competencia": comp, "valor": val}
+                    for comp, val in sorted(dre_mes.get(c, {}).items())
+                    if abs(val) >= 0.01
+                ]
                 contas.append({
                     "cod": c, "descricao": cdesc,
                     "dre": round(cdv, 2), "balancete": round(cbv, 2), "diff": cdiff,
+                    "meses": meses,
                 })
         contas.sort(key=lambda x: -abs(x["diff"]))
 

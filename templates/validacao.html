@@ -100,8 +100,11 @@
         </td>
       </tr>
       {% for c in l.contas %}
-      <tr class="dre-filha filha-de-{{ l.grupo }}" style="display:none">
+      {% set cid = l.grupo ~ '-' ~ loop.index %}
+      <tr class="dre-filha filha-de-{{ l.grupo }} conta-toggle" data-conta="{{ cid }}"
+          style="display:none;cursor:pointer">
         <td style="padding-left:28px">
+          {% if c.meses %}<span class="expand-icon">▸</span>{% else %}<span style="display:inline-block;width:14px"></span>{% endif %}
           <span class="conta-cod">{{ c.cod }}</span>
           <span class="conta-desc">{{ c.descricao or '—' }}</span>
         </td>
@@ -114,6 +117,15 @@
           {% else %}<span class="text-muted" style="font-size:11px">difere</span>{% endif %}
         </td>
       </tr>
+      {% for mes in c.meses %}
+      <tr class="dre-neta neta-de-{{ cid }}" style="display:none">
+        <td style="padding-left:52px" class="text-muted">{{ mes_label(mes.competencia) }} <span style="font-size:10px">(razão)</span></td>
+        <td class="num text-muted">{{ fmt_brl(mes.valor) }}</td>
+        <td class="num">—</td>
+        <td class="num">—</td>
+        <td></td>
+      </tr>
+      {% endfor %}
       {% endfor %}
       {% endfor %}
     </tbody>
@@ -129,6 +141,17 @@
       var g = this.getAttribute('data-grupo');
       var ic = this.querySelector('.expand-icon');
       document.querySelectorAll('.filha-de-' + g).forEach(function(f){
+        f.style.display = (f.style.display === 'none') ? 'table-row' : 'none';
+      });
+      if (ic) ic.textContent = (ic.textContent === '▸') ? '▾' : '▸';
+    });
+  });
+  document.querySelectorAll('.conta-toggle').forEach(function(row){
+    row.addEventListener('click', function(e){
+      e.stopPropagation();
+      var c = this.getAttribute('data-conta');
+      var ic = this.querySelector('.expand-icon');
+      document.querySelectorAll('.neta-de-' + c).forEach(function(f){
         f.style.display = (f.style.display === 'none') ? 'table-row' : 'none';
       });
       if (ic) ic.textContent = (ic.textContent === '▸') ? '▾' : '▸';
