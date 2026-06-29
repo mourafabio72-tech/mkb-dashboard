@@ -78,6 +78,18 @@
 [data-theme="light"] .input-sm option { background: #fffdf9; color: var(--text); }
 [data-theme="light"] .tabela-irpj th { background: #e7dcc8; color: var(--muted); }
 
+/* Drill-down / desdobramentos (CT, contas expandidas, NF) no tema light */
+[data-theme="light"] .dre-conta.conta-expandida td { background: #eef2ec; }
+[data-theme="light"] .table-ct .ct-row:hover td { background: #eef2ec; }
+[data-theme="light"] .ct-total-row td { background: #e7dcc8; }
+[data-theme="light"] .dre-neta-hdr th { background: #e7dcc8; color: var(--muted); }
+[data-theme="light"] .filha-expansivel:hover td { background: #e7eee4 !important; }
+
+/* Receita por Cliente — linhas de nota fiscal no tema light */
+[data-theme="light"] .rc-nf-hdr th { background: #e7dcc8; border-bottom-color: var(--border); }
+[data-theme="light"] .rc-nf td { background: #f3f6f1; border-bottom-color: var(--border); }
+[data-theme="light"] .rc-nf:hover td { background: #e7eee4; }
+
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; }
