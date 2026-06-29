@@ -134,6 +134,16 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
         g_bal[g] += saldo
         contas_bal[g][cod] = (desc, round(saldo, 2))
 
+    # O balancete lança a receita LÍQUIDA de abatimentos/devoluções (sem linha
+    # separada), enquanto o razão lança receita BRUTA + abatimentos à parte.
+    # Para comparar na mesma base, "regrossa" o balancete: devolve o abatimento
+    # (valor do razão) à Receita Bruta do balancete e cria a linha de
+    # abatimentos. Net no resultado é zero -- só reclassifica ROB ↔ DED_ABAT.
+    abat_dre = round(g_dre.get("DED_ABAT", 0.0), 2)
+    if abat_dre and round(g_bal.get("DED_ABAT", 0.0), 2) == 0.0:
+        g_bal["ROB"]      = g_bal.get("ROB", 0.0) - abat_dre
+        g_bal["DED_ABAT"] = g_bal.get("DED_ABAT", 0.0) + abat_dre
+
     tot_dre = round(sum(g_dre.values()), 2)
     tot_bal = round(sum(g_bal.values()), 2)
 
