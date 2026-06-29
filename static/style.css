@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap');
+
 /* ── MKB-Dashboard · BPS4 Contabilidade ──────────────────────────────────── */
 
 :root {
@@ -14,7 +16,7 @@
   --border:    #1e1e3a;       /* borda sutil roxo-escura               */
   --text:      #e2e8f0;       /* texto claro                           */
   --muted:     #6b6b9a;       /* texto secundário                      */
-  --font:      'Segoe UI', system-ui, sans-serif;
+  --font:      'Quicksand', 'Segoe UI', system-ui, sans-serif;
   --row-alt:   #13131f;
   --row-res:   #1a1a35;
   --row-final: #1e1e45;
@@ -80,6 +82,12 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; }
 
+/* Títulos e marca em minúsculas — estética geométrica (fonte Quicksand) */
+.nav-title,
+.page-header h1, .dash-header-top h1,
+.min-header-left h1, .min-welcome-header h1, .min-section-head h2,
+.welcome-title { text-transform: lowercase; }
+
 /* ── NAVBAR ────────────────────────────────────────────────────────────────── */
 .navbar {
   background: #0d0d1a;
@@ -125,7 +133,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
   font-size: 11px; font-weight: 700; color: var(--muted);
   text-decoration: none; padding: 4px 10px; border-radius: 5px;
   border: 1px solid var(--border); transition: all .15s;
-  text-transform: uppercase; letter-spacing: .5px;
+  text-transform: lowercase; letter-spacing: .5px;
 }
 .nav-logout:hover { border-color: var(--danger); color: var(--danger); }
 
@@ -170,7 +178,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 }
 .kpi-card:hover { box-shadow: 0 4px 30px rgba(139,92,246,.2); }
 .kpi-highlight  { border-top: 3px solid var(--accent); box-shadow: 0 4px 24px rgba(139,92,246,.25); }
-.kpi-label  { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--muted); letter-spacing: .6px; margin-bottom: 6px; }
+.kpi-label  { font-size: 11px; font-weight: 600; text-transform: lowercase; color: var(--muted); letter-spacing: .6px; margin-bottom: 6px; }
 .kpi-value  { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
 .kpi-sub    { font-size: 12px; color: var(--muted); }
 .kpi-pct    { color: var(--muted); }
@@ -187,7 +195,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
   padding: 12px 18px; min-width: 140px;
 }
 .kpi-mini-hl { border-top: 3px solid var(--accent); }
-.kpi-mini-label { display: block; font-size: 10px; text-transform: uppercase; color: var(--muted); letter-spacing: .5px; margin-bottom: 4px; }
+.kpi-mini-label { display: block; font-size: 10px; text-transform: lowercase; color: var(--muted); letter-spacing: .5px; margin-bottom: 4px; }
 .kpi-mini-val   { display: block; font-size: 16px; font-weight: 700; }
 
 /* ── SECTION GRID ─────────────────────────────────────────────────────────── */
@@ -211,7 +219,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 
 /* ── TABELA DRE MINI (dashboard) ─────────────────────────────────────────── */
 .table-dre-mini { width: 100%; border-collapse: collapse; font-size: 13px; }
-.table-dre-mini th { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+.table-dre-mini th { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: lowercase;
   padding: 6px 8px; border-bottom: 2px solid var(--border); }
 .table-dre-mini td { padding: 5px 8px; border-bottom: 1px solid #f1f5f9; }
 .table-dre-mini .dre-resultado td { background: var(--row-res); font-weight: 600; }
@@ -298,14 +306,14 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .periodo-mes  { font-size: 14px; font-weight: 700; color: var(--primary); }
 .badge-atual  {
   font-size: 10px; font-weight: 700; background: var(--accent); color: #fff;
-  padding: 2px 7px; border-radius: 10px; text-transform: uppercase; letter-spacing: .5px;
+  padding: 2px 7px; border-radius: 10px; text-transform: lowercase; letter-spacing: .5px;
 }
 
 .periodo-kpis {
   display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px;
 }
 .periodo-kpi   { display: flex; flex-direction: column; gap: 2px; }
-.periodo-kpi-label { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+.periodo-kpi-label { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: lowercase; letter-spacing: .4px; }
 .periodo-kpi-val   { font-size: 13px; font-weight: 700; color: var(--text); }
 .periodo-var       { font-size: 10px; }
 
@@ -367,7 +375,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
   width: 100%; border-collapse: collapse; font-size: 12px;
 }
 .table-dre th {
-  font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+  font-size: 10px; font-weight: 700; color: var(--muted); text-transform: lowercase;
   padding: 7px 8px; border-bottom: 1px solid var(--border); white-space: nowrap;
   background: rgba(139,92,246,.06); letter-spacing: .3px;
 }
@@ -391,7 +399,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
   width: 100%; border-collapse: collapse; font-size: 13px;
 }
 .table-det th {
-  font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+  font-size: 11px; font-weight: 600; color: var(--muted); text-transform: lowercase;
   padding: 8px 10px; border-bottom: 2px solid var(--border); background: #f8fafc;
 }
 .table-det td { padding: 5px 10px; border-bottom: 1px solid #f8fafc; }
@@ -411,7 +419,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .table-simple { width: 100%; border-collapse: collapse; font-size: 13px; }
 .table-simple th {
   background: rgba(139,92,246,.08); font-weight: 600; color: var(--muted); font-size: 11px;
-  text-transform: uppercase; letter-spacing: .5px; padding: 7px 10px;
+  text-transform: lowercase; letter-spacing: .5px; padding: 7px 10px;
   border-bottom: 1px solid var(--border); text-align: left;
 }
 .table-simple td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
@@ -435,7 +443,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 
 /* ── INGEST ───────────────────────────────────────────────────────────────── */
 .badge-recom {
-  display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase;
+  display: inline-block; font-size: 10px; font-weight: 700; text-transform: lowercase;
   background: rgba(52,211,153,.15); color: var(--success); border: 1px solid rgba(52,211,153,.3);
   padding: 2px 7px; border-radius: 10px; letter-spacing: .5px; margin-left: 8px;
 }
@@ -446,7 +454,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 /* ── FORMULÁRIOS ──────────────────────────────────────────────────────────── */
 .form-ingest { display: flex; flex-direction: column; gap: 16px; margin-bottom: 20px; }
 .form-row    { display: flex; flex-direction: column; gap: 4px; }
-.form-row label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.form-row label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: lowercase; letter-spacing: .5px; }
 .input-sm {
   padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
   font-size: 13px; width: 200px; background: var(--card2); color: var(--text);
@@ -488,7 +496,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
   width: 100%; border-collapse: collapse; font-size: 13px;
 }
 .table-mensal th {
-  font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+  font-size: 11px; font-weight: 600; color: var(--muted); text-transform: lowercase;
   padding: 8px 10px; border-bottom: 2px solid var(--border); background: #f8fafc;
   white-space: nowrap;
 }
@@ -525,7 +533,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .text-ajuste { color: var(--success); font-weight: 600; }
 
 /* Selector label */
-.selector-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; padding: 0 4px; }
+.selector-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: lowercase; padding: 0 4px; }
 .btn-mes-destaque { border-color: var(--accent); color: var(--accent); font-weight: 700; }
 
 /* ── TOGGLE DRE TIPO (Oficial / Gerencial) ───────────────────────────────── */
@@ -543,7 +551,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 
 /* Badge de tipo de DRE */
 .badge-tipo-dre {
-  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+  font-size: 10px; font-weight: 700; text-transform: lowercase; letter-spacing: .5px;
   padding: 2px 9px; border-radius: 10px;
   background: rgba(139,92,246,.15); color: var(--primary); border: 1px solid rgba(139,92,246,.3);
 }
@@ -575,7 +583,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 }
 .table-ct thead th {
   background: #0a0a1a; color: var(--muted); font-size: 9px;
-  text-transform: uppercase; letter-spacing: .4px;
+  text-transform: lowercase; letter-spacing: .4px;
   padding: 5px 8px; border-bottom: 1px solid #1a1a35;
   white-space: nowrap;
 }
@@ -595,19 +603,19 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 
 /* Badges CT1 / CT2 */
 .badge-ct1 {
-  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  font-size: 9px; font-weight: 700; text-transform: lowercase;
   padding: 1px 7px; border-radius: 8px; white-space: nowrap;
   background: rgba(52,211,153,.15); color: var(--success); border: 1px solid rgba(52,211,153,.3);
 }
 .badge-ct2 {
-  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  font-size: 9px; font-weight: 700; text-transform: lowercase;
   padding: 1px 7px; border-radius: 8px; white-space: nowrap;
   background: rgba(251,191,36,.12); color: var(--warning); border: 1px solid rgba(251,191,36,.3);
 }
 
 /* Badge: fornecedor consolidado a partir de 2+ códigos de cadastro (recadastro no Protheus) */
 .badge-alinhado {
-  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  font-size: 9px; font-weight: 700; text-transform: lowercase;
   padding: 1px 7px; border-radius: 8px; white-space: nowrap;
   margin-left: 4px;
   background: rgba(96,165,250,.12); color: var(--info, #60a5fa); border: 1px solid rgba(96,165,250,.3);
@@ -658,7 +666,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 
 /* Sub-cabeçalho da linha 2 */
 .mes-subheader-row th {
-  font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px;
+  font-size: 9px; color: var(--muted); text-transform: lowercase; letter-spacing: .4px;
   padding: 3px 6px; border-bottom: 2px solid var(--border);
 }
 .col-sub { background: rgba(139,92,246,.04); }
@@ -707,7 +715,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 /* Separadores de seção */
 .dre-sec-sep td { background: var(--bg); border: none; padding: 0; }
 .dre-sec-label {
-  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+  font-size: 10px; font-weight: 700; text-transform: lowercase; letter-spacing: 1px;
   color: var(--muted); padding: 10px 8px 4px !important; border-top: 2px solid var(--border);
   display: flex; align-items: center; gap: 6px;
 }
@@ -736,7 +744,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .dre-filha-hdr th {
   background: #0d0d1e; border-bottom: 1px solid #1a1a30;
   padding: 4px 8px; font-size: 10px; color: var(--muted);
-  text-transform: uppercase; letter-spacing: .3px;
+  text-transform: lowercase; letter-spacing: .3px;
 }
 
 /* Indentação das linhas filha */
@@ -753,7 +761,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .dre-neta-hdr th {
   background: #0a0a17; border-bottom: 1px solid #16162a;
   padding: 3px 8px; font-size: 9.5px; color: var(--muted);
-  text-transform: uppercase; letter-spacing: .3px;
+  text-transform: lowercase; letter-spacing: .3px;
 }
 .filha-expansivel { cursor: pointer; }
 .filha-expansivel:hover td { background: #14142c !important; }
@@ -820,7 +828,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .min-modules { width: 100%; max-width: 840px; }
 .min-modules-label {
   display: block; text-align: center; font-size: 10px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 12px;
+  text-transform: lowercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 12px;
 }
 
 /* ── Header (com dados) ──────────────────────────────────────────────────── */
@@ -886,7 +894,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 }
 .min-kpi-hl { border-left: 3px solid var(--accent); }
 .min-kpi-label {
-  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  font-size: 10px; font-weight: 700; text-transform: lowercase;
   letter-spacing: .5px; color: var(--muted);
 }
 .min-kpi-value { font-size: 18px; font-weight: 800; color: var(--text); }
