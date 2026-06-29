@@ -33,34 +33,28 @@
       justify-content: flex-start; gap: 14px;
       padding: 9px 20px 9px 9px;
       border-radius: 999px; text-decoration: none;
-      background: linear-gradient(145deg, #21213b 0%, #0d0d18 100%);
-      border: 1px solid rgba(255,255,255,.09);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 4px 18px rgba(0,0,0,.45);
+      border: 1px solid rgba(0,0,0,.06);
+      box-shadow: 0 2px 10px rgba(0,0,0,.12);
       transition: transform .18s, box-shadow .18s;
     }
     .hub-card:hover {
       transform: translateY(-2px);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.13),
-                  0 8px 28px rgba(0,0,0,.55),
-                  0 0 16px -2px var(--hub-c, var(--accent));
+      box-shadow: 0 8px 22px rgba(0,0,0,.22);
     }
     .hub-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
     .hub-label {
-      font-size: 13px; font-weight: 800; color: #fff;
+      font-size: 13px; font-weight: 800; color: inherit;
       text-transform: uppercase; letter-spacing: .6px;
     }
-    .hub-sub { font-size: 10px; color: rgba(255,255,255,.45); line-height: 1.3; letter-spacing: .1px; }
+    .hub-sub { font-size: 10px; color: inherit; opacity: .7; line-height: 1.3; letter-spacing: .1px; }
     .hub-icon {
       width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
-      font-size: 19px; color: #fff;
-      background:
-        radial-gradient(circle at 32% 28%, rgba(255,255,255,.45), transparent 46%),
-        linear-gradient(135deg, #9bb39a, #2f3b2f);
-      box-shadow: 0 0 14px -4px #9bb39a, inset 0 1px 2px rgba(255,255,255,.3);
+      font-size: 19px; color: inherit;
+      background: color-mix(in srgb, currentColor 22%, transparent);
     }
 
-    /* Hub compacto — mini-pílulas glossy (dashboard com dados) */
+    /* Hub compacto — mini-pílulas coloridas (dashboard com dados) */
     .hub-list {
       display: flex; flex-wrap: wrap; gap: 9px;
       margin-bottom: 24px;
@@ -68,27 +62,21 @@
     .hub-pill {
       display: inline-flex; align-items: center; gap: 9px;
       padding: 5px 18px 5px 6px; border-radius: 999px;
-      background: linear-gradient(145deg, #21213b 0%, #0d0d18 100%);
-      border: 1px solid rgba(255,255,255,.09);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 3px 12px rgba(0,0,0,.4);
-      color: #fff; text-decoration: none;
+      border: 1px solid rgba(0,0,0,.06);
+      box-shadow: 0 2px 8px rgba(0,0,0,.12);
+      text-decoration: none;
       font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
       transition: transform .15s, box-shadow .15s;
     }
     .hub-pill i {
       width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
-      font-size: 15px; color: #fff;
-      background:
-        radial-gradient(circle at 32% 28%, rgba(255,255,255,.4), transparent 46%),
-        linear-gradient(135deg, #9bb39a, #2f3b2f);
-      box-shadow: 0 0 10px -3px #9bb39a, inset 0 1px 2px rgba(255,255,255,.3);
+      font-size: 15px; color: inherit;
+      background: color-mix(in srgb, currentColor 22%, transparent);
     }
     .hub-pill:hover {
       transform: translateY(-1px);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.12),
-                  0 5px 18px rgba(0,0,0,.5),
-                  0 0 12px -2px var(--hub-c, var(--accent));
+      box-shadow: 0 5px 16px rgba(0,0,0,.22);
     }
 
     /* Tela de boas-vindas (sem dados) */

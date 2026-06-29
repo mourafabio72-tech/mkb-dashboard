@@ -7,13 +7,13 @@
 {% macro hub_cards(c, compact=false) %}
 {% set uc = c or '2026-04' %}
 {% set itens = [
-  {'endpoint': 'dre_resumida',                 'params': {'competencia': uc},            'cor': '#6e7f63', 'icone': 'ph-trend-up',       'label': 'DRE Gerencial',           'sub': 'Resultado mensal e acumulado'},
-  {'endpoint': 'irpj',                         'params': {'empresa': 'mkb', 'competencia': uc}, 'cor': '#c9a77f', 'icone': 'ph-calculator',     'label': 'IRPJ / CSLL',             'sub': 'Apuração fiscal trimestral'},
-  {'endpoint': 'endividamento',                'params': {'empresa': 'mkb', 'competencia': uc}, 'cor': '#9bb39a', 'icone': 'ph-bank',           'label': 'Endividamento Tributário','sub': 'Saldo devedor × Receita Bruta'},
-  {'endpoint': 'endividamento_bancario',       'params': {'empresa': 'gnileb'},           'cor': '#7d8f6e', 'icone': 'ph-bank',           'label': 'Endividamento Bancário',  'sub': 'Empréstimos · contratado, pago e saldo'},
-  {'endpoint': 'receita_clientes',             'params': {'empresa': 'mkb'},              'cor': '#cdb487', 'icone': 'ph-briefcase',      'label': 'Receita',                 'sub': 'Por cliente · pivot mensal'},
-  {'endpoint': 'despesas_fornecedores',        'params': {'empresa': 'mkb'},              'cor': '#b07d5a', 'icone': 'ph-receipt',        'label': 'Despesas',                'sub': 'Por fornecedor · conta contábil'},
-  {'endpoint': 'ingest',                       'params': {},                              'cor': '#566b4a', 'icone': 'ph-cloud-arrow-up', 'label': 'Importar',                'sub': 'Razão, IRPJ/CSLL e mês completo', 'admin_apenas': true},
+  {'endpoint': 'dre_resumida',                 'params': {'competencia': uc},            'cor': '#6e7f63', 'txt': '#ffffff', 'icone': 'ph-trend-up',       'label': 'DRE Gerencial',           'sub': 'Resultado mensal e acumulado'},
+  {'endpoint': 'irpj',                         'params': {'empresa': 'mkb', 'competencia': uc}, 'cor': '#c9a77f', 'txt': '#2f3b2f', 'icone': 'ph-calculator',     'label': 'IRPJ / CSLL',             'sub': 'Apuração fiscal trimestral'},
+  {'endpoint': 'endividamento',                'params': {'empresa': 'mkb', 'competencia': uc}, 'cor': '#9bb39a', 'txt': '#2f3b2f', 'icone': 'ph-bank',           'label': 'Endividamento Tributário','sub': 'Saldo devedor × Receita Bruta'},
+  {'endpoint': 'endividamento_bancario',       'params': {'empresa': 'gnileb'},           'cor': '#3f5147', 'txt': '#ffffff', 'icone': 'ph-bank',           'label': 'Endividamento Bancário',  'sub': 'Empréstimos · contratado, pago e saldo'},
+  {'endpoint': 'receita_clientes',             'params': {'empresa': 'mkb'},              'cor': '#cdb487', 'txt': '#2f3b2f', 'icone': 'ph-briefcase',      'label': 'Receita',                 'sub': 'Por cliente · pivot mensal'},
+  {'endpoint': 'despesas_fornecedores',        'params': {'empresa': 'mkb'},              'cor': '#b07d5a', 'txt': '#ffffff', 'icone': 'ph-receipt',        'label': 'Despesas',                'sub': 'Por fornecedor · conta contábil'},
+  {'endpoint': 'ingest',                       'params': {},                              'cor': '#2f3b2f', 'txt': '#ffffff', 'icone': 'ph-cloud-arrow-up', 'label': 'Importar',                'sub': 'Razão, IRPJ/CSLL e mês completo', 'admin_apenas': true},
 ] %}
 {% set eh_admin = session.usuario_logado and session.usuario_logado.role == 'admin' %}
 {% if not eh_admin %}
@@ -23,7 +23,7 @@
 {% if compact %}
 <div class="hub-list">
   {% for item in itens %}
-  <a href="{{ url_for(item.endpoint, **item.params) }}" class="hub-pill" style="--hub-c:{{ item.cor }}">
+  <a href="{{ url_for(item.endpoint, **item.params) }}" class="hub-pill" style="background:{{ item.cor }};color:{{ item.txt }};--hub-c:{{ item.cor }}">
     <i class="ph {{ item.icone }}"></i>
     <span>{{ item.label }}</span>
   </a>
@@ -32,7 +32,7 @@
 {% else %}
 <div class="hub-grid">
   {% for item in itens %}
-  <a href="{{ url_for(item.endpoint, **item.params) }}" class="hub-card" style="--hub-c:{{ item.cor }}">
+  <a href="{{ url_for(item.endpoint, **item.params) }}" class="hub-card" style="background:{{ item.cor }};color:{{ item.txt }};--hub-c:{{ item.cor }}">
     <div class="hub-icon">
       <i class="ph {{ item.icone }}"></i>
     </div>
