@@ -106,33 +106,56 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
         for r in bal_rows if _is_leaf(r[0])
     }
 
+    # ROLL-UP: o razão costuma ser mais detalhado que o balancete (ex.: razão em
+    # 3.1.2.01.02.001 vs balancete na folha 3.1.2.01.02). Para validar conta
+    # analítica × analítica, somamos cada lançamento do razão na folha do
+    # balancete que é seu prefixo mais longo. Lançamentos que não caem em
+    # nenhuma folha do balancete ficam como "órfãos" (só na DRE).
+    folhas = sorted(bal.keys(), key=len, reverse=True)
+    dre_por_folha = {c: 0.0 for c in bal}
+    orfaos: dict[str, float] = {}
+    for rcod, rval in dre.items():
+        destino = next((f for f in folhas if rcod == f or rcod.startswith(f + ".")), None)
+        if destino is not None:
+            dre_por_folha[destino] += rval
+        else:
+            orfaos[rcod] = orfaos.get(rcod, 0.0) + rval
+
     linhas = []
-    tot_dre = tot_bal = 0.0
-    for cod in (set(dre) | set(bal)):
-        dv = dre.get(cod, 0.0)
-        bv = bal.get(cod, {}).get("saldo", 0.0)
-        tot_dre += dv
-        tot_bal += bv
+    tot_dre = round(sum(dre.values()), 2)        # total = todo movimento de resultado
+    tot_bal = round(sum(b["saldo"] for b in bal.values()), 2)
+
+    # 1) por folha do balancete (com razão já consolidado)
+    for cod, info in bal.items():
+        dv = round(dre_por_folha.get(cod, 0.0), 2)
+        bv = info["saldo"]
         diff = round(dv - bv, 2)
         if abs(diff) >= 0.01:
             grupo = classificar_conta(cod)
             linhas.append({
-                "cod":       cod,
-                "descricao": bal.get(cod, {}).get("desc", ""),
-                "dre":       dv,
-                "balancete": bv,
-                "diff":      diff,
-                "grupo":     grupo,
-                "grupo_label": GRUPO_LABELS.get(grupo, grupo),
-                "so_balancete": cod not in dre,
-                "so_dre":       cod not in bal,
+                "cod": cod, "descricao": info["desc"],
+                "dre": dv, "balancete": bv, "diff": diff,
+                "grupo": grupo, "grupo_label": GRUPO_LABELS.get(grupo, grupo),
+                "so_balancete": dv == 0.0, "so_dre": False,
+            })
+
+    # 2) órfãos do razão (sem conta correspondente no balancete)
+    for rcod, rval in orfaos.items():
+        rval = round(rval, 2)
+        if abs(rval) >= 0.01:
+            grupo = classificar_conta(rcod)
+            linhas.append({
+                "cod": rcod, "descricao": "(sem conta correspondente no balancete)",
+                "dre": rval, "balancete": 0.0, "diff": rval,
+                "grupo": grupo, "grupo_label": GRUPO_LABELS.get(grupo, grupo),
+                "so_balancete": False, "so_dre": True,
             })
 
     linhas.sort(key=lambda x: -abs(x["diff"]))
     return {
         "linhas":     linhas,
-        "tot_dre":    round(tot_dre, 2),
-        "tot_bal":    round(tot_bal, 2),
+        "tot_dre":    tot_dre,
+        "tot_bal":    tot_bal,
         "tot_diff":   round(tot_dre - tot_bal, 2),
         "qtd_diff":   len(linhas),
         "tem_balancete": bool(bal),
