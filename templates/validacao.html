@@ -6,8 +6,10 @@
   <h1>✓ Validação · DRE × Balancete</h1>
   <p class="subtitle">
     Compara o <strong>movimento acumulado da DRE</strong> (Razão, Jan → mês) com o
-    <strong>saldo do balancete</strong>, conta a conta (resultado 3.x / 4.x). As linhas abaixo
-    são só as que <strong>divergem</strong> — é onde está a diferença do Resultado.
+    <strong>saldo do balancete</strong>, agrupado por <strong>linha da DRE</strong>
+    (balancete e razão às vezes usam códigos diferentes para o mesmo item — ex.: impostos —
+    então o grupo é o nível certo de comparação). As linhas abaixo são só as que
+    <strong>divergem</strong> — é onde está a diferença do Resultado.
   </p>
 </div>
 
@@ -68,8 +70,7 @@
   <table class="table-det">
     <thead>
       <tr>
-        <th class="col-cod">Conta</th>
-        <th>Descrição / Linha DRE</th>
+        <th>Linha da DRE (grupo)</th>
         <th class="num">DRE (Razão)</th>
         <th class="num">Balancete</th>
         <th class="num">Diferença</th>
@@ -79,11 +80,7 @@
     <tbody>
       {% for l in resultado.linhas %}
       <tr class="det-conta">
-        <td class="col-cod">{{ l.cod }}</td>
-        <td>
-          {{ l.descricao or '—' }}
-          <span class="text-muted" style="font-size:11px">· {{ l.grupo_label }}</span>
-        </td>
+        <td>{{ l.grupo_label }} <span class="text-muted" style="font-size:11px">· {{ l.grupo }}</span></td>
         <td class="num">{{ fmt_brl(l.dre) }}</td>
         <td class="num">{{ fmt_brl(l.balancete) }}</td>
         <td class="num {% if l.diff != 0 %}text-danger{% endif %}" style="font-weight:700">
@@ -103,8 +100,9 @@
     </tbody>
   </table>
   <p class="text-muted" style="font-size:11px;margin-top:10px">
-    “Só no balancete” = conta com saldo mas sem movimento no Razão importado (ex.: meses anteriores
-    não importados, ou conta sem lançamento no período). “Só na DRE” = movimento sem saldo no balancete.
+    Comparação por grupo da DRE (cada conta classificada pela mesma régua de de-para). Se um grupo
+    divergir, abra a <strong>DRE detalhada</strong> dessa linha para ver a conta específica. “Só no
+    balancete” = saldo sem movimento no Razão importado (ex.: meses anteriores não importados).
   </p>
   {% else %}
   <div style="text-align:center;padding:40px">
