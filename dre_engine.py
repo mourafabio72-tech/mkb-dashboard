@@ -259,15 +259,17 @@ def criar_ajustes_saldo(empresa_id: int, competencia: str) -> dict:
     # 2) com os ajustes removidos, a conciliação reflete o movimento puro
     rec = conciliar_balancete(empresa_id, competencia)
 
-    # 3) ajuste por conta = balancete - movimento (só contas que existem no
-    #    balancete; as "só na DRE"/reclassificação não entram)
+    # 3) ajuste por conta = balancete - movimento, para TODA conta divergente
+    #    (em grupo que não concilia). Inclui "só na DRE" (balancete = 0): nesse
+    #    caso o ajuste = -movimento, removendo da DRE a conta que o balancete
+    #    não tem. Grupos que conciliam (ex.: abatimentos via regrossamento) não
+    #    entram aqui, então não há remoção indevida.
     ajustes: list[tuple[str, float]] = []
     for linha in rec["linhas"]:
         for c in linha.get("contas", []):
-            if c["balancete"] != 0:
-                aj = round(c["balancete"] - c["dre"], 2)
-                if abs(aj) >= 0.01:
-                    ajustes.append((c["cod"], aj))
+            aj = round(c["balancete"] - c["dre"], 2)
+            if abs(aj) >= 0.01:
+                ajustes.append((c["cod"], aj))
 
     if not ajustes:
         return {"ajustes": 0}
