@@ -122,6 +122,27 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
         """,
         (empresa_id, competencia)
     ).fetchall() if tem_bal else []
+
+    # Saldo acumulado do razão por conta (SALDO ATUAL do último lançamento da
+    # competência mais recente ≤ alvo). Ordena por competência DESC e id DESC
+    # (robusto à ordem de importação dos meses). Usado só para CONCILIAR uma
+    # conta quando o saldo bate com o balancete -- nunca para criar diferença.
+    razao_saldo_rows = conn.execute(
+        """
+        SELECT conta_cod, saldo_atual FROM (
+            SELECT conta_cod, saldo_atual,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY conta_cod ORDER BY competencia DESC, id DESC
+                   ) AS rn
+            FROM razao
+            WHERE empresa_id = ? AND competencia <= ?
+              AND saldo_atual IS NOT NULL
+              AND (conta_cod LIKE '3.%' OR conta_cod LIKE '4.%')
+        ) WHERE rn = 1
+        """,
+        (empresa_id, competencia)
+    ).fetchall()
+    razao_saldo = {c: round(v or 0.0, 2) for c, v in razao_saldo_rows}
     conn.close()
 
     # Só contas analíticas (folha) do balancete -- evita somar sintéticas.
@@ -138,12 +159,31 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
         (r[0], r[1], round(r[2] or 0.0, 2))
         for r in bal_rows if _is_leaf(r[0]) and not _excluida(r[0])
     ]
+    bal_por_conta = {cod: saldo for cod, _desc, saldo in bal_leaves}
+
+    # Valor efetivo do razão por conta:
+    #   - se a conta tem saldo no razão E esse saldo bate com o balancete →
+    #     usa o SALDO (concilia; cobre lançamentos retroativos que entram só no
+    #     saldo, não como linha de movimento);
+    #   - caso contrário → usa o MOVIMENTO (soma dos lançamentos) -- seguro,
+    #     mesmo comportamento de antes. Nunca cria diferença a partir do saldo.
+    razao_val: dict[str, float] = {}
+    conciliadas_saldo: set[str] = set()
+    for cod in (set(dre) | set(bal_por_conta)):
+        mov = round(dre.get(cod, 0.0), 2)
+        bal = bal_por_conta.get(cod)
+        sal = razao_saldo.get(cod)
+        if bal is not None and sal is not None and abs(round(sal - bal, 2)) < 0.01:
+            razao_val[cod] = round(bal, 2)   # conciliado pelo saldo
+            conciliadas_saldo.add(cod)
+        else:
+            razao_val[cod] = mov
 
     # Agrega cada fonte por GRUPO da DRE (mesma régua account_map / de-para) e
     # guarda as contas que compõem cada grupo, para drill-down.
     g_dre = defaultdict(float)
     contas_dre = defaultdict(dict)   # grupo -> {cod: valor}
-    for cod, val in dre.items():
+    for cod, val in razao_val.items():
         g = classificar_conta(cod)
         g_dre[g] += val
         contas_dre[g][cod] = round(val, 2)
