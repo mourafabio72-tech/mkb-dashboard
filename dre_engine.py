@@ -200,9 +200,21 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
     # (valor do razão) à Receita Bruta do balancete e cria a linha de
     # abatimentos. Net no resultado é zero -- só reclassifica ROB ↔ DED_ABAT.
     abat_dre = round(g_dre.get("DED_ABAT", 0.0), 2)
+    rob_dre  = round(g_dre.get("ROB", 0.0), 2)
+    rob_bal  = round(g_bal.get("ROB", 0.0), 2)
     if abat_dre and round(g_bal.get("DED_ABAT", 0.0), 2) == 0.0:
-        g_bal["ROB"]      = g_bal.get("ROB", 0.0) - abat_dre
-        g_bal["DED_ABAT"] = g_bal.get("DED_ABAT", 0.0) + abat_dre
+        if abs(round((rob_dre - rob_bal) - (-abat_dre), 2)) < 0.01:
+            # Razão ROB é BRUTO (diferença ≈ abatimentos) e o balancete é
+            # LÍQUIDO → regrossa o balancete: devolve o abatimento à Receita e
+            # cria a linha de abatimentos. (caso comparação por movimento)
+            g_bal["ROB"]      = g_bal.get("ROB", 0.0) - abat_dre
+            g_bal["DED_ABAT"] = g_bal.get("DED_ABAT", 0.0) + abat_dre
+        else:
+            # Razão ROB já está LÍQUIDO (Receita conciliada pelo saldo) → o
+            # abatimento já está embutido na receita líquida; remove a linha de
+            # abatimentos do razão para não duplicar.
+            g_dre["DED_ABAT"] = 0.0
+            contas_dre.pop("DED_ABAT", None)
 
     tot_dre = round(sum(g_dre.values()), 2)
     tot_bal = round(sum(g_bal.values()), 2)
