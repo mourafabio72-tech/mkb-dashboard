@@ -123,26 +123,6 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
         (empresa_id, competencia)
     ).fetchall() if tem_bal else []
 
-    # Saldo acumulado do razão por conta (SALDO ATUAL do último lançamento da
-    # competência mais recente ≤ alvo). Ordena por competência DESC e id DESC
-    # (robusto à ordem de importação dos meses). Usado só para CONCILIAR uma
-    # conta quando o saldo bate com o balancete -- nunca para criar diferença.
-    razao_saldo_rows = conn.execute(
-        """
-        SELECT conta_cod, saldo_atual FROM (
-            SELECT conta_cod, saldo_atual,
-                   ROW_NUMBER() OVER (
-                       PARTITION BY conta_cod ORDER BY competencia DESC, id DESC
-                   ) AS rn
-            FROM razao
-            WHERE empresa_id = ? AND competencia <= ?
-              AND saldo_atual IS NOT NULL
-              AND (conta_cod LIKE '3.%' OR conta_cod LIKE '4.%')
-        ) WHERE rn = 1
-        """,
-        (empresa_id, competencia)
-    ).fetchall()
-    razao_saldo = {c: round(v or 0.0, 2) for c, v in razao_saldo_rows}
     conn.close()
 
     # Só contas analíticas (folha) do balancete -- evita somar sintéticas.
@@ -161,29 +141,13 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
     ]
     bal_por_conta = {cod: saldo for cod, _desc, saldo in bal_leaves}
 
-    # Valor efetivo do razão por conta:
-    #   - se a conta tem saldo no razão E esse saldo bate com o balancete →
-    #     usa o SALDO (concilia; cobre lançamentos retroativos que entram só no
-    #     saldo, não como linha de movimento);
-    #   - caso contrário → usa o MOVIMENTO (soma dos lançamentos) -- seguro,
-    #     mesmo comportamento de antes. Nunca cria diferença a partir do saldo.
-    razao_val: dict[str, float] = {}
-    conciliadas_saldo: set[str] = set()
-    for cod in (set(dre) | set(bal_por_conta)):
-        mov = round(dre.get(cod, 0.0), 2)
-        bal = bal_por_conta.get(cod)
-        sal = razao_saldo.get(cod)
-        if bal is not None and sal is not None and abs(round(sal - bal, 2)) < 0.01:
-            razao_val[cod] = round(bal, 2)   # conciliado pelo saldo
-            conciliadas_saldo.add(cod)
-        else:
-            razao_val[cod] = mov
-
-    # Agrega cada fonte por GRUPO da DRE (mesma régua account_map / de-para) e
-    # guarda as contas que compõem cada grupo, para drill-down.
+    # Comparação por MOVIMENTO do razão. As diferenças reais (ex.: lançamento
+    # retroativo que entra só no saldo) viram lançamentos "AJUSTE-SALDO" na
+    # própria conta ao importar o balancete (ver criar_ajustes_saldo), então o
+    # movimento já inclui o ajuste e a conta passa a bater com o balancete.
     g_dre = defaultdict(float)
     contas_dre = defaultdict(dict)   # grupo -> {cod: valor}
-    for cod, val in razao_val.items():
+    for cod, val in dre.items():
         g = classificar_conta(cod)
         g_dre[g] += val
         contas_dre[g][cod] = round(val, 2)
@@ -271,6 +235,62 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
         "qtd_diff":   len(linhas),
         "tem_balancete": bool(bal_leaves),
     }
+
+
+def criar_ajustes_saldo(empresa_id: int, competencia: str) -> dict:
+    """Após importar o balancete, lança 'AJUSTE-SALDO' na PRÓPRIA conta para
+    cada divergência real DRE × balancete (ex.: lançamento retroativo que entra
+    só no saldo). Assim a DRE passa a bater com o balancete naquela conta, o
+    ajuste fica identificável (documento AJUSTE-SALDO) e é reversível.
+    Idempotente: remove os ajustes da competência antes de recriar. As
+    reclassificações (impostos/abatimentos) conciliam no nível de grupo e NÃO
+    geram ajuste (evita dupla contagem)."""
+    import calendar
+
+    # 1) remove ajustes antigos desta competência (recalcula do zero)
+    conn = get_conn()
+    conn.execute(
+        "DELETE FROM razao WHERE empresa_id=? AND competencia=? AND documento='AJUSTE-SALDO'",
+        (empresa_id, competencia)
+    )
+    conn.commit()
+    conn.close()
+
+    # 2) com os ajustes removidos, a conciliação reflete o movimento puro
+    rec = conciliar_balancete(empresa_id, competencia)
+
+    # 3) ajuste por conta = balancete - movimento (só contas que existem no
+    #    balancete; as "só na DRE"/reclassificação não entram)
+    ajustes: list[tuple[str, float]] = []
+    for linha in rec["linhas"]:
+        for c in linha.get("contas", []):
+            if c["balancete"] != 0:
+                aj = round(c["balancete"] - c["dre"], 2)
+                if abs(aj) >= 0.01:
+                    ajustes.append((c["cod"], aj))
+
+    if not ajustes:
+        return {"ajustes": 0}
+
+    ano, mes = competencia.split("-")
+    ultimo = calendar.monthrange(int(ano), int(mes))[1]
+    data_lanc = f"{competencia}-{ultimo:02d}"
+
+    conn = get_conn()
+    for cod, valor in ajustes:
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO razao
+                (empresa_id, competencia, data_lanc, conta_cod, documento,
+                 historico, debito, credito, valor, saldo_atual)
+            VALUES (?, ?, ?, ?, 'AJUSTE-SALDO',
+                    'Ajuste de saldo (conciliação com balancete)', 0, 0, ?, NULL)
+            """,
+            (empresa_id, competencia, data_lanc, cod, valor)
+        )
+    conn.commit()
+    conn.close()
+    return {"ajustes": len(ajustes)}
 
 
 def contas_nao_classificadas() -> list[dict]:

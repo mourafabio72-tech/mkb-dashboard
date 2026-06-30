@@ -29,7 +29,7 @@ from dre_engine import (
     GRUPOS_AGREGADOS_GER, montar_bridge_ebitda, montar_bridge_resultado_final,
     _tabela_lancamentos,
     contas_nao_classificadas, grupos_disponiveis, invalidar_prefixos, GRUPO_LABELS,
-    conciliar_balancete,
+    conciliar_balancete, criar_ajustes_saldo,
 )
 from balancete_parser import importar_balancete
 
@@ -1130,9 +1130,14 @@ def ingest():
                 if "erro" in res:
                     flash(f"Erro ao importar Balancete: {res['erro']}", "danger")
                 else:
+                    # Gera os ajustes de saldo na própria conta divergente, para
+                    # a DRE bater com o balancete.
+                    emp_id = EMPRESAS.get(empresa_bal, {}).get("id", 1)
+                    aj = criar_ajustes_saldo(emp_id, competencia)
                     flash(
                         f"Balancete importado: {res['registros']} contas "
                         f"({res['empresa']}) — competência {_mes_label(competencia)}. "
+                        f"{aj['ajustes']} ajuste(s) de saldo lançado(s) na conta divergente. "
                         f"Confira em Validação DRE × Balancete.",
                         "success"
                     )
