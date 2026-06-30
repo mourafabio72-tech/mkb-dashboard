@@ -155,28 +155,6 @@ CREATE VIEW IF NOT EXISTS v_lancamentos AS
     FROM razao
     GROUP BY empresa_id, competencia, conta_cod
     UNION ALL
-    -- Ajuste de saldo (CT1): quando o SALDO ATUAL final de uma conta difere da
-    -- soma dos seus movimentos (lançamento retroativo que entra só no saldo
-    -- corrido do Protheus, sem linha detalhada), adiciona a diferença na
-    -- competência do último lançamento. Assim o total da conta na DRE passa a
-    -- bater com o saldo do razão (e com o balancete).
-    SELECT s.empresa_id, s.competencia, s.conta_cod,
-           ROUND(s.saldo - mv.mov, 2) AS valor
-    FROM (
-        SELECT empresa_id, conta_cod, competencia, saldo_atual AS saldo,
-               ROW_NUMBER() OVER (
-                   PARTITION BY empresa_id, conta_cod
-                   ORDER BY competencia DESC, id DESC
-               ) AS rn
-        FROM razao
-        WHERE saldo_atual IS NOT NULL
-    ) s
-    JOIN (
-        SELECT empresa_id, conta_cod, SUM(valor) AS mov
-        FROM razao GROUP BY empresa_id, conta_cod
-    ) mv ON mv.empresa_id = s.empresa_id AND mv.conta_cod = s.conta_cod
-    WHERE s.rn = 1 AND ABS(s.saldo - mv.mov) > 0.005
-    UNION ALL
     -- Lançamentos do Comparativo (CT2) — apenas contas não presentes no Razão
     SELECT l.empresa_id, l.competencia, l.conta_cod, l.valor
     FROM lancamentos l
