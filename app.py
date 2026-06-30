@@ -1401,6 +1401,39 @@ def validacao():
     )
 
 
+@app.route("/balancete/excluir", methods=["POST"])
+@login_required
+@admin_required
+def balancete_excluir():
+    """Exclui o balancete de uma empresa+competência e os ajustes de saldo
+    (AJUSTE-SALDO) gerados por ele -- ex.: balancete importado sob a competência
+    errada (mês padrão)."""
+    empresa_chave = request.form.get("empresa", "")
+    competencia   = request.form.get("competencia", "")
+    emp = EMPRESAS.get(empresa_chave)
+    if not emp or not competencia:
+        flash("Empresa ou competência inválida.", "danger")
+        return redirect(url_for("validacao"))
+
+    conn = get_conn()
+    n1 = conn.execute(
+        "DELETE FROM balancete WHERE empresa_id=? AND competencia=?",
+        (emp["id"], competencia)
+    ).rowcount
+    n2 = conn.execute(
+        "DELETE FROM razao WHERE empresa_id=? AND competencia=? AND documento='AJUSTE-SALDO'",
+        (emp["id"], competencia)
+    ).rowcount
+    conn.commit()
+    conn.close()
+    flash(
+        f"Balancete de {emp['sigla']} — {_mes_label(competencia)} excluído "
+        f"({n1} contas, {n2} ajustes de saldo removidos).",
+        "success"
+    )
+    return redirect(url_for("validacao", empresa=empresa_chave))
+
+
 # --- ROTA: DE-PARA (mapeamento conta → linha da DRE) -------------------------
 
 @app.route("/de-para")
