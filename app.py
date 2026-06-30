@@ -1401,6 +1401,27 @@ def validacao():
     )
 
 
+@app.route("/ajustes/recalcular", methods=["POST"])
+@login_required
+@admin_required
+def ajustes_recalcular():
+    """Recalcula os lançamentos AJUSTE-SALDO de uma empresa+competência sem
+    precisar reimportar o balancete (aplica a lógica de ajuste mais recente)."""
+    empresa_chave = request.form.get("empresa", "")
+    competencia   = request.form.get("competencia", "")
+    emp = EMPRESAS.get(empresa_chave)
+    if not emp or not competencia:
+        flash("Empresa ou competência inválida.", "danger")
+        return redirect(url_for("validacao"))
+    aj = criar_ajustes_saldo(emp["id"], competencia)
+    flash(
+        f"Ajustes recalculados para {emp['sigla']} — {_mes_label(competencia)}: "
+        f"{aj['ajustes']} lançamento(s) AJUSTE-SALDO.",
+        "success"
+    )
+    return redirect(url_for("validacao", empresa=empresa_chave, competencia=competencia))
+
+
 @app.route("/balancete/excluir", methods=["POST"])
 @login_required
 @admin_required

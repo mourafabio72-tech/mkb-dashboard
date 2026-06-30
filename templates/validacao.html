@@ -33,6 +33,14 @@
       </select>
     </form>
     {% if competencia %}
+    <form method="POST" action="{{ url_for('ajustes_recalcular') }}" style="display:inline">
+      <input type="hidden" name="empresa" value="{{ empresa }}">
+      <input type="hidden" name="competencia" value="{{ competencia }}">
+      <button type="submit" class="btn-sm" title="Recalcular os ajustes de saldo com a lógica mais recente"
+              style="background:rgba(110,127,99,.15);color:var(--accent);border:1px solid var(--border);border-radius:5px;cursor:pointer;padding:5px 10px;font-size:11px;font-weight:700">
+        ↻ Recalcular ajustes
+      </button>
+    </form>
     <form method="POST" action="{{ url_for('balancete_excluir') }}" style="display:inline"
           onsubmit="return confirm('Excluir o balancete de {{ empresa|upper }} — {{ mes_label(competencia) }} e seus ajustes de saldo?');">
       <input type="hidden" name="empresa" value="{{ empresa }}">
