@@ -37,6 +37,16 @@ app = Flask(__name__)
 app.secret_key = SECRET_KEY
 
 
+@app.after_request
+def _no_cache_html(resp):
+    """Impede cache de páginas HTML (navegador/proxy) para que dados dinâmicos
+    -- ex.: validação após recalcular ajustes -- sempre venham frescos."""
+    if resp.mimetype == "text/html":
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+    return resp
+
+
 # --- FILTROS JINJA2 ----------------------------------------------------------
 
 @app.template_filter("brl")
