@@ -57,10 +57,27 @@ def _parse_signed_text(cell) -> float:
 
 
 def _saldo_assinado(mag_cell, sign_cell) -> float:
-    """Saldo atual = magnitude (col7) com sinal D/C (col8). C/vazio = +, D = -."""
-    mag = abs(_num(mag_cell))
+    """Saldo atual assinado (convenção DRE: C = +, D = -).
+    O sinal pode vir de 3 formas, dependendo do layout do balancete:
+      (a) coluna D/C separada (sign_cell);
+      (b) sufixo no próprio texto do saldo ('135.000,00 D');
+      (c) sinal do próprio número (saldo já negativo).
+    """
     sign = (str(sign_cell).strip().upper() if sign_cell is not None else "")
-    return -mag if sign == "D" else mag
+    # (b) sufixo embutido no texto do saldo
+    if sign not in ("D", "C") and isinstance(mag_cell, str):
+        t = mag_cell.strip().upper()
+        if t.endswith("D"):
+            sign = "D"
+        elif t.endswith("C"):
+            sign = "C"
+    val = _num(mag_cell)
+    if sign == "D":
+        return -abs(val)
+    if sign == "C":
+        return abs(val)
+    # (c) sem indicador D/C → usa o sinal do próprio número
+    return val
 
 
 def parse_balancete(caminho: Path, empresa_id: int) -> list[dict]:
@@ -70,20 +87,40 @@ def parse_balancete(caminho: Path, empresa_id: int) -> list[dict]:
     aba = next((s for s in wb.sheetnames if "balancete" in s.lower()), wb.sheetnames[0])
     ws = wb[aba]
 
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        wb.close()
+        return []
+
+    # Localiza as colunas pelo cabeçalho (robusto a layouts diferentes entre
+    # empresas/meses). A coluna de sinal D/C costuma ser a imediatamente após
+    # "Saldo atual" (cabeçalho em branco).
+    header = [str(c or "").strip().lower() for c in rows[0]]
+    def _col(*chaves, default=None):
+        for idx, h in enumerate(header):
+            if any(k in h for k in chaves):
+                return idx
+        return default
+    i_conta = _col("conta", default=0)
+    i_desc  = _col("descric", default=1)
+    i_mov   = _col("mov", default=5)
+    i_saldo = _col("saldo atual", "saldo final", default=6)
+    i_sign  = i_saldo + 1   # coluna D/C logo após o saldo
+
     registros: list[dict] = []
-    for i, row in enumerate(ws.iter_rows(values_only=True)):
+    for i, row in enumerate(rows):
         if i == 0:
             continue  # cabeçalho
-        if not row or row[0] is None:
+        if not row or len(row) <= i_conta or row[i_conta] is None:
             continue
-        conta = str(row[0]).strip()
+        conta = str(row[i_conta]).strip()
         if not conta or not conta[0].isdigit():
             continue
-        descricao   = str(row[1] or "").strip()
-        mov_periodo = _parse_signed_text(row[5]) if len(row) > 5 else 0.0
+        descricao   = str((row[i_desc] if len(row) > i_desc else "") or "").strip()
+        mov_periodo = _parse_signed_text(row[i_mov]) if len(row) > i_mov else 0.0
         saldo_atual = _saldo_assinado(
-            row[6] if len(row) > 6 else None,
-            row[7] if len(row) > 7 else None,
+            row[i_saldo] if len(row) > i_saldo else None,
+            row[i_sign] if len(row) > i_sign else None,
         )
         registros.append({
             "empresa_id":  empresa_id,
