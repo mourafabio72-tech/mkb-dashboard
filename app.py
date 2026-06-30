@@ -1397,7 +1397,14 @@ def validacao():
     ).fetchall()] if tem_bal else []
     conn.close()
 
-    competencia = request.args.get("competencia") or (comps_bal[-1] if comps_bal else (competencias[-1] if competencias else ""))
+    # Usa a competência pedida só se ela tiver balancete (senão cai numa válida).
+    # Evita ficar "preso" numa competência excluída (ex.: junho fantasma) com o
+    # seletor mostrando outro mês.
+    comp_param = request.args.get("competencia")
+    if comp_param and comp_param in comps_bal:
+        competencia = comp_param
+    else:
+        competencia = comps_bal[-1] if comps_bal else (competencias[-1] if competencias else "")
 
     resultado = conciliar_balancete(EMPRESAS[empresa]["id"], competencia) if competencia else None
 
