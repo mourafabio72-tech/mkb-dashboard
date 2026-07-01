@@ -1766,32 +1766,59 @@ def irpj(empresa, competencia):
 _PARCEL_PREFIXOS = ("2.1.3.05.", "2.2.4.02.")
 
 
-def _endividamento_do_razao(empresa_id: int) -> dict:
-    """Deriva o endividamento tributário direto do Razão (sem CSV de vinculação):
-    saldo devedor a pagar (saldo atual), total pago (soma dos débitos) e valor da
-    última parcela paga (débito do mês mais recente) por conta de parcelamento."""
+def _endividamento_do_razao(empresa_id: int, competencia: str | None = None) -> dict:
+    """Endividamento tributário: saldo devedor (dívida a pagar) vem do BALANCETE
+    (tem todas as contas de parcelamento, mesmo as sem movimento no período);
+    total pago e última parcela vêm do Razão (débitos = amortizações)."""
     conn = get_conn()
-    cond   = " OR ".join("conta_cod LIKE ?" for _ in _PARCEL_PREFIXOS)
-    params = [empresa_id] + [p + "%" for p in _PARCEL_PREFIXOS]
-    rows = conn.execute(
-        f"""
-        SELECT conta_cod, competencia, id, debito, credito, saldo_atual, historico
-        FROM razao WHERE empresa_id = ? AND ({cond})
-        ORDER BY conta_cod, competencia, id
-        """,
-        params
+    cond  = " OR ".join("conta_cod LIKE ?" for _ in _PARCEL_PREFIXOS)
+    likes = [p + "%" for p in _PARCEL_PREFIXOS]
+
+    # ── Saldo devedor: balancete (competência com balancete mais recente ≤ alvo)
+    saldos_bal: dict[str, dict] = {}
+    comp_bal = None
+    tem_bal = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='balancete'"
+    ).fetchone()
+    if tem_bal:
+        comps = [r[0] for r in conn.execute(
+            "SELECT DISTINCT competencia FROM balancete WHERE empresa_id=? ORDER BY competencia",
+            (empresa_id,)
+        ).fetchall()]
+        if comps:
+            if competencia:
+                antes = [c for c in comps if c <= competencia]
+                comp_bal = antes[-1] if antes else comps[-1]
+            else:
+                comp_bal = comps[-1]
+            all_codes = {r[0] for r in conn.execute(
+                "SELECT conta_cod FROM balancete WHERE empresa_id=? AND competencia=?",
+                (empresa_id, comp_bal)
+            ).fetchall()}
+            def _leaf(c):
+                return not any(o != c and o.startswith(c + ".") for o in all_codes)
+            rows = conn.execute(
+                f"""SELECT conta_cod, saldo_atual, descricao FROM balancete
+                    WHERE empresa_id=? AND competencia=? AND ({cond})""",
+                [empresa_id, comp_bal, *likes]
+            ).fetchall()
+            saldos_bal = {
+                r[0]: {"saldo": abs(r[1] or 0.0), "desc": r[2] or ""}
+                for r in rows if _leaf(r[0])
+            }
+
+    # ── Pago e última parcela: Razão (débitos)
+    rz = conn.execute(
+        f"""SELECT conta_cod, competencia, id, debito, historico FROM razao
+            WHERE empresa_id=? AND ({cond}) ORDER BY conta_cod, competencia, id""",
+        [empresa_id, *likes]
     ).fetchall()
     conn.close()
 
-    porconta: dict[str, dict] = {}
-    for r in rows:
+    pago: dict[str, dict] = {}
+    for r in rz:
         c = r["conta_cod"]
-        info = porconta.setdefault(c, {
-            "cod": c, "saldo": 0.0, "pago": 0.0,
-            "ultima": 0.0, "ultima_comp": "", "hist": "",
-        })
-        if r["saldo_atual"] is not None:
-            info["saldo"] = r["saldo_atual"]      # linhas em ordem → última vence
+        info = pago.setdefault(c, {"pago": 0.0, "ultima": 0.0, "ultima_comp": "", "hist": ""})
         deb = r["debito"] or 0.0
         info["pago"] += deb
         if deb > 0.005:
@@ -1801,17 +1828,25 @@ def _endividamento_do_razao(empresa_id: int) -> dict:
             info["hist"] = r["historico"]
 
     contas = []
-    for x in porconta.values():
-        x["saldo_abs"]   = round(abs(x["saldo"]), 2)
-        x["pago"]        = round(x["pago"], 2)
-        x["ultima"]      = round(x["ultima"], 2)
-        x["cp"]          = x["cod"].startswith("2.1.3.05.")
-        if x["saldo_abs"] >= 0.01 or x["pago"] >= 0.01:
-            contas.append(x)
+    for c in (set(saldos_bal) | set(pago)):
+        b = saldos_bal.get(c, {"saldo": 0.0, "desc": ""})
+        p = pago.get(c, {"pago": 0.0, "ultima": 0.0, "ultima_comp": "", "hist": ""})
+        item = {
+            "cod": c,
+            "saldo_abs": round(b["saldo"], 2),
+            "pago": round(p["pago"], 2),
+            "ultima": round(p["ultima"], 2),
+            "ultima_comp": p["ultima_comp"],
+            "hist": b["desc"] or p["hist"],
+            "cp": c.startswith("2.1.3.05."),
+        }
+        if item["saldo_abs"] >= 0.01 or item["pago"] >= 0.01:
+            contas.append(item)
     contas.sort(key=lambda x: -x["saldo_abs"])
 
     return {
         "contas":       contas,
+        "comp_bal":     comp_bal,
         "total_pagar":  round(sum(x["saldo_abs"] for x in contas), 2),
         "total_pago":   round(sum(x["pago"] for x in contas), 2),
         "total_ultima": round(sum(x["ultima"] for x in contas), 2),
@@ -1844,7 +1879,7 @@ def endividamento(empresa, competencia):
     if not competencias_disp:
         conn.close()
         # Sem CSV de vinculação → visão direto do Razão (contas 2.1.3.05 / 2.2.4.02)
-        dados = _endividamento_do_razao(empresa_id)
+        dados = _endividamento_do_razao(empresa_id, competencia)
         return render_template(
             "endividamento_razao.html",
             empresa=empresa,
