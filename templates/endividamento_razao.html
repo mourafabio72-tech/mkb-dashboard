@@ -38,9 +38,9 @@
     <span class="min-kpi-sub">2.2.4.02.x</span>
   </div>
   <div class="min-kpi">
-    <span class="min-kpi-label">Última parcela paga</span>
+    <span class="min-kpi-label">Desembolso mensal</span>
     <span class="min-kpi-value">{{ fmt_brl(dados.total_ultima) }}</span>
-    <span class="min-kpi-sub">Soma do último desembolso de cada parcelamento</span>
+    <span class="min-kpi-sub">Soma da última parcela paga (lote 008850)</span>
   </div>
 </div>
 
@@ -62,7 +62,8 @@
         <th class="num">Dívida a pagar</th>
         <th class="num">Já pago (período)</th>
         <th class="num">Última parcela</th>
-        <th class="num">Parcelas restantes*</th>
+        <th class="num">Pagas</th>
+        <th class="num">Faltam*</th>
         <th>Mês últ. parcela</th>
       </tr>
     </thead>
@@ -77,7 +78,8 @@
         <td class="num" style="font-weight:700">{{ fmt_brl(g.saldo) }}</td>
         <td class="num">{{ fmt_brl(g.pago) }}</td>
         <td class="num">{{ fmt_brl(g.ultima) }}</td>
-        <td class="num">—</td>
+        <td class="num">{{ g.pagas or '—' }}</td>
+        <td class="num">{{ g.faltam if g.faltam is not none else '—' }}</td>
         <td></td>
       </tr>
       {% for c in g.contas %}
@@ -89,7 +91,8 @@
         <td class="num" style="font-weight:600">{{ fmt_brl(c.saldo_abs) }}</td>
         <td class="num">{{ fmt_brl(c.pago) }}</td>
         <td class="num">{{ fmt_brl(c.ultima) }}</td>
-        <td class="num">{{ ('~' ~ c.restantes) if c.restantes is not none else '—' }}</td>
+        <td class="num">{{ c.parcelas_pagas or '—' }}</td>
+        <td class="num">{{ ('~' ~ c.faltam) if c.faltam is not none else '—' }}</td>
         <td class="text-muted">{{ mes_label(c.ultima_comp) if c.ultima_comp else '—' }}</td>
       </tr>
       {% endfor %}
@@ -99,7 +102,8 @@
         <td class="num">{{ fmt_brl(dados.total_pagar) }}</td>
         <td class="num">{{ fmt_brl(dados.total_pago) }}</td>
         <td class="num">{{ fmt_brl(dados.total_ultima) }}</td>
-        <td class="num">—</td>
+        <td class="num"></td>
+        <td class="num"></td>
         <td></td>
       </tr>
     </tbody>
@@ -107,8 +111,9 @@
   <p class="text-muted" style="font-size:11px;margin-top:10px">
     <strong>Clique no tipo</strong> para abrir as contas (CP e LP juntas).
     <strong>Dívida a pagar</strong> = saldo no balancete{% if dados.comp_bal %} ({{ mes_label(dados.comp_bal) }}){% endif %};
-    <strong>já pago</strong> e <strong>última parcela</strong> = débitos no Razão.
-    <br>* <strong>Parcelas restantes</strong> é uma <strong>estimativa</strong> (saldo ÷ última parcela) — o número exato vem do CSV de vinculação.
+    <strong>já pago</strong> e <strong>última parcela</strong> = débitos no Razão (lote 008850, excluindo transferências).
+    <strong>Pagas</strong> = nº de pagamentos no período importado.
+    <br>* <strong>Faltam</strong> é uma <strong>estimativa</strong> (saldo ÷ última parcela).
   </p>
 </div>
 

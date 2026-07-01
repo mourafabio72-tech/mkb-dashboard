@@ -1807,9 +1807,10 @@ def _endividamento_do_razao(empresa_id: int, competencia: str | None = None) -> 
                 for r in rows if _leaf(r[0])
             }
 
-    # ── Pago e última parcela: Razão (débitos)
+    # ── Pago e última parcela: Razão (débitos com lote 008850 = pagamento real)
+    _LOTE_PAGAMENTO = "008850"
     rz = conn.execute(
-        f"""SELECT conta_cod, competencia, id, debito, historico FROM razao
+        f"""SELECT conta_cod, competencia, id, debito, historico, documento FROM razao
             WHERE empresa_id=? AND ({cond}) ORDER BY conta_cod, competencia, id""",
         [empresa_id, *likes]
     ).fetchall()
@@ -1818,21 +1819,32 @@ def _endividamento_do_razao(empresa_id: int, competencia: str | None = None) -> 
     pago: dict[str, dict] = {}
     for r in rz:
         c = r["conta_cod"]
-        info = pago.setdefault(c, {"pago": 0.0, "ultima": 0.0, "ultima_comp": "", "hist": ""})
+        info = pago.setdefault(c, {"pago": 0.0, "ultima": 0.0, "ultima_comp": "",
+                                    "hist": "", "parcelas_pagas": 0})
+        doc = r["documento"] or ""
+        hist = (r["historico"] or "").upper()
         deb = r["debito"] or 0.0
-        info["pago"] += deb
-        if deb > 0.005:
+        # ignorar transferências (reclassificação CP↔LP)
+        if "TRANSFERENCIA" in hist or "TRANSFERÊNCIA" in hist:
+            continue
+        # só contar como pagamento se lote começa com 008850
+        if doc.startswith(_LOTE_PAGAMENTO) and deb > 0.005:
+            info["pago"] += deb
             info["ultima"] = deb
             info["ultima_comp"] = r["competencia"]
+            info["parcelas_pagas"] += 1
         if r["historico"]:
             info["hist"] = r["historico"]
 
     contas = []
     for c in (set(saldos_bal) | set(pago)):
         b = saldos_bal.get(c, {"saldo": 0.0, "desc": ""})
-        p = pago.get(c, {"pago": 0.0, "ultima": 0.0, "ultima_comp": "", "hist": ""})
+        p = pago.get(c, {"pago": 0.0, "ultima": 0.0, "ultima_comp": "",
+                          "hist": "", "parcelas_pagas": 0})
         saldo = round(b["saldo"], 2)
         ultima = round(p["ultima"], 2)
+        pagas = p["parcelas_pagas"]
+        faltam = round(saldo / ultima) if ultima >= 0.01 and saldo >= 0.01 else None
         item = {
             "cod": c,
             "saldo_abs": saldo,
@@ -1841,9 +1853,8 @@ def _endividamento_do_razao(empresa_id: int, competencia: str | None = None) -> 
             "ultima_comp": p["ultima_comp"],
             "hist": b["desc"] or p["hist"],
             "cp": c.startswith("2.1.3.05."),
-            # parcelas restantes ESTIMADAS (saldo ÷ última parcela). Exato só com
-            # o CSV de vinculação (coluna "Faltam").
-            "restantes": (round(saldo / ultima) if ultima >= 0.01 and saldo >= 0.01 else None),
+            "parcelas_pagas": pagas,
+            "faltam": faltam,
         }
         if item["saldo_abs"] >= 0.01 or item["pago"] >= 0.01:
             contas.append(item)
@@ -1880,12 +1891,17 @@ def _endividamento_do_razao(empresa_id: int, competencia: str | None = None) -> 
     grupos = []
     for idx, (nome, items) in enumerate(tipos.items()):
         items.sort(key=lambda x: (-x["saldo_abs"], x["cod"]))
+        pagas = sum(x["parcelas_pagas"] for x in items)
+        faltam_vals = [x["faltam"] for x in items if x["faltam"] is not None]
+        faltam = round(sum(faltam_vals)) if faltam_vals else None
         grupos.append({
             "nome": nome, "id": f"tipo{idx}",
             "qtd": len(items),
             "saldo": _tot(items, "saldo_abs"),
             "pago": _tot(items, "pago"),
             "ultima": _tot(items, "ultima"),
+            "pagas": pagas,
+            "faltam": faltam,
             "contas": items,
         })
 
