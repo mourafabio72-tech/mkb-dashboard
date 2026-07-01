@@ -22,8 +22,8 @@ from ingestion import parse_valor  # "1.234,56 C"/"1.234,56 D" -> float com sina
 
 # ─── PADRÕES ────────────────────────────────────────────────────────────────
 
-# "CONTA - 4.1.1.03.07.007 - DESCRICAO" → captura o código da conta
-_RE_CONTA = re.compile(r'CONTA\s*[-–]\s*([\d.]+)\s*[-–]', re.IGNORECASE)
+# "CONTA - 4.1.1.03.07.007 - DESCRICAO" → captura código e descrição
+_RE_CONTA = re.compile(r'CONTA\s*[-–]\s*([\d.]+)\s*[-–]\s*(.*)', re.IGNORECASE)
 
 ABA_RAZAO = "12-00 - Emissao do Razao Conta"
 
@@ -80,7 +80,7 @@ def _extrair_data(val) -> tuple:
 
 # ─── PARSER PRINCIPAL ────────────────────────────────────────────────────────
 
-def parse_razao(caminho: Path, empresa_id: int) -> list:
+def parse_razao(caminho: Path, empresa_id: int) -> tuple[list, dict]:
     """
     Lê o arquivo Razão Contábil do Protheus e retorna lista de dicts
     com os lançamentos individuais.
@@ -109,6 +109,7 @@ def parse_razao(caminho: Path, empresa_id: int) -> list:
 
     registros = []
     conta_atual = None
+    desc_contas: dict[str, str] = {}
     n_sem_mov = 0
 
     for row in rows:
@@ -126,6 +127,9 @@ def parse_razao(caminho: Path, empresa_id: int) -> list:
         m_conta = _RE_CONTA.match(col_a)
         if m_conta:
             conta_atual = m_conta.group(1).strip()
+            desc = m_conta.group(2).strip() if m_conta.group(2) else None
+            if desc:
+                desc_contas[conta_atual] = desc
             continue
 
         # ─── 2. Separadores de grupo e cabeçalhos repetidos (ignorar) ──────
@@ -178,12 +182,12 @@ def parse_razao(caminho: Path, empresa_id: int) -> list:
 
     wb.close()
     print(f"  {len(registros)} lançamentos | {n_sem_mov} contas sem movimento ignoradas")
-    return registros
+    return registros, desc_contas
 
 
 # ─── PERSISTÊNCIA ────────────────────────────────────────────────────────────
 
-def salvar_razao(conn: sqlite3.Connection, registros: list, arquivo: Path) -> int:
+def salvar_razao(conn: sqlite3.Connection, registros: list, arquivo: Path, **kwargs) -> int:
     """
     Upsert dos lançamentos do Razão.
     Chave única: (empresa_id, data_lanc, documento, conta_cod).
@@ -221,11 +225,20 @@ def salvar_razao(conn: sqlite3.Connection, registros: list, arquivo: Path) -> in
         registros,
     )
 
-    # Atualiza tabela de contas
-    contas = {(r["conta_cod"], r["empresa_id"]) for r in registros}
+    # Atualiza tabela de contas (com descrição extraída do cabeçalho do Razão)
+    desc_contas = kwargs.get("desc_contas", {})
+    contas_params = []
+    for r in registros:
+        cod = r["conta_cod"]
+        emp = r["empresa_id"]
+        desc = desc_contas.get(cod)
+        contas_params.append((cod, emp, desc))
+    contas_uniq = {(c[0], c[1]): c[2] for c in contas_params}
     conn.executemany(
-        "INSERT OR IGNORE INTO contas (cod, empresa_id) VALUES (?, ?)",
-        contas
+        """INSERT INTO contas (cod, empresa_id, descricao) VALUES (?, ?, ?)
+           ON CONFLICT (cod, empresa_id) DO UPDATE SET
+             descricao = COALESCE(NULLIF(excluded.descricao, ''), contas.descricao)""",
+        [(cod, emp, desc) for (cod, emp), desc in contas_uniq.items()],
     )
 
     # Log de importação por competência
@@ -254,8 +267,8 @@ def importar_razao(caminho: Path, empresa_chave: str, conn: sqlite3.Connection) 
     if not emp:
         return {"erro": f"Empresa '{empresa_chave}' não encontrada"}
 
-    registros = parse_razao(caminho, emp["id"])
-    qtd = salvar_razao(conn, registros, caminho)
+    registros, desc_contas = parse_razao(caminho, emp["id"])
+    qtd = salvar_razao(conn, registros, caminho, desc_contas=desc_contas)
     competencias = sorted({r["competencia"] for r in registros})
 
     return {
