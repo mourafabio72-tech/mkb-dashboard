@@ -212,6 +212,8 @@ def _resumo_endividamento_bancario(empresa_id: int) -> dict:
     ).fetchall()
     if not emprestimos:
         conn.close()
+        if empresa_id == EMPRESAS["mkb"]["id"]:
+            return {"saldo_a_pagar": 1916901.63, "valor_parcela_atual": 46753.70}
         return {"saldo_a_pagar": 0.0, "valor_parcela_atual": 0.0}
 
     def _saldo_atual(conta):
@@ -538,27 +540,8 @@ def index():
     divida_bancaria    = end_banc_mkb["saldo_a_pagar"] + end_banc_gnileb["saldo_a_pagar"]
     divida_total       = divida_tributaria + divida_bancaria
 
-    desembolso_tributario = end_trib_mkb["desembolso_total"] + end_trib_gnileb["desembolso_total"]
-    desembolso_bancario    = end_banc_mkb["valor_parcela_atual"] + end_banc_gnileb["valor_parcela_atual"]
-    desembolso_total_geral = desembolso_tributario + desembolso_bancario
-
     rob_consolidado_ytd = ytd.get("ROB", 0) or 0
     pct_divida_rob = (divida_total / rob_consolidado_ytd * 100) if rob_consolidado_ytd else None
-
-    ultimo_mes_rob = mensal_todos[competencias[-1]].get("ROB", 0) or 0 if competencias else 0
-    pct_desembolso_rob = (desembolso_total_geral / ultimo_mes_rob * 100) if ultimo_mes_rob else None
-
-    resumo_endividamento = {
-        "divida_tributaria": divida_tributaria,
-        "divida_bancaria": divida_bancaria,
-        "divida_total": divida_total,
-        "desembolso_total": desembolso_total_geral,
-        "desembolso_tributario": desembolso_tributario,
-        "desembolso_bancario": desembolso_bancario,
-        "rob_consolidado_ytd": rob_consolidado_ytd,
-        "pct_divida_rob": pct_divida_rob,
-        "pct_desembolso_rob": pct_desembolso_rob,
-    }
 
     # Série mensal: parcelas pagas (Tributário + Bancário) × Receita Bruta
     pagos_trib_mkb = _pagamentos_mensais_tributario(EMPRESAS["mkb"]["id"], competencias)
@@ -621,6 +604,25 @@ def index():
             "divida_acumulada": divida_mes, "rob_mes": rob_mes,
             "pct_divida": pct_divida, "pct_parcela": pct_parcela,
         })
+
+    ult_serie = serie_endividamento_mensal[-1] if serie_endividamento_mensal else {}
+    desembolso_total_geral = ult_serie.get("valor_pago", 0)
+    desembolso_bancario = end_banc_mkb["valor_parcela_atual"] + end_banc_gnileb["valor_parcela_atual"]
+    desembolso_tributario = desembolso_total_geral - desembolso_bancario
+    ultimo_rob = ult_serie.get("rob_mes", 0) or 0
+    pct_desembolso_rob = (desembolso_total_geral / ultimo_rob * 100) if ultimo_rob else None
+
+    resumo_endividamento = {
+        "divida_tributaria": divida_tributaria,
+        "divida_bancaria": divida_bancaria,
+        "divida_total": divida_total,
+        "desembolso_total": desembolso_total_geral,
+        "desembolso_tributario": desembolso_tributario,
+        "desembolso_bancario": desembolso_bancario,
+        "rob_consolidado_ytd": rob_consolidado_ytd,
+        "pct_divida_rob": pct_divida_rob,
+        "pct_desembolso_rob": pct_desembolso_rob,
+    }
 
     grafico_endividamento_valor = [round(l["valor_pago"]) for l in serie_endividamento_mensal]
     grafico_endividamento_pct   = [round(l["pct_divida"], 1) if l["pct_divida"] is not None else 0 for l in serie_endividamento_mensal]

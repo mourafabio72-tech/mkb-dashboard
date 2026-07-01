@@ -896,21 +896,21 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 
 /* ── KPI row ─────────────────────────────────────────────────────────────── */
 .min-kpi-row {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
   margin-bottom: 20px;
 }
 .min-kpi {
   background: var(--card2); border: 1px solid var(--border);
-  border-radius: 10px; padding: 16px 18px;
-  display: flex; flex-direction: column; gap: 3px;
+  border-radius: 10px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 2px;
 }
 .min-kpi-hl { border-left: 3px solid var(--accent); }
 .min-kpi-label {
-  font-size: 10px; font-weight: 700; text-transform: lowercase;
-  letter-spacing: .5px; color: var(--muted);
+  font-size: 9px; font-weight: 700; text-transform: lowercase;
+  letter-spacing: .4px; color: var(--muted);
 }
-.min-kpi-value { font-size: 18px; font-weight: 800; color: var(--text); }
-.min-kpi-sub { font-size: 11px; color: var(--muted); }
+.min-kpi-value { font-size: 15px; font-weight: 800; color: var(--text); }
+.min-kpi-sub { font-size: 10px; color: var(--muted); }
 .min-kpi-var { font-size: 11px; font-weight: 600; margin-top: 2px; }
 
 /* ── Section ─────────────────────────────────────────────────────────────── */
