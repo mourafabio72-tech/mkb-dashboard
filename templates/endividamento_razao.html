@@ -52,14 +52,13 @@
   </div>
 </div>
 
-{# ── Tabela agrupada CP / LP (drill-down) ────────────────────────────────── #}
+{# ── Tabela agrupada: Tipo de Parcelamento → CP/LP → Contas (3 níveis) ──── #}
 <div class="min-chart-card">
-  <span class="min-chart-title">Parcelamentos — Curto e Longo Prazo</span>
+  <span class="min-chart-title">Parcelamentos por Tipo</span>
   <table class="table-det">
     <thead>
       <tr>
-        <th class="col-cod">Conta / Grupo</th>
-        <th>Histórico</th>
+        <th class="col-cod">Tipo / Conta</th>
         <th class="num">Dívida a pagar</th>
         <th class="num">Já pago (período)</th>
         <th class="num">Última parcela</th>
@@ -69,31 +68,49 @@
     </thead>
     <tbody>
       {% for g in dados.grupos %}
-      {% if g.contas %}
-      <tr class="det-grupo grupo-toggle" data-g="{{ g.id }}" style="cursor:pointer">
-        <td><span class="expand-icon">▸</span> {{ g.nome }} <span class="text-muted" style="font-size:11px">· {{ g.prefixo }}</span></td>
-        <td class="text-muted" style="font-size:11px">{{ g.contas|length }} parcelamento(s)</td>
+      {# ── Nível 1: Tipo de parcelamento ──────────────────────────────────── #}
+      <tr class="det-grupo tipo-toggle" data-tipo="{{ g.id }}" style="cursor:pointer">
+        <td>
+          <span class="expand-icon">▸</span>
+          <strong>{{ g.nome }}</strong>
+          <span class="text-muted" style="font-size:11px">· {{ g.sub|length }} grupo(s)</span>
+        </td>
         <td class="num" style="font-weight:700">{{ fmt_brl(g.saldo) }}</td>
         <td class="num">{{ fmt_brl(g.pago) }}</td>
         <td class="num">{{ fmt_brl(g.ultima) }}</td>
         <td class="num">—</td>
         <td></td>
       </tr>
-      {% for c in g.contas %}
-      <tr class="dre-filha filha-de-{{ g.id }}" style="display:none">
-        <td class="col-cod" style="padding-left:28px">{{ c.cod }}</td>
-        <td class="text-muted" style="font-size:11px">{{ c.hist or '—' }}</td>
-        <td class="num" style="font-weight:600">{{ fmt_brl(c.saldo_abs) }}</td>
+      {% for s in g.sub %}
+      {# ── Nível 2: CP / LP ───────────────────────────────────────────────── #}
+      <tr class="dre-filha filha-tipo-{{ g.id }} sub-toggle" data-sub="{{ s.id }}" style="display:none;cursor:pointer">
+        <td style="padding-left:22px">
+          <span class="expand-icon">▸</span>
+          {{ s.nome }} <span class="text-muted" style="font-size:11px">· {{ s.prefixo }} · {{ s.contas|length }} conta(s)</span>
+        </td>
+        <td class="num" style="font-weight:600">{{ fmt_brl(s.saldo) }}</td>
+        <td class="num">{{ fmt_brl(s.pago) }}</td>
+        <td class="num">{{ fmt_brl(s.ultima) }}</td>
+        <td class="num">—</td>
+        <td></td>
+      </tr>
+      {% for c in s.contas %}
+      {# ── Nível 3: Conta analítica ────────────────────────────────────────── #}
+      <tr class="dre-neta neta-sub-{{ s.id }}" style="display:none">
+        <td style="padding-left:44px">
+          <span class="conta-cod">{{ c.cod }}</span>
+        </td>
+        <td class="num">{{ fmt_brl(c.saldo_abs) }}</td>
         <td class="num">{{ fmt_brl(c.pago) }}</td>
         <td class="num">{{ fmt_brl(c.ultima) }}</td>
         <td class="num">{{ ('~' ~ c.restantes) if c.restantes is not none else '—' }}</td>
         <td class="text-muted">{{ mes_label(c.ultima_comp) if c.ultima_comp else '—' }}</td>
       </tr>
       {% endfor %}
-      {% endif %}
+      {% endfor %}
       {% endfor %}
       <tr class="det-grupo" style="font-weight:800">
-        <td colspan="2">TOTAL DO ENDIVIDAMENTO</td>
+        <td>TOTAL DO ENDIVIDAMENTO</td>
         <td class="num">{{ fmt_brl(dados.total_pagar) }}</td>
         <td class="num">{{ fmt_brl(dados.total_pago) }}</td>
         <td class="num">{{ fmt_brl(dados.total_ultima) }}</td>
@@ -103,19 +120,30 @@
     </tbody>
   </table>
   <p class="text-muted" style="font-size:11px;margin-top:10px">
-    <strong>Clique num grupo</strong> (CP / LP) para abrir as contas.
-    <strong>dívida a pagar</strong> = saldo no balancete{% if dados.comp_bal %} ({{ mes_label(dados.comp_bal) }}){% endif %};
+    <strong>Clique no tipo</strong> para abrir CP / LP; clique em CP ou LP para ver as contas.
+    <strong>Dívida a pagar</strong> = saldo no balancete{% if dados.comp_bal %} ({{ mes_label(dados.comp_bal) }}){% endif %};
     <strong>já pago</strong> e <strong>última parcela</strong> = débitos no Razão.
     <br>* <strong>Parcelas restantes</strong> é uma <strong>estimativa</strong> (saldo ÷ última parcela) — o número exato vem do CSV de vinculação.
   </p>
 </div>
 
 <script>
-document.querySelectorAll('.grupo-toggle').forEach(function(row){
+document.querySelectorAll('.tipo-toggle').forEach(function(row){
   row.addEventListener('click', function(){
-    var g = this.getAttribute('data-g');
+    var t = this.getAttribute('data-tipo');
     var ic = this.querySelector('.expand-icon');
-    document.querySelectorAll('.filha-de-' + g).forEach(function(f){
+    document.querySelectorAll('.filha-tipo-' + t).forEach(function(f){
+      f.style.display = (f.style.display === 'none') ? 'table-row' : 'none';
+    });
+    if (ic) ic.textContent = (ic.textContent === '▸') ? '▾' : '▸';
+  });
+});
+document.querySelectorAll('.sub-toggle').forEach(function(row){
+  row.addEventListener('click', function(e){
+    e.stopPropagation();
+    var s = this.getAttribute('data-sub');
+    var ic = this.querySelector('.expand-icon');
+    document.querySelectorAll('.neta-sub-' + s).forEach(function(f){
       f.style.display = (f.style.display === 'none') ? 'table-row' : 'none';
     });
     if (ic) ic.textContent = (ic.textContent === '▸') ? '▾' : '▸';
