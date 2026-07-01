@@ -186,9 +186,13 @@ def _resumo_endividamento_tributario(empresa_id: int) -> dict:
 
     total_endividamento = 0.0
     for p in parcelamentos:
-        peso = peso_por_tributo[p["tributo"]]
-        saldo = _saldo_atual_conta(p["conta_cp"]) + (_saldo_atual_conta(p["conta_lp"]) if p["conta_lp"] else 0.0)
-        total_endividamento += saldo * peso
+        snap = p["saldo_contabilidade_snapshot"]
+        if snap:
+            total_endividamento += snap
+        else:
+            peso = peso_por_tributo[p["tributo"]]
+            saldo = _saldo_atual_conta(p["conta_cp"]) + (_saldo_atual_conta(p["conta_lp"]) if p["conta_lp"] else 0.0)
+            total_endividamento += saldo * peso
 
     desembolso_total = sum(p["desembolso_mensal"] or 0 for p in parcelamentos)
     conn.close()
@@ -553,7 +557,6 @@ def index():
 
     serie_endividamento_mensal = []
     rob_acum = 0.0
-    divida_acum = 0.0
     for c in competencias:
         rob_mes = mensal_todos[c].get("ROB", 0) or 0
         rob_acum += rob_mes
@@ -561,11 +564,10 @@ def index():
             pagos_trib_mkb.get(c, 0.0) + pagos_trib_gni.get(c, 0.0)
             + pagos_banc_mkb.get(c, 0.0) + pagos_banc_gni.get(c, 0.0)
         )
-        divida_acum += valor_pago
-        pct = (valor_pago / rob_acum * 100) if rob_acum else None
+        pct = (divida_total / rob_acum * 100) if rob_acum else None
         serie_endividamento_mensal.append({
             "competencia": c, "valor_pago": valor_pago,
-            "divida_acumulada": divida_acum, "rob_mes": rob_mes, "pct": pct,
+            "divida_acumulada": divida_total, "rob_mes": rob_mes, "pct": pct,
         })
 
     grafico_endividamento_valor = [round(l["valor_pago"]) for l in serie_endividamento_mensal]
