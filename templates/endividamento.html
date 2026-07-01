@@ -104,8 +104,10 @@
   <table class="table-simple">
     <thead>
       <tr>
-        <th>Parcelamento</th><th>Processo</th><th>Parcelas</th>
-        <th>Início</th><th>Término</th>
+        <th>Parcelamento</th><th>Processo</th>
+        <th class="num">Qtd parcelas total</th>
+        <th class="num">Parcelas pagas</th>
+        <th class="num">Parcelas a pagar</th>
         <th style="text-align:right;">Saldo Anterior ({{ mes_label_anterior }})</th>
         <th style="text-align:right;">Saldo a Pagar ({{ mes_label_atual }})</th>
       </tr>
@@ -115,15 +117,16 @@
       <tr>
         <td>{{ l.tributo }}</td>
         <td>{{ l.processo or '—' }}</td>
-        <td>{{ l.parcela_paga }}/{{ l.qtd_parcelas }} ({{ l.faltam }} faltam)</td>
-        <td>{{ l.dt_inicio or '—' }}</td>
-        <td>{{ l.dt_termino or '—' }}</td>
+        <td class="num">{{ l.qtd_parcelas or '—' }}</td>
+        <td class="num">{{ l.parcela_paga or '—' }}</td>
+        <td class="num">{{ l.faltam or '—' }}</td>
         <td style="text-align:right;">{{ l.saldo_anterior | brl if l.saldo_anterior else '—' }}</td>
         <td style="text-align:right;">{{ l.total_a_pagar | brl if l.total_a_pagar else '—' }}</td>
       </tr>
       {% endfor %}
       <tr class="dre-resultado_final">
         <td colspan="5" class="col-linha-m">TOTAL</td>
+
         <td style="text-align:right;">{{ total_saldo_anterior | brl }}</td>
         <td style="text-align:right;">{{ total_a_pagar_geral | brl }}</td>
       </tr>

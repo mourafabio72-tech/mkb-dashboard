@@ -1845,6 +1845,7 @@ def _endividamento_do_razao(empresa_id: int, competencia: str | None = None) -> 
         ultima = round(p["ultima"], 2)
         pagas = p["parcelas_pagas"]
         faltam = round(saldo / ultima) if ultima >= 0.01 and saldo >= 0.01 else None
+        qtd_total = (pagas + faltam) if faltam is not None else None
         item = {
             "cod": c,
             "saldo_abs": saldo,
@@ -1855,6 +1856,7 @@ def _endividamento_do_razao(empresa_id: int, competencia: str | None = None) -> 
             "cp": c.startswith("2.1.3.05."),
             "parcelas_pagas": pagas,
             "faltam": faltam,
+            "qtd_total": qtd_total,
         }
         if item["saldo_abs"] >= 0.01 or item["pago"] >= 0.01:
             contas.append(item)
@@ -1894,12 +1896,14 @@ def _endividamento_do_razao(empresa_id: int, competencia: str | None = None) -> 
         pagas = sum(x["parcelas_pagas"] for x in items)
         faltam_vals = [x["faltam"] for x in items if x["faltam"] is not None]
         faltam = round(sum(faltam_vals)) if faltam_vals else None
+        qtd_total = (pagas + faltam) if faltam is not None else None
         grupos.append({
             "nome": nome, "id": f"tipo{idx}",
             "qtd": len(items),
             "saldo": _tot(items, "saldo_abs"),
             "pago": _tot(items, "pago"),
             "ultima": _tot(items, "ultima"),
+            "qtd_total": qtd_total,
             "pagas": pagas,
             "faltam": faltam,
             "contas": items,
@@ -1984,11 +1988,23 @@ def endividamento(empresa, competencia):
 
     # Se a competência da URL não tem snapshot, usa o mais recente <= ela
     # (ou o mais antigo disponível, se a URL pedir algo anterior a todos)
+    competencia_original = competencia
+    comp_snapshot = competencia
     if competencia not in competencias_disp:
         anteriores = [c for c in competencias_disp if c <= competencia]
-        competencia = anteriores[-1] if anteriores else competencias_disp[0]
+        comp_snapshot = anteriores[-1] if anteriores else competencias_disp[0]
 
-    parcelamentos = conn.execute(
+    # Offset de meses entre o snapshot base e a competência solicitada
+    # (para auto-ajustar parcela_paga e faltam em meses futuros)
+    def _diff_meses(comp_a, comp_b):
+        ya, ma = int(comp_a[:4]), int(comp_a[5:7])
+        yb, mb = int(comp_b[:4]), int(comp_b[5:7])
+        return (ya - yb) * 12 + (ma - mb)
+
+    offset_meses = _diff_meses(competencia_original, comp_snapshot)
+    competencia = comp_snapshot
+
+    parcelamentos_raw = conn.execute(
         """
         SELECT tributo, processo, conta_cp, conta_lp, qtd_parcelas, parcela_paga,
                faltam, dt_inicio, dt_termino, desembolso_mensal, valor_principal,
@@ -1998,6 +2014,17 @@ def endividamento(empresa, competencia):
         """,
         (empresa_id, competencia)
     ).fetchall()
+
+    # Auto-ajustar parcelas: se a competência solicitada é posterior ao
+    # snapshot, incrementa parcela_paga e decrementa faltam por cada mês
+    parcelamentos = []
+    for p in parcelamentos_raw:
+        row = dict(p)
+        if offset_meses > 0 and row["parcela_paga"] is not None and row["faltam"] is not None:
+            ajuste = min(offset_meses, row["faltam"])
+            row["parcela_paga"] = row["parcela_paga"] + ajuste
+            row["faltam"] = row["faltam"] - ajuste
+        parcelamentos.append(row)
 
     # Peso de rateio: 2+ parcelamentos podem compartilhar a mesma conta_cp/lp
     # (ex.: "TRANSAÇÃO - DEMAIS DÉBITOS" e "TRANSAÇÃO - DÉBITOS

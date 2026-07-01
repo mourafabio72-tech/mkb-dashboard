@@ -58,12 +58,13 @@
   <table class="table-det">
     <thead>
       <tr>
-        <th class="col-cod">Tipo / Conta</th>
-        <th class="num">Dívida a pagar</th>
-        <th class="num">Valor pago no ano</th>
-        <th class="num">Valor da última parcela</th>
-        <th class="num">Pagas</th>
-        <th class="num">Faltam*</th>
+        <th class="col-cod">Parcelamento</th>
+        <th class="num">Total parcelado</th>
+        <th class="num">Total pago no ano</th>
+        <th class="num">Valor pago n/ mês</th>
+        <th class="num">Qtd parcelas total</th>
+        <th class="num">Parcelas pagas</th>
+        <th class="num">Parcelas a pagar</th>
       </tr>
     </thead>
     <tbody>
@@ -77,6 +78,7 @@
         <td class="num" style="font-weight:700">{{ fmt_brl(g.saldo) }}</td>
         <td class="num">{{ fmt_brl(g.pago) }}</td>
         <td class="num">{{ fmt_brl(g.ultima) }}</td>
+        <td class="num">{{ g.qtd_total if g.qtd_total is not none else '—' }}</td>
         <td class="num">{{ g.pagas or '—' }}</td>
         <td class="num">{{ g.faltam if g.faltam is not none else '—' }}</td>
       </tr>
@@ -89,6 +91,7 @@
         <td class="num" style="font-weight:600">{{ fmt_brl(c.saldo_abs) }}</td>
         <td class="num">{{ fmt_brl(c.pago) }}</td>
         <td class="num">{{ fmt_brl(c.ultima) }}</td>
+        <td class="num">{{ c.qtd_total if c.qtd_total is not none else '—' }}</td>
         <td class="num">{{ c.parcelas_pagas or '—' }}</td>
         <td class="num">{{ ('~' ~ c.faltam) if c.faltam is not none else '—' }}</td>
       </tr>
@@ -101,15 +104,16 @@
         <td class="num">{{ fmt_brl(dados.total_ultima) }}</td>
         <td class="num"></td>
         <td class="num"></td>
+        <td class="num"></td>
       </tr>
     </tbody>
   </table>
   <p class="text-muted" style="font-size:11px;margin-top:10px">
     <strong>Clique no tipo</strong> para abrir as contas (CP e LP juntas).
-    <strong>Dívida a pagar</strong> = saldo no balancete{% if dados.comp_bal %} ({{ mes_label(dados.comp_bal) }}){% endif %};
-    <strong>já pago</strong> e <strong>última parcela</strong> = débitos no Razão (lote 008850, excluindo transferências).
-    <strong>Pagas</strong> = nº de pagamentos no período importado.
-    <br>* <strong>Faltam</strong> é uma <strong>estimativa</strong> (saldo ÷ última parcela).
+    <strong>Total parcelado</strong> = saldo no balancete{% if dados.comp_bal %} ({{ mes_label(dados.comp_bal) }}){% endif %};
+    <strong>Total pago no ano</strong> e <strong>Valor pago n/ mês</strong> = débitos no Razão (lote 008850, excluindo transferências).
+    <strong>Parcelas pagas</strong> = nº de pagamentos no período importado.
+    <strong>Parcelas a pagar</strong> = estimativa (saldo ÷ valor pago no mês).
   </p>
 </div>
 
