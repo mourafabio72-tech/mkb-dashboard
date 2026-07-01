@@ -555,23 +555,44 @@ def index():
     pagos_banc_mkb = _pagamentos_mensais_bancario(EMPRESAS["mkb"]["id"], competencias)
     pagos_banc_gni = _pagamentos_mensais_bancario(EMPRESAS["gnileb"]["id"], competencias)
 
-    # Dívida mensal via balancete (CP 2.1.3.05 + LP 2.2.4.02), consolidado
+    # Dívida mensal via snapshots dos parcelamentos (consolidado MKB + Gnileb)
     conn_dash = get_conn()
-    divida_por_mes = {}
-    for c in competencias:
-        total_mes = 0.0
-        for emp_data in EMPRESAS.values():
-            row = conn_dash.execute(
-                "SELECT SUM(saldo_atual) as total FROM balancete "
-                "WHERE empresa_id=? AND competencia=? "
-                "AND (conta_cod LIKE '2.1.3.05%' OR conta_cod LIKE '2.2.4.02%')",
-                (emp_data["id"], c)
-            ).fetchone()
-            if row and row["total"]:
-                total_mes += row["total"]
-        if total_mes:
-            divida_por_mes[c] = abs(total_mes)
+    snapshot_por_mes = {}
+    for emp_data in EMPRESAS.values():
+        rows = conn_dash.execute(
+            "SELECT competencia_ref, SUM(saldo_contabilidade_snapshot) as total "
+            "FROM parcelamentos WHERE empresa_id=? AND saldo_contabilidade_snapshot IS NOT NULL "
+            "GROUP BY competencia_ref ORDER BY competencia_ref",
+            (emp_data["id"],)
+        ).fetchall()
+        for r in rows:
+            snapshot_por_mes[r["competencia_ref"]] = snapshot_por_mes.get(r["competencia_ref"], 0) + (r["total"] or 0)
     conn_dash.close()
+
+    # Calcular amortização mensal a partir de 2 snapshots consecutivos
+    meses_snapshot = sorted(snapshot_por_mes.keys())
+    amort_mensal = 0.0
+    if len(meses_snapshot) >= 2:
+        m_ant, m_ult = meses_snapshot[-2], meses_snapshot[-1]
+        ya, ma = int(m_ult[:4]), int(m_ult[5:7])
+        yb, mb = int(m_ant[:4]), int(m_ant[5:7])
+        diff_m = (ya - yb) * 12 + (ma - mb)
+        if diff_m > 0:
+            amort_mensal = (snapshot_por_mes[m_ant] - snapshot_por_mes[m_ult]) / diff_m
+
+    # Para cada mês, usar snapshot se disponível ou extrapolar
+    divida_por_mes = {}
+    if meses_snapshot:
+        ref_mes = meses_snapshot[-1]
+        ref_val = snapshot_por_mes[ref_mes]
+        yr, mr = int(ref_mes[:4]), int(ref_mes[5:7])
+        for c in competencias:
+            if c in snapshot_por_mes:
+                divida_por_mes[c] = snapshot_por_mes[c]
+            elif amort_mensal > 0:
+                yc, mc = int(c[:4]), int(c[5:7])
+                meses_atras = (yr - yc) * 12 + (mr - mc)
+                divida_por_mes[c] = ref_val + meses_atras * amort_mensal
 
     serie_endividamento_mensal = []
     for c in competencias:
@@ -2483,6 +2504,49 @@ def endividamento_bancario(empresa):
         parcelas_a_pagar_total=parcelas_a_pagar_total,
         algum_sem_dados=any(not l["tem_dados"] for l in linhas),
     )
+
+
+# --- SEED temporário: snapshot abril parcelamentos ---------------------------
+
+@app.route("/seed-snapshot-abril")
+@login_required
+def seed_snapshot_abril():
+    """Popula saldo_contabilidade_snapshot de 2026-04 proporcionalmente ao maio.
+    Rota temporária — remover após execução."""
+    TOTAL_ABRIL = 4098754.44
+    conn = get_conn()
+    criar_schema(conn)
+    emp_id = EMPRESAS["mkb"]["id"]
+
+    # Pegar proporções de maio
+    rows_maio = conn.execute(
+        "SELECT tributo, saldo_contabilidade_snapshot FROM parcelamentos "
+        "WHERE empresa_id=? AND competencia_ref='2026-05' AND saldo_contabilidade_snapshot IS NOT NULL",
+        (emp_id,)
+    ).fetchall()
+    if not rows_maio:
+        conn.close()
+        return "Sem snapshots de maio para calcular proporções", 400
+
+    total_maio = sum(r["saldo_contabilidade_snapshot"] for r in rows_maio)
+    if total_maio == 0:
+        conn.close()
+        return "Total maio = 0", 400
+
+    resultado = []
+    for r in rows_maio:
+        proporcao = r["saldo_contabilidade_snapshot"] / total_maio
+        valor_abril = round(TOTAL_ABRIL * proporcao, 2)
+        conn.execute(
+            "UPDATE parcelamentos SET saldo_contabilidade_snapshot=? "
+            "WHERE empresa_id=? AND competencia_ref='2026-04' AND tributo=?",
+            (valor_abril, emp_id, r["tributo"])
+        )
+        resultado.append(f"{r['tributo']}: {valor_abril:,.2f}")
+
+    conn.commit()
+    conn.close()
+    return "<br>".join(["Snapshot abril atualizado:"] + resultado)
 
 
 # --- MAIN --------------------------------------------------------------------
