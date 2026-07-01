@@ -1925,30 +1925,6 @@ def _endividamento_do_razao(empresa_id: int, competencia: str | None = None) -> 
 
 
 
-@app.route("/seed-saldo-snapshot")
-@login_required
-def seed_saldo_snapshot():
-    """Rota temporária: atualiza saldo_contabilidade_snapshot (peso de rateio)."""
-    SALDOS = {
-        "COFINS - NÃO PREVIDENCIARIO": 118454.42,
-        "PGM RJ - ISSQN": 70561.47,
-        "PARCELAMENTO ISS - CDA 5024503383": 41976.84,
-        "ADM RFB - PERT IIIB DEMAIS": 1577867.85,
-        "ADM RFB - PERT IIIB PREVIDENCIÁRIO": 1871389.99,
-        "PGFN - PERT DEMAIS": 96154.27,
-        "TRANSAÇÃO - DEMAIS DÉBITOS": 118113.22,
-        "TRANSAÇÃO - DÉBITOS PREVIDENCIÁRIOS": 159846.84,
-    }
-    conn = get_conn()
-    for tributo, saldo in SALDOS.items():
-        conn.execute(
-            "UPDATE parcelamentos SET saldo_contabilidade_snapshot=? WHERE tributo=? AND competencia_ref='2026-05'",
-            (saldo, tributo),
-        )
-    conn.commit()
-    conn.close()
-    return f"<pre>OK — saldo_contabilidade_snapshot atualizado para {len(SALDOS)} parcelamentos.</pre>"
-
 
 @app.route("/debug/endiv/<empresa>")
 @login_required
@@ -2208,7 +2184,12 @@ def endividamento(empresa, competencia):
             + (_saldo(p["conta_lp"], mes_referencia_anterior) if p["conta_lp"] else 0.0)
         )
         saldo_anterior = saldo_conta_ant * peso
-        total_a_pagar = valores.get(competencia, 0.0)  # saldo devedor na referência
+        total_a_pagar_razao = valores.get(competencia, 0.0)
+
+        # Usar saldo_contabilidade_snapshot quando disponível (mais confiável
+        # que o razão, que pode não ter todas as contas LP importadas)
+        snap = p.get("saldo_contabilidade_snapshot")
+        total_a_pagar = snap if snap else total_a_pagar_razao
 
         linhas.append({
             "tributo": p["tributo"], "processo": p["processo"],
@@ -2219,7 +2200,7 @@ def endividamento(empresa, competencia):
             "saldo_anterior": saldo_anterior, "total_a_pagar": total_a_pagar,
         })
 
-    total_endividamento = totais_por_mes.get(competencia, 0.0)
+    total_endividamento = sum(l["total_a_pagar"] for l in linhas)
     desembolso_total = sum(p["desembolso_mensal"] or 0 for p in parcelamentos)
     total_saldo_anterior = sum(l["saldo_anterior"] for l in linhas)
     total_a_pagar_geral = sum(l["total_a_pagar"] for l in linhas)
