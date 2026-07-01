@@ -2490,17 +2490,18 @@ def endividamento_bancario(empresa):
     # Se não há empréstimos cadastrados ou nenhum com fonte "Razão",
     # mostra os valores da contabilidade.
     if empresa_valida == "mkb" and not any(l.get("fonte") == "Razão" for l in linhas):
-        total_contratado   = 2082507.59
-        total_pago_geral   = 165605.96
-        total_saldo_geral  = 1916901.63
-        valor_parcela_fixa = 46753.70
+        total_contratado       = 2082507.59
+        total_pago_geral       = 165605.96
+        total_saldo_geral      = 1916901.63
+        valor_parcela_fixa     = 46753.70
+        parcelas_a_pagar_total = 41
         if not linhas:
             linhas.append({
                 "id": None, "banco": "CEF", "descricao": "Empréstimo Bancário",
                 "valor_contratado": total_contratado,
                 "valor_total_com_juros": None,
-                "qtd_parcelas": None,
-                "parcelas_pagas": None, "parcelas_a_pagar": None,
+                "qtd_parcelas": 48,
+                "parcelas_pagas": 7, "parcelas_a_pagar": 41,
                 "saldo_a_pagar": total_saldo_geral,
                 "total_pago": total_pago_geral,
                 "valor_parcela_atual": valor_parcela_fixa,
