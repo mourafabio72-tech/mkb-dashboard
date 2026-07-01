@@ -537,7 +537,7 @@ def index():
     end_banc_gnileb  = _resumo_endividamento_bancario(EMPRESAS["gnileb"]["id"])
 
     divida_tributaria = end_trib_mkb["total_endividamento"] + end_trib_gnileb["total_endividamento"]
-    divida_bancaria    = end_banc_mkb["saldo_a_pagar"] + end_banc_gnileb["saldo_a_pagar"]
+    divida_bancaria    = end_banc_mkb["saldo_a_pagar"] + max(end_banc_gnileb["saldo_a_pagar"], 0.0)
     divida_total       = divida_tributaria + divida_bancaria
 
     rob_consolidado_ytd = ytd.get("ROB", 0) or 0
