@@ -1831,27 +1831,45 @@ def _endividamento_do_razao(empresa_id: int, competencia: str | None = None) -> 
     for c in (set(saldos_bal) | set(pago)):
         b = saldos_bal.get(c, {"saldo": 0.0, "desc": ""})
         p = pago.get(c, {"pago": 0.0, "ultima": 0.0, "ultima_comp": "", "hist": ""})
+        saldo = round(b["saldo"], 2)
+        ultima = round(p["ultima"], 2)
         item = {
             "cod": c,
-            "saldo_abs": round(b["saldo"], 2),
+            "saldo_abs": saldo,
             "pago": round(p["pago"], 2),
-            "ultima": round(p["ultima"], 2),
+            "ultima": ultima,
             "ultima_comp": p["ultima_comp"],
             "hist": b["desc"] or p["hist"],
             "cp": c.startswith("2.1.3.05."),
+            # parcelas restantes ESTIMADAS (saldo ÷ última parcela). Exato só com
+            # o CSV de vinculação (coluna "Faltam").
+            "restantes": (round(saldo / ultima) if ultima >= 0.01 and saldo >= 0.01 else None),
         }
         if item["saldo_abs"] >= 0.01 or item["pago"] >= 0.01:
             contas.append(item)
     contas.sort(key=lambda x: -x["saldo_abs"])
 
+    cp = [x for x in contas if x["cp"]]
+    lp = [x for x in contas if not x["cp"]]
+    def _tot(lst, campo):
+        return round(sum(x[campo] for x in lst), 2)
+
     return {
         "contas":       contas,
         "comp_bal":     comp_bal,
-        "total_pagar":  round(sum(x["saldo_abs"] for x in contas), 2),
-        "total_pago":   round(sum(x["pago"] for x in contas), 2),
-        "total_ultima": round(sum(x["ultima"] for x in contas), 2),
-        "total_cp":     round(sum(x["saldo_abs"] for x in contas if x["cp"]), 2),
-        "total_lp":     round(sum(x["saldo_abs"] for x in contas if not x["cp"]), 2),
+        "grupos": [
+            {"nome": "Curto Prazo (CP)", "id": "cp", "prefixo": "2.1.3.05",
+             "contas": cp, "saldo": _tot(cp, "saldo_abs"),
+             "pago": _tot(cp, "pago"), "ultima": _tot(cp, "ultima")},
+            {"nome": "Longo Prazo (LP)", "id": "lp", "prefixo": "2.2.4.02",
+             "contas": lp, "saldo": _tot(lp, "saldo_abs"),
+             "pago": _tot(lp, "pago"), "ultima": _tot(lp, "ultima")},
+        ],
+        "total_pagar":  _tot(contas, "saldo_abs"),
+        "total_pago":   _tot(contas, "pago"),
+        "total_ultima": _tot(contas, "ultima"),
+        "total_cp":     _tot(cp, "saldo_abs"),
+        "total_lp":     _tot(lp, "saldo_abs"),
     }
 
 

@@ -52,41 +52,75 @@
   </div>
 </div>
 
-{# ── Tabela por conta ────────────────────────────────────────────────────── #}
+{# ── Tabela agrupada CP / LP (drill-down) ────────────────────────────────── #}
 <div class="min-chart-card">
-  <span class="min-chart-title">Parcelamentos por conta</span>
+  <span class="min-chart-title">Parcelamentos — Curto e Longo Prazo</span>
   <table class="table-det">
     <thead>
       <tr>
-        <th class="col-cod">Conta</th>
-        <th>Tipo / Histórico</th>
+        <th class="col-cod">Conta / Grupo</th>
+        <th>Histórico</th>
         <th class="num">Dívida a pagar</th>
         <th class="num">Já pago (período)</th>
         <th class="num">Última parcela</th>
+        <th class="num">Parcelas restantes*</th>
         <th>Mês últ. parcela</th>
       </tr>
     </thead>
     <tbody>
-      {% for c in dados.contas %}
-      <tr class="det-conta">
-        <td class="col-cod">{{ c.cod }}</td>
-        <td>
-          <span class="badge-{{ 'ct1' if c.cp else 'ct2' }}">{{ 'CP' if c.cp else 'LP' }}</span>
-          <span class="text-muted" style="font-size:11px">{{ c.hist or '—' }}</span>
-        </td>
-        <td class="num" style="font-weight:700">{{ fmt_brl(c.saldo_abs) }}</td>
+      {% for g in dados.grupos %}
+      {% if g.contas %}
+      <tr class="det-grupo grupo-toggle" data-g="{{ g.id }}" style="cursor:pointer">
+        <td><span class="expand-icon">▸</span> {{ g.nome }} <span class="text-muted" style="font-size:11px">· {{ g.prefixo }}</span></td>
+        <td class="text-muted" style="font-size:11px">{{ g.contas|length }} parcelamento(s)</td>
+        <td class="num" style="font-weight:700">{{ fmt_brl(g.saldo) }}</td>
+        <td class="num">{{ fmt_brl(g.pago) }}</td>
+        <td class="num">{{ fmt_brl(g.ultima) }}</td>
+        <td class="num">—</td>
+        <td></td>
+      </tr>
+      {% for c in g.contas %}
+      <tr class="dre-filha filha-de-{{ g.id }}" style="display:none">
+        <td class="col-cod" style="padding-left:28px">{{ c.cod }}</td>
+        <td class="text-muted" style="font-size:11px">{{ c.hist or '—' }}</td>
+        <td class="num" style="font-weight:600">{{ fmt_brl(c.saldo_abs) }}</td>
         <td class="num">{{ fmt_brl(c.pago) }}</td>
         <td class="num">{{ fmt_brl(c.ultima) }}</td>
+        <td class="num">{{ ('~' ~ c.restantes) if c.restantes is not none else '—' }}</td>
         <td class="text-muted">{{ mes_label(c.ultima_comp) if c.ultima_comp else '—' }}</td>
       </tr>
       {% endfor %}
+      {% endif %}
+      {% endfor %}
+      <tr class="det-grupo" style="font-weight:800">
+        <td colspan="2">TOTAL DO ENDIVIDAMENTO</td>
+        <td class="num">{{ fmt_brl(dados.total_pagar) }}</td>
+        <td class="num">{{ fmt_brl(dados.total_pago) }}</td>
+        <td class="num">{{ fmt_brl(dados.total_ultima) }}</td>
+        <td class="num">—</td>
+        <td></td>
+      </tr>
     </tbody>
   </table>
   <p class="text-muted" style="font-size:11px;margin-top:10px">
-    <strong>dívida a pagar</strong> = saldo da conta no balancete{% if dados.comp_bal %} ({{ mes_label(dados.comp_bal) }}){% endif %};
-    <strong>já pago</strong> = soma dos débitos (amortizações) no Razão do período importado;
-    <strong>última parcela</strong> = débito do mês mais recente com pagamento.
+    <strong>Clique num grupo</strong> (CP / LP) para abrir as contas.
+    <strong>dívida a pagar</strong> = saldo no balancete{% if dados.comp_bal %} ({{ mes_label(dados.comp_bal) }}){% endif %};
+    <strong>já pago</strong> e <strong>última parcela</strong> = débitos no Razão.
+    <br>* <strong>Parcelas restantes</strong> é uma <strong>estimativa</strong> (saldo ÷ última parcela) — o número exato vem do CSV de vinculação.
   </p>
 </div>
+
+<script>
+document.querySelectorAll('.grupo-toggle').forEach(function(row){
+  row.addEventListener('click', function(){
+    var g = this.getAttribute('data-g');
+    var ic = this.querySelector('.expand-icon');
+    document.querySelectorAll('.filha-de-' + g).forEach(function(f){
+      f.style.display = (f.style.display === 'none') ? 'table-row' : 'none';
+    });
+    if (ic) ic.textContent = (ic.textContent === '▸') ? '▾' : '▸';
+  });
+});
+</script>
 {% endif %}
 {% endblock %}
