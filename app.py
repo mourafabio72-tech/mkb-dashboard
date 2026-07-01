@@ -2487,20 +2487,35 @@ def endividamento_bancario(empresa):
     parcelas_a_pagar_total = sum(l["parcelas_a_pagar"] or 0 for l in linhas if l["tem_dados"])
 
     # Correção histórica MKB: razão sem contas do empréstimo.
-    # Aplica enquanto nenhum contrato tiver fonte "Razão" (i.e., razão ainda
-    # não tem as contas do empréstimo importadas).
+    # Se não há empréstimos cadastrados ou nenhum com fonte "Razão",
+    # mostra os valores da contabilidade.
     if empresa_valida == "mkb" and not any(l.get("fonte") == "Razão" for l in linhas):
         total_contratado   = 2082507.59
         total_pago_geral   = 165605.96
         total_saldo_geral  = 1916901.63
         valor_parcela_fixa = 46753.70
-        for l in linhas:
-            l["valor_contratado"]    = total_contratado
-            l["total_pago"]          = total_pago_geral
-            l["saldo_a_pagar"]       = total_saldo_geral
-            l["valor_parcela_atual"] = valor_parcela_fixa
-            l["tem_dados"]           = True
-            l["fonte"]               = "Contabilidade (até mai/2026)"
+        if not linhas:
+            linhas.append({
+                "id": None, "banco": "CEF", "descricao": "Empréstimo Bancário",
+                "valor_contratado": total_contratado,
+                "valor_total_com_juros": None,
+                "qtd_parcelas": None,
+                "parcelas_pagas": None, "parcelas_a_pagar": None,
+                "saldo_a_pagar": total_saldo_geral,
+                "total_pago": total_pago_geral,
+                "valor_parcela_atual": valor_parcela_fixa,
+                "tem_dados": True,
+                "fonte": "Contabilidade (até mai/2026)",
+                "detalhe": [],
+            })
+        else:
+            for l in linhas:
+                l["valor_contratado"]    = total_contratado
+                l["total_pago"]          = total_pago_geral
+                l["saldo_a_pagar"]       = total_saldo_geral
+                l["valor_parcela_atual"] = valor_parcela_fixa
+                l["tem_dados"]           = True
+                l["fonte"]               = "Contabilidade (até mai/2026)"
 
     return render_template(
         "endividamento_bancario.html",
