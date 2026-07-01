@@ -1331,6 +1331,51 @@ def analisar_receita_clientes(empresa_id: int, competencias: list) -> dict:
 _RE_FORN_DE    = _re_cli.compile(r'NF\.?\s*(\d+)\s+DE\s+(.+)$', _re_cli.IGNORECASE)
 _RE_FORN_TRACO = _re_cli.compile(r'NF\.?\s*(\d+)\s*[-–]\s*(.+)$', _re_cli.IGNORECASE)
 
+# Crédito PIS/COFINS rateado: "CRED. PIS (RATEIO)000000135 DE 4 IRMAOS"
+_RE_FORN_RATEIO = _re_cli.compile(
+    r'CRED\.?\s*(?:PIS|COFINS|ICMS|IPI)?\s*\(?RATEIO\)?\s*(\d{6,})\s+DE\s+(.+)$',
+    _re_cli.IGNORECASE,
+)
+
+# Reembolso com NF: "VLR. REE 000537830  - KALUNGA SA"
+_RE_FORN_REE = _re_cli.compile(
+    r'VLR\.?\s*REE\s+(\d{6,})\s*[-–]\s*(.+)$', _re_cli.IGNORECASE,
+)
+# Reembolso com data: "VLR. REE-000126996-   - ATACADAO S.A."
+_RE_FORN_REE2 = _re_cli.compile(
+    r'VLR\.?\s*REE[\s-]+(\d{7,})[\s-]+(?:-\s*)?(.+)$', _re_cli.IGNORECASE,
+)
+# Reembolso sem NF: "VLR. REE-412025-   - REEMBOLSO" / "VLR. REE-010126- - UBER"
+_RE_FORN_REE3 = _re_cli.compile(
+    r'VLR\.?\s*REE[\s-]+\d*[\s-]*(?:-\s*)+(.+)$', _re_cli.IGNORECASE,
+)
+
+# RPA: "VLR.REF.AO RPA 000012026 DE SILVIO LUCIO"
+_RE_FORN_RPA = _re_cli.compile(
+    r'(?:VLR\.?\s*REF\.?\s*(?:AO?\s*)?)?RPA\s+(\d+)\s+DE\s+(.+)$', _re_cli.IGNORECASE,
+)
+
+# PGTO com DOC e traço: "PGTO.CF.CHQ. DOC. VT1009344 - GMB ADMINI"
+_RE_FORN_PGTO = _re_cli.compile(
+    r'PGTO\S*\s+(?:DOC\.?\s+)?(\S+)\s*[-–]\s*(.+)$', _re_cli.IGNORECASE,
+)
+
+# Provisão com nome: "PROVISAO JOSIMAR" / "PROVISAO LIGHT 05/2026"
+_RE_FORN_PROV = _re_cli.compile(
+    r'(?:ESTORNO\s+)?PROVISAO\s+([A-Z][A-Z0-9 .&/]+?)(?:\s+\d{2}/\d{4})?$',
+    _re_cli.IGNORECASE,
+)
+
+# Crédito sem rateio: "CRED. (RATEIO)000000530 DE 4 IRMAOS"
+_RE_FORN_CRED = _re_cli.compile(
+    r'CRED\.?\s*\(?RATEIO\)?\s*(\d{6,})\s+DE\s+(.+)$', _re_cli.IGNORECASE,
+)
+
+# VLR.REE com CNPJ: "VLR. REE 000000010  - 50.842.082 MIKE WI"
+_RE_FORN_REE_CNPJ = _re_cli.compile(
+    r'VLR\.?\s*REE\s+(\d+)\s*[-–]\s*\d{2}\.\d{3}\.\d{3}\s+(.+)$', _re_cli.IGNORECASE,
+)
+
 _SEM_FORNECEDOR = "(Lançamentos sem fornecedor identificado)"
 
 # ── "Tentar novamente" identificar razão social — correspondência aproximada ──
@@ -1406,21 +1451,77 @@ GRUPOS_CUSTO = set(GRUPOS_POR_LINHA["CPV"]) - GRUPOS_EXCLUIDOS_DESPESA
 def _extrair_nf_fornecedor(historico: str | None) -> tuple:
     """
     Retorna (numero_nf | None, nome_extraido | None) a partir do histórico
-    de um lançamento de despesa/custo. Padrões reconhecidos:
-        "PROV.REF.A NF.000000135 DE 4 IRMAOS"        → ("000000135", "4 IRMAOS")
-        "MULTA S/NF.043814 - ARBI /LEBLON OFFICE"    → ("043814", "ARBI /LEBLON OFFICE")
+    de um lançamento de despesa/custo.
+
+    Padrões reconhecidos (ordem de prioridade):
+      1. NF clássica:  "PROV.REF.A NF.000000135 DE 4 IRMAOS"
+      2. NF com traço: "MULTA S/NF.043814 - ARBI /LEBLON OFFICE"
+      3. Rateio PIS/COFINS: "CRED. PIS (RATEIO)000000135 DE 4 IRMAOS"
+      4. Crédito s/ tipo: "CRED. (RATEIO)000000530 DE 4 IRMAOS"
+      5. RPA: "VLR.REF.AO RPA 000012026 DE SILVIO LUCIO"
+      6. Reembolso com NF: "VLR. REE 000537830 - KALUNGA SA"
+      7. Reembolso com CNPJ: "VLR. REE 000000010 - 50.842.082 MIKE WI"
+      8. Reembolso NF+nome: "VLR. REE-000126996- - ATACADAO S.A."
+      9. Reembolso só nome: "VLR. REE-010126- - UBER"
+     10. PGTO com DOC: "PGTO.CF.CHQ. DOC. VT1009344 - GMB ADMINI"
+     11. Provisão: "PROVISAO JOSIMAR" (só nome, sem NF)
+
     Lançamentos sem NF/fornecedor no histórico (tarifas, PIS/COFINS s/ NF,
-    rendimentos de aplicação etc.) retornam (None, None).
+    rendimentos de aplicação, depreciação, IOF etc.) retornam (None, None).
     """
     if not historico:
         return None, None
     h = historico.strip()
+
+    # 1-2. NF clássica
     m = _RE_FORN_DE.search(h)
     if m:
         return m.group(1).strip(), m.group(2).strip()
     m = _RE_FORN_TRACO.search(h)
     if m:
         return m.group(1).strip(), m.group(2).strip()
+
+    # 3-4. Crédito PIS/COFINS rateado
+    m = _RE_FORN_RATEIO.search(h)
+    if m:
+        return m.group(1).strip(), m.group(2).strip()
+    m = _RE_FORN_CRED.search(h)
+    if m:
+        return m.group(1).strip(), m.group(2).strip()
+
+    # 5. RPA
+    m = _RE_FORN_RPA.search(h)
+    if m:
+        return m.group(1).strip(), m.group(2).strip()
+
+    # 6-9. Reembolso (VLR.REE)
+    m = _RE_FORN_REE_CNPJ.search(h)
+    if m:
+        return m.group(1).strip(), m.group(2).strip()
+    m = _RE_FORN_REE.search(h)
+    if m:
+        return m.group(1).strip(), m.group(2).strip()
+    m = _RE_FORN_REE2.search(h)
+    if m:
+        return m.group(1).strip(), m.group(2).strip()
+    m = _RE_FORN_REE3.search(h)
+    if m:
+        nome = m.group(1).strip()
+        if nome and nome.upper() != "REEMBOLSO":
+            return None, nome
+
+    # 10. PGTO com DOC
+    m = _RE_FORN_PGTO.search(h)
+    if m:
+        return m.group(1).strip(), m.group(2).strip()
+
+    # 11. Provisão (só nome, sem NF)
+    m = _RE_FORN_PROV.search(h)
+    if m:
+        nome = m.group(1).strip()
+        if len(nome) >= 3:
+            return None, nome
+
     return None, None
 
 

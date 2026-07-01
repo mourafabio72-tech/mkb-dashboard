@@ -194,19 +194,19 @@
   </div>
   <div class="min-chart-card">
     <span class="min-chart-title">Detalhamento Mensal</span>
-    <table class="table-simple" style="font-size:12px;">
+    <table class="table-simple" style="font-size:12px; text-align:center;">
       <thead>
-        <tr><th>Mês</th><th class="num">Parc. Pagas</th><th style="text-align:center">Dív. Acum.</th><th class="num">ROB</th><th class="num">% Dív/ROB</th><th class="num">% Parc/ROB</th></tr>
+        <tr><th style="text-align:center">Mês</th><th style="text-align:center">Parc. Pagas</th><th style="text-align:center">Dív. Acum.</th><th style="text-align:center">ROB</th><th style="text-align:center">% Dív/ROB</th><th style="text-align:center">% Parc/ROB</th></tr>
       </thead>
       <tbody>
         {% for l in serie_endividamento_mensal %}
         <tr>
           <td>{{ mes_label(l.competencia) }}</td>
-          <td class="num">{{ fmt_brl(l.valor_pago) }}</td>
-          <td style="text-align:center">{{ fmt_brl(l.divida_acumulada) }}</td>
-          <td class="num">{{ fmt_brl(l.rob_mes) }}</td>
-          <td class="num">{% if l.pct_divida is not none %}{{ "%.1f"|format(l.pct_divida) }}%{% else %}—{% endif %}</td>
-          <td class="num">{% if l.pct_parcela is not none %}{{ "%.1f"|format(l.pct_parcela) }}%{% else %}—{% endif %}</td>
+          <td>{{ fmt_brl(l.valor_pago) }}</td>
+          <td>{{ fmt_brl(l.divida_acumulada) }}</td>
+          <td>{{ fmt_brl(l.rob_mes) }}</td>
+          <td>{% if l.pct_divida is not none %}{{ "%.1f"|format(l.pct_divida) }}%{% else %}—{% endif %}</td>
+          <td>{% if l.pct_parcela is not none %}{{ "%.1f"|format(l.pct_parcela) }}%{% else %}—{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
