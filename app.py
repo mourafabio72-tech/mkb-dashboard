@@ -256,6 +256,12 @@ def _resumo_endividamento_bancario(empresa_id: int) -> dict:
         parcela_total += parcela or 0.0
 
     conn.close()
+
+    # Correção histórica MKB até mai/2026
+    if empresa_id == EMPRESAS["mkb"]["id"] and ref_competencia <= "2026-05":
+        saldo_total = 1916901.63
+        parcela_total = 46753.70
+
     return {"saldo_a_pagar": saldo_total, "valor_parcela_atual": parcela_total}
 
 
@@ -2479,6 +2485,20 @@ def endividamento_bancario(empresa):
     total_pago_geral       = sum(l["total_pago"] or 0 for l in linhas if l["tem_dados"])
     total_saldo_geral      = sum(l["saldo_a_pagar"] or 0 for l in linhas if l["tem_dados"])
     parcelas_a_pagar_total = sum(l["parcelas_a_pagar"] or 0 for l in linhas if l["tem_dados"])
+
+    # Correção histórica MKB até mai/2026: razão sem contas do empréstimo
+    if empresa_valida == "mkb" and ref_competencia <= "2026-05":
+        total_contratado   = 2082507.59
+        total_pago_geral   = 165605.96
+        total_saldo_geral  = 1916901.63
+        valor_parcela_fixa = 46753.70
+        for l in linhas:
+            l["valor_contratado"]   = total_contratado
+            l["total_pago"]         = total_pago_geral
+            l["saldo_a_pagar"]      = total_saldo_geral
+            l["valor_parcela_atual"] = valor_parcela_fixa
+            l["tem_dados"]          = True
+            l["fonte"]              = "Contabilidade (até mai/2026)"
 
     return render_template(
         "endividamento_bancario.html",
