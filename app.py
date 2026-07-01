@@ -1844,15 +1844,19 @@ def endividamento(empresa, competencia):
     if not competencias_disp:
         conn.close()
         # Sem CSV de vinculação → visão direto do Razão (contas 2.1.3.05 / 2.2.4.02)
-        dados = _endividamento_do_razao(empresa_id)
-        return render_template(
-            "endividamento_razao.html",
-            empresa=empresa,
-            competencia=competencia,
-            mes_label=_mes_label(competencia),
-            dados=dados,
-            fmt_brl=fmt_brl,
-        )
+        try:
+            dados = _endividamento_do_razao(empresa_id)
+            return render_template(
+                "endividamento_razao.html",
+                empresa=empresa,
+                competencia=competencia,
+                mes_label=_mes_label(competencia),
+                dados=dados,
+                fmt_brl=fmt_brl,
+            )
+        except Exception as _e:
+            import traceback as _tb
+            return "<pre>ENDIVIDAMENTO DEBUG\n" + _tb.format_exc() + "</pre>", 200
 
     # Se a competência da URL não tem snapshot, usa o mais recente <= ela
     # (ou o mais antigo disponível, se a URL pedir algo anterior a todos)
