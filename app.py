@@ -1925,6 +1925,31 @@ def _endividamento_do_razao(empresa_id: int, competencia: str | None = None) -> 
 
 
 
+@app.route("/seed-saldo-snapshot")
+@login_required
+def seed_saldo_snapshot():
+    """Rota temporária: atualiza saldo_contabilidade_snapshot (peso de rateio)."""
+    SALDOS = {
+        "COFINS - NÃO PREVIDENCIARIO": 118454.42,
+        "PGM RJ - ISSQN": 70561.47,
+        "PARCELAMENTO ISS - CDA 5024503383": 41976.84,
+        "ADM RFB - PERT IIIB DEMAIS": 1577867.85,
+        "ADM RFB - PERT IIIB PREVIDENCIÁRIO": 1871389.99,
+        "PGFN - PERT DEMAIS": 96154.27,
+        "TRANSAÇÃO - DEMAIS DÉBITOS": 118113.22,
+        "TRANSAÇÃO - DÉBITOS PREVIDENCIÁRIOS": 159846.84,
+    }
+    conn = get_conn()
+    for tributo, saldo in SALDOS.items():
+        conn.execute(
+            "UPDATE parcelamentos SET saldo_contabilidade_snapshot=? WHERE tributo=? AND competencia_ref='2026-05'",
+            (saldo, tributo),
+        )
+    conn.commit()
+    conn.close()
+    return f"<pre>OK — saldo_contabilidade_snapshot atualizado para {len(SALDOS)} parcelamentos.</pre>"
+
+
 @app.route("/debug/endiv/<empresa>")
 @login_required
 def debug_endiv(empresa):
