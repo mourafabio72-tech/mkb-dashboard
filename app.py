@@ -1904,6 +1904,32 @@ def _endividamento_do_razao(empresa_id: int, competencia: str | None = None) -> 
     }
 
 
+@app.route("/debug/endiv/<empresa>")
+@login_required
+def debug_endiv(empresa):
+    if empresa not in EMPRESAS:
+        return "empresa não encontrada", 404
+    eid = EMPRESAS[empresa]["id"]
+    conn = get_conn()
+    cond = " OR ".join("conta_cod LIKE ?" for _ in _PARCEL_PREFIXOS)
+    likes = [p + "%" for p in _PARCEL_PREFIXOS]
+    rows_bal = conn.execute(
+        f"SELECT conta_cod, descricao FROM balancete WHERE empresa_id=? AND ({cond}) ORDER BY conta_cod",
+        [eid, *likes]).fetchall()
+    rows_rz = conn.execute(
+        f"SELECT DISTINCT conta_cod, historico FROM razao WHERE empresa_id=? AND ({cond}) ORDER BY conta_cod",
+        [eid, *likes]).fetchall()
+    conn.close()
+    lines = ["<h3>Balancete (conta_cod | descricao)</h3><pre>"]
+    for r in rows_bal:
+        lines.append(f"{r[0]:25s} | {r[1]}")
+    lines.append("</pre><h3>Razão (conta_cod | historico) — distinct</h3><pre>")
+    for r in rows_rz:
+        lines.append(f"{r[0]:25s} | {r[1]}")
+    lines.append("</pre>")
+    return "\n".join(lines)
+
+
 @app.route("/endividamento/<empresa>/<competencia>")
 @login_required
 def endividamento(empresa, competencia):
