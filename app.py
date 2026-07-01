@@ -1924,36 +1924,6 @@ def _endividamento_do_razao(empresa_id: int, competencia: str | None = None) -> 
     }
 
 
-@app.route("/seed-parcelamentos")
-@login_required
-def seed_parcelamentos():
-    """Rota temporária: insere parcelamentos base (maio/2026) no banco do servidor."""
-    DADOS = [
-        ("COFINS - NÃO PREVIDENCIARIO", "13292873", "2.1.3.05.01.011", "2.2.4.02.01.016", 60, 11, 49),
-        ("PGM RJ - ISSQN", "10/007.401/2021-01", "2.1.3.05.03.005", "2.2.4.02.03.003", 84, 54, 30),
-        ("PARCELAMENTO ISS - CDA 5024503383", "04034-011339/2023", "2.1.3.05.03.005", "2.2.4.02.03.003", 60, 14, 46),
-        ("ADM RFB - PERT IIIB DEMAIS", "1300061256041874", "2.1.3.05.04.001", "2.2.4.02.04.001", 150, 105, 45),
-        ("ADM RFB - PERT IIIB PREVIDENCIÁRIO", "63299470-3", "2.1.3.05.04.002", "2.2.4.02.04.002", 145, 101, 44),
-        ("PGFN - PERT DEMAIS", "1469616", "2.1.3.05.04.003", "2.2.4.02.04.003", 149, 105, 44),
-        ("TRANSAÇÃO - DEMAIS DÉBITOS", "7913947", "2.1.3.05.06.001", "2.2.4.02.05.001", 60, 38, 22),
-        ("TRANSAÇÃO - DÉBITOS PREVIDENCIÁRIOS", "9951136", "2.1.3.05.06.001", "2.2.4.02.05.001", 60, 27, 33),
-    ]
-    conn = get_conn()
-    empresa_id = EMPRESAS["mkb"]["id"]
-    inseridos = 0
-    for tributo, processo, cp, lp, qtd, paga, falta in DADOS:
-        conn.execute(
-            """INSERT OR REPLACE INTO parcelamentos
-               (empresa_id, competencia_ref, tributo, processo, conta_cp, conta_lp,
-                qtd_parcelas, parcela_paga, faltam)
-               VALUES (?, '2026-05', ?, ?, ?, ?, ?, ?, ?)""",
-            (empresa_id, tributo, processo, cp, lp, qtd, paga, falta),
-        )
-        inseridos += 1
-    conn.commit()
-    conn.close()
-    return f"<pre>Seed OK — {inseridos} parcelamentos inseridos para 2026-05.\nPode remover esta rota depois.</pre>"
-
 
 @app.route("/debug/endiv/<empresa>")
 @login_required
