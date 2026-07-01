@@ -555,6 +555,24 @@ def index():
     pagos_banc_mkb = _pagamentos_mensais_bancario(EMPRESAS["mkb"]["id"], competencias)
     pagos_banc_gni = _pagamentos_mensais_bancario(EMPRESAS["gnileb"]["id"], competencias)
 
+    # Dívida mensal via balancete (CP 2.1.3.05 + LP 2.2.4.02), consolidado
+    conn_dash = get_conn()
+    divida_por_mes = {}
+    for c in competencias:
+        total_mes = 0.0
+        for emp_data in EMPRESAS.values():
+            row = conn_dash.execute(
+                "SELECT SUM(saldo_atual) as total FROM balancete "
+                "WHERE empresa_id=? AND competencia=? "
+                "AND (conta_cod LIKE '2.1.3.05%' OR conta_cod LIKE '2.2.4.02%')",
+                (emp_data["id"], c)
+            ).fetchone()
+            if row and row["total"]:
+                total_mes += row["total"]
+        if total_mes:
+            divida_por_mes[c] = abs(total_mes)
+    conn_dash.close()
+
     serie_endividamento_mensal = []
     rob_acum = 0.0
     for c in competencias:
@@ -564,10 +582,11 @@ def index():
             pagos_trib_mkb.get(c, 0.0) + pagos_trib_gni.get(c, 0.0)
             + pagos_banc_mkb.get(c, 0.0) + pagos_banc_gni.get(c, 0.0)
         )
-        pct = (divida_total / rob_acum * 100) if rob_acum else None
+        divida_mes = divida_por_mes.get(c, divida_total)
+        pct = (divida_mes / rob_acum * 100) if rob_acum else None
         serie_endividamento_mensal.append({
             "competencia": c, "valor_pago": valor_pago,
-            "divida_acumulada": divida_total, "rob_mes": rob_mes, "pct": pct,
+            "divida_acumulada": divida_mes, "rob_mes": rob_mes, "pct": pct,
         })
 
     grafico_endividamento_valor = [round(l["valor_pago"]) for l in serie_endividamento_mensal]
