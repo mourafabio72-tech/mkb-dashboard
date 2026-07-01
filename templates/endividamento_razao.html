@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Endividamento Tributário{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🏦 Endividamento Tributário</h1>
+  <p class="subtitle">
+    Empresa: <strong>{{ empresa | upper }}</strong> &nbsp;·&nbsp;
+    Direto do Razão (parcelamentos: contas <code>2.1.3.05</code> CP e <code>2.2.4.02</code> LP)
+  </p>
+</div>
+
+{% if not dados.contas %}
+<div class="empty-state">
+  <div class="empty-icon">🧾</div>
+  <h2>Nenhum parcelamento no Razão</h2>
+  <p>Não há movimento nas contas de parcelamento (2.1.3.05 / 2.2.4.02). Importe o Razão em Cadastro → Importar.</p>
+  <a href="{{ url_for('ingest') }}" class="btn btn-primary">⬆ Importar Razão</a>
+</div>
+{% else %}
+
+{# ── Cards de resumo ─────────────────────────────────────────────────────── #}
+<div class="min-kpi-row">
+  <div class="min-kpi min-kpi-hl">
+    <span class="min-kpi-label">Total da dívida a pagar</span>
+    <span class="min-kpi-value">{{ fmt_brl(dados.total_pagar) }}</span>
+    <span class="min-kpi-sub">Saldo devedor atual (CP + LP)</span>
+  </div>
+  <div class="min-kpi">
+    <span class="min-kpi-label">Curto prazo (CP)</span>
+    <span class="min-kpi-value">{{ fmt_brl(dados.total_cp) }}</span>
+    <span class="min-kpi-sub">2.1.3.05.x</span>
+  </div>
+  <div class="min-kpi">
+    <span class="min-kpi-label">Longo prazo (LP)</span>
+    <span class="min-kpi-value">{{ fmt_brl(dados.total_lp) }}</span>
+    <span class="min-kpi-sub">2.2.4.02.x</span>
+  </div>
+  <div class="min-kpi">
+    <span class="min-kpi-label">Última parcela paga</span>
+    <span class="min-kpi-value">{{ fmt_brl(dados.total_ultima) }}</span>
+    <span class="min-kpi-sub">Soma do último desembolso de cada parcelamento</span>
+  </div>
+</div>
+
+<div class="min-kpi-row" style="grid-template-columns:1fr">
+  <div class="min-kpi">
+    <span class="min-kpi-label">Total já pago no período importado</span>
+    <span class="min-kpi-value">{{ fmt_brl(dados.total_pago) }}</span>
+    <span class="min-kpi-sub">Soma dos débitos (amortizações) lançados no Razão até a competência mais recente</span>
+  </div>
+</div>
+
+{# ── Tabela por conta ────────────────────────────────────────────────────── #}
+<div class="min-chart-card">
+  <span class="min-chart-title">Parcelamentos por conta</span>
+  <table class="table-det">
+    <thead>
+      <tr>
+        <th class="col-cod">Conta</th>
+        <th>Tipo / Histórico</th>
+        <th class="num">Dívida a pagar</th>
+        <th class="num">Já pago (período)</th>
+        <th class="num">Última parcela</th>
+        <th>Mês últ. parcela</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in dados.contas %}
+      <tr class="det-conta">
+        <td class="col-cod">{{ c.cod }}</td>
+        <td>
+          <span class="badge-{{ 'ct1' if c.cp else 'ct2' }}">{{ 'CP' if c.cp else 'LP' }}</span>
+          <span class="text-muted" style="font-size:11px">{{ c.hist or '—' }}</span>
+        </td>
+        <td class="num" style="font-weight:700">{{ fmt_brl(c.saldo_abs) }}</td>
+        <td class="num">{{ fmt_brl(c.pago) }}</td>
+        <td class="num">{{ fmt_brl(c.ultima) }}</td>
+        <td class="text-muted">{{ mes_label(c.ultima_comp) if c.ultima_comp else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="text-muted" style="font-size:11px;margin-top:10px">
+    Valores derivados do Razão: <strong>dívida a pagar</strong> = saldo atual da conta;
+    <strong>já pago</strong> = soma dos débitos (amortizações) no período importado;
+    <strong>última parcela</strong> = débito do mês mais recente com pagamento.
+  </p>
+</div>
+{% endif %}
+{% endblock %}

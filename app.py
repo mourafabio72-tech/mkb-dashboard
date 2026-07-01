@@ -1760,6 +1760,66 @@ def irpj(empresa, competencia):
     )
 
 
+# Prefixos das contas de parcelamento tributário no Razão:
+#   CP (curto prazo)  -> 2.1.3.05.x
+#   LP (longo prazo)  -> 2.2.4.02.x
+_PARCEL_PREFIXOS = ("2.1.3.05.", "2.2.4.02.")
+
+
+def _endividamento_do_razao(empresa_id: int) -> dict:
+    """Deriva o endividamento tributário direto do Razão (sem CSV de vinculação):
+    saldo devedor a pagar (saldo atual), total pago (soma dos débitos) e valor da
+    última parcela paga (débito do mês mais recente) por conta de parcelamento."""
+    conn = get_conn()
+    cond   = " OR ".join("conta_cod LIKE ?" for _ in _PARCEL_PREFIXOS)
+    params = [empresa_id] + [p + "%" for p in _PARCEL_PREFIXOS]
+    rows = conn.execute(
+        f"""
+        SELECT conta_cod, competencia, id, debito, credito, saldo_atual, historico
+        FROM razao WHERE empresa_id = ? AND ({cond})
+        ORDER BY conta_cod, competencia, id
+        """,
+        params
+    ).fetchall()
+    conn.close()
+
+    porconta: dict[str, dict] = {}
+    for r in rows:
+        c = r["conta_cod"]
+        info = porconta.setdefault(c, {
+            "cod": c, "saldo": 0.0, "pago": 0.0,
+            "ultima": 0.0, "ultima_comp": "", "hist": "",
+        })
+        if r["saldo_atual"] is not None:
+            info["saldo"] = r["saldo_atual"]      # linhas em ordem → última vence
+        deb = r["debito"] or 0.0
+        info["pago"] += deb
+        if deb > 0.005:
+            info["ultima"] = deb
+            info["ultima_comp"] = r["competencia"]
+        if r["historico"]:
+            info["hist"] = r["historico"]
+
+    contas = []
+    for x in porconta.values():
+        x["saldo_abs"]   = round(abs(x["saldo"]), 2)
+        x["pago"]        = round(x["pago"], 2)
+        x["ultima"]      = round(x["ultima"], 2)
+        x["cp"]          = x["cod"].startswith("2.1.3.05.")
+        if x["saldo_abs"] >= 0.01 or x["pago"] >= 0.01:
+            contas.append(x)
+    contas.sort(key=lambda x: -x["saldo_abs"])
+
+    return {
+        "contas":       contas,
+        "total_pagar":  round(sum(x["saldo_abs"] for x in contas), 2),
+        "total_pago":   round(sum(x["pago"] for x in contas), 2),
+        "total_ultima": round(sum(x["ultima"] for x in contas), 2),
+        "total_cp":     round(sum(x["saldo_abs"] for x in contas if x["cp"]), 2),
+        "total_lp":     round(sum(x["saldo_abs"] for x in contas if not x["cp"]), 2),
+    }
+
+
 @app.route("/endividamento/<empresa>/<competencia>")
 @login_required
 def endividamento(empresa, competencia):
@@ -1783,9 +1843,16 @@ def endividamento(empresa, competencia):
 
     if not competencias_disp:
         conn.close()
-        return render_template("em_breve.html", titulo="Endividamento Tributário",
-                               empresa=empresa, competencia=competencia,
-                               mes_label=_mes_label(competencia))
+        # Sem CSV de vinculação → visão direto do Razão (contas 2.1.3.05 / 2.2.4.02)
+        dados = _endividamento_do_razao(empresa_id)
+        return render_template(
+            "endividamento_razao.html",
+            empresa=empresa,
+            competencia=competencia,
+            mes_label=_mes_label(competencia),
+            dados=dados,
+            fmt_brl=fmt_brl,
+        )
 
     # Se a competência da URL não tem snapshot, usa o mais recente <= ela
     # (ou o mais antigo disponível, se a URL pedir algo anterior a todos)
