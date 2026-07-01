@@ -574,23 +574,23 @@ def index():
     conn_dash.close()
 
     serie_endividamento_mensal = []
-    rob_acum = 0.0
     for c in competencias:
         rob_mes = mensal_todos[c].get("ROB", 0) or 0
-        rob_acum += rob_mes
         valor_pago = (
             pagos_trib_mkb.get(c, 0.0) + pagos_trib_gni.get(c, 0.0)
             + pagos_banc_mkb.get(c, 0.0) + pagos_banc_gni.get(c, 0.0)
         )
         divida_mes = divida_por_mes.get(c, divida_total)
-        pct = (divida_mes / rob_acum * 100) if rob_acum else None
+        pct_divida = (divida_mes / rob_mes * 100) if rob_mes else None
+        pct_parcela = (valor_pago / rob_mes * 100) if rob_mes else None
         serie_endividamento_mensal.append({
             "competencia": c, "valor_pago": valor_pago,
-            "divida_acumulada": divida_mes, "rob_mes": rob_mes, "pct": pct,
+            "divida_acumulada": divida_mes, "rob_mes": rob_mes,
+            "pct_divida": pct_divida, "pct_parcela": pct_parcela,
         })
 
     grafico_endividamento_valor = [round(l["valor_pago"]) for l in serie_endividamento_mensal]
-    grafico_endividamento_pct   = [round(l["pct"], 1) if l["pct"] is not None else 0 for l in serie_endividamento_mensal]
+    grafico_endividamento_pct   = [round(l["pct_divida"], 1) if l["pct_divida"] is not None else 0 for l in serie_endividamento_mensal]
 
     return render_template(
         "dashboard.html",
