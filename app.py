@@ -1914,18 +1914,21 @@ def debug_endiv(empresa):
     cond = " OR ".join("conta_cod LIKE ?" for _ in _PARCEL_PREFIXOS)
     likes = [p + "%" for p in _PARCEL_PREFIXOS]
     rows_bal = conn.execute(
-        f"SELECT conta_cod, descricao FROM balancete WHERE empresa_id=? AND ({cond}) ORDER BY conta_cod",
+        f"SELECT conta_cod, descricao, saldo_atual FROM balancete WHERE empresa_id=? AND ({cond}) ORDER BY conta_cod",
         [eid, *likes]).fetchall()
     rows_rz = conn.execute(
-        f"SELECT DISTINCT conta_cod, historico FROM razao WHERE empresa_id=? AND ({cond}) ORDER BY conta_cod",
+        f"""SELECT conta_cod, documento, debito, credito, historico, competencia
+            FROM razao WHERE empresa_id=? AND ({cond})
+            ORDER BY conta_cod, competencia, documento""",
         [eid, *likes]).fetchall()
     conn.close()
-    lines = ["<h3>Balancete (conta_cod | descricao)</h3><pre>"]
+    lines = ["<pre style='font-size:12px'>"]
+    lines.append("=== BALANCETE (conta | descricao | saldo) ===")
     for r in rows_bal:
-        lines.append(f"{r[0]:25s} | {r[1]}")
-    lines.append("</pre><h3>Razão (conta_cod | historico) — distinct</h3><pre>")
+        lines.append(f"  {r[0]:25s} | {r[1]:50s} | {r[2]:>12.2f}")
+    lines.append("\n=== RAZÃO (conta | doc | D | C | hist | comp) ===")
     for r in rows_rz:
-        lines.append(f"{r[0]:25s} | {r[1]}")
+        lines.append(f"  {r[0]:25s} | {r[1]:15s} | D={r[2]:>10.2f} C={r[3]:>10.2f} | {r[4]:40s} | {r[5]}")
     lines.append("</pre>")
     return "\n".join(lines)
 
