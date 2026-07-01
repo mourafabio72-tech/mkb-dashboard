@@ -545,25 +545,36 @@ def index():
     rob_consolidado_ytd = ytd.get("ROB", 0) or 0
     pct_divida_rob = (divida_total / rob_consolidado_ytd * 100) if rob_consolidado_ytd else None
 
+    ultimo_mes_rob = mensal_todos[competencias[-1]].get("ROB", 0) or 0 if competencias else 0
+    pct_desembolso_rob = (desembolso_total_geral / ultimo_mes_rob * 100) if ultimo_mes_rob else None
+
     resumo_endividamento = {
         "divida_tributaria": divida_tributaria,
         "divida_bancaria": divida_bancaria,
         "divida_total": divida_total,
         "desembolso_total": desembolso_total_geral,
+        "desembolso_tributario": desembolso_tributario,
+        "desembolso_bancario": desembolso_bancario,
         "rob_consolidado_ytd": rob_consolidado_ytd,
         "pct_divida_rob": pct_divida_rob,
+        "pct_desembolso_rob": pct_desembolso_rob,
     }
 
     # Série mensal: parcelas pagas (Tributário + Bancário) × Receita Bruta
-    # ACUMULADA até aquele mês (Jan -> mês), consolidado MKB + Gnileb.
     pagos_trib_mkb = _pagamentos_mensais_tributario(EMPRESAS["mkb"]["id"], competencias)
     pagos_trib_gni = _pagamentos_mensais_tributario(EMPRESAS["gnileb"]["id"], competencias)
     pagos_banc_mkb = _pagamentos_mensais_bancario(EMPRESAS["mkb"]["id"], competencias)
     pagos_banc_gni = _pagamentos_mensais_bancario(EMPRESAS["gnileb"]["id"], competencias)
 
-    # Dívida mensal: snapshot dos parcelamentos por competência
+    # MKB não tem emprestimos_bancarios no DB; parcela fixa R$ 46.753,70/mês
+    _PARCELA_BANC_MKB = 46753.70
+    for c in competencias:
+        if c <= "2026-05" and pagos_banc_mkb.get(c, 0.0) == 0.0:
+            pagos_banc_mkb[c] = _PARCELA_BANC_MKB
+
+    # Dívida tributária mensal: snapshot dos parcelamentos por competência
     conn_dash = get_conn()
-    divida_por_mes = {}
+    divida_trib_por_mes = {}
     for emp_data in EMPRESAS.values():
         rows = conn_dash.execute(
             "SELECT competencia_ref, SUM(saldo_contabilidade_snapshot) as total "
@@ -573,27 +584,36 @@ def index():
         ).fetchall()
         for r in rows:
             if r["total"]:
-                divida_por_mes[r["competencia_ref"]] = divida_por_mes.get(r["competencia_ref"], 0) + r["total"]
+                divida_trib_por_mes[r["competencia_ref"]] = divida_trib_por_mes.get(r["competencia_ref"], 0) + r["total"]
     conn_dash.close()
 
-    # Correção histórica Jan-Abr/2026: razão importado não tinha contas LP
-    # (2.2.4.02); valores reais informados pela contabilidade.
-    _DIVIDA_HIST = {
+    _DIVIDA_TRIB_HIST = {
         "2026-01": 4231923.07, "2026-02": 4187533.52,
         "2026-03": 4143143.98, "2026-04": 4098754.44,
     }
-    for comp, val in _DIVIDA_HIST.items():
-        if comp not in divida_por_mes:
-            divida_por_mes[comp] = val
+    for comp, val in _DIVIDA_TRIB_HIST.items():
+        if comp not in divida_trib_por_mes:
+            divida_trib_por_mes[comp] = val
+
+    # Dívida bancária mensal (MKB): saldo mai/2026 = 1.916.901,63; meses
+    # anteriores reconstituídos somando parcelas de volta.
+    _DIVIDA_BANC_HIST = {
+        "2026-05": 1916901.63,
+        "2026-04": 1916901.63 + _PARCELA_BANC_MKB * 1,
+        "2026-03": 1916901.63 + _PARCELA_BANC_MKB * 2,
+        "2026-02": 1916901.63 + _PARCELA_BANC_MKB * 3,
+        "2026-01": 1916901.63 + _PARCELA_BANC_MKB * 4,
+    }
 
     serie_endividamento_mensal = []
     for c in competencias:
         rob_mes = mensal_todos[c].get("ROB", 0) or 0
-        valor_pago = (
-            pagos_trib_mkb.get(c, 0.0) + pagos_trib_gni.get(c, 0.0)
-            + pagos_banc_mkb.get(c, 0.0) + pagos_banc_gni.get(c, 0.0)
-        )
-        divida_mes = divida_por_mes.get(c, divida_total)
+        valor_pago_trib = pagos_trib_mkb.get(c, 0.0) + pagos_trib_gni.get(c, 0.0)
+        valor_pago_banc = pagos_banc_mkb.get(c, 0.0) + pagos_banc_gni.get(c, 0.0)
+        valor_pago = valor_pago_trib + valor_pago_banc
+        divida_trib_mes = divida_trib_por_mes.get(c, divida_tributaria)
+        divida_banc_mes = _DIVIDA_BANC_HIST.get(c, divida_bancaria)
+        divida_mes = divida_trib_mes + divida_banc_mes
         pct_divida = (divida_mes / rob_mes * 100) if rob_mes else None
         pct_parcela = (valor_pago / rob_mes * 100) if rob_mes else None
         serie_endividamento_mensal.append({

@@ -151,6 +151,7 @@
     <div class="min-kpi">
       <span class="min-kpi-label">Desembolso Mensal</span>
       <span class="min-kpi-value">{{ fmt_brl(resumo_endividamento.desembolso_total) }}</span>
+      <span class="min-kpi-sub">Trib: {{ fmt_brl(resumo_endividamento.desembolso_tributario) }} · Banc: {{ fmt_brl(resumo_endividamento.desembolso_bancario) }}</span>
     </div>
     <div class="min-kpi">
       <span class="min-kpi-label">Dívida Tributária</span>
@@ -170,6 +171,17 @@
           —
         {% endif %}
       </span>
+    </div>
+    <div class="min-kpi min-kpi-hl">
+      <span class="min-kpi-label">% Desembolso / ROB</span>
+      <span class="min-kpi-value">
+        {% if resumo_endividamento.pct_desembolso_rob is not none %}
+          {{ "%.1f"|format(resumo_endividamento.pct_desembolso_rob) }}%
+        {% else %}
+          —
+        {% endif %}
+      </span>
+      <span class="min-kpi-sub">Desembolso total mensal ÷ Receita Bruta do mês</span>
     </div>
   </div>
 </div>
