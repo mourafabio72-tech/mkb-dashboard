@@ -1854,18 +1854,27 @@ def _endividamento_do_razao(empresa_id: int, competencia: str | None = None) -> 
 
     # ── Agrupar por TIPO DE PARCELAMENTO (descrição), não por conta contábil ──
     import re
-    def _nome_tipo(hist: str) -> str:
-        if not hist:
-            return "Outros Parcelamentos"
-        h = hist.strip()
-        h = re.sub(r"\s*-?\s*PARC\.\s*\d+/\d+.*", "", h, flags=re.IGNORECASE)
-        h = re.sub(r"\s*-\s*$", "", h)
-        return h.strip() or "Outros Parcelamentos"
-
     from collections import OrderedDict
+
+    _TYPOS = {"DEMIAS": "DEMAIS"}
+
+    def _normalizar(hist: str) -> str:
+        if not hist:
+            return "OUTROS PARCELAMENTOS"
+        h = hist.strip().upper()
+        h = re.sub(r"\s*-?\s*PARC\.\s*\d+/\d+.*", "", h)
+        h = re.sub(r"\s*-\s*$", "", h)
+        h = re.sub(r"\s+", " ", h).strip()
+        # corrigir typos conhecidos
+        for errado, certo in _TYPOS.items():
+            h = h.replace(errado, certo)
+        # normalizar separadores: "PERT DEBITOS" → "PERT - DEBITOS"
+        h = re.sub(r"^(PERT|REFIS|PARC\.?)\s+(?!-)", r"\1 - ", h)
+        return h or "OUTROS PARCELAMENTOS"
+
     tipos: dict[str, list] = OrderedDict()
     for c in contas:
-        nome = _nome_tipo(c["hist"])
+        nome = _normalizar(c["hist"])
         tipos.setdefault(nome, []).append(c)
 
     grupos = []
