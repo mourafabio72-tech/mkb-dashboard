@@ -1870,23 +1870,14 @@ def _endividamento_do_razao(empresa_id: int, competencia: str | None = None) -> 
 
     grupos = []
     for idx, (nome, items) in enumerate(tipos.items()):
-        items_cp = [x for x in items if x["cp"]]
-        items_lp = [x for x in items if not x["cp"]]
-        sub = []
-        if items_cp:
-            sub.append({"nome": "Curto Prazo (CP)", "id": f"g{idx}_cp", "prefixo": "2.1.3.05",
-                         "contas": items_cp, "saldo": _tot(items_cp, "saldo_abs"),
-                         "pago": _tot(items_cp, "pago"), "ultima": _tot(items_cp, "ultima")})
-        if items_lp:
-            sub.append({"nome": "Longo Prazo (LP)", "id": f"g{idx}_lp", "prefixo": "2.2.4.02",
-                         "contas": items_lp, "saldo": _tot(items_lp, "saldo_abs"),
-                         "pago": _tot(items_lp, "pago"), "ultima": _tot(items_lp, "ultima")})
+        items.sort(key=lambda x: (-x["saldo_abs"], x["cod"]))
         grupos.append({
             "nome": nome, "id": f"tipo{idx}",
+            "qtd": len(items),
             "saldo": _tot(items, "saldo_abs"),
             "pago": _tot(items, "pago"),
             "ultima": _tot(items, "ultima"),
-            "sub": sub,
+            "contas": items,
         })
 
     cp_all = [x for x in contas if x["cp"]]

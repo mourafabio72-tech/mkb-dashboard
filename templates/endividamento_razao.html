@@ -52,7 +52,7 @@
   </div>
 </div>
 
-{# ── Tabela agrupada: Tipo de Parcelamento → CP/LP → Contas (3 níveis) ──── #}
+{# ── Tabela agrupada: Tipo de Parcelamento → Contas (2 níveis) ──────────── #}
 <div class="min-chart-card">
   <span class="min-chart-title">Parcelamentos por Tipo</span>
   <table class="table-det">
@@ -68,12 +68,11 @@
     </thead>
     <tbody>
       {% for g in dados.grupos %}
-      {# ── Nível 1: Tipo de parcelamento ──────────────────────────────────── #}
       <tr class="det-grupo tipo-toggle" data-tipo="{{ g.id }}" style="cursor:pointer">
         <td>
           <span class="expand-icon">▸</span>
           <strong>{{ g.nome }}</strong>
-          <span class="text-muted" style="font-size:11px">· {{ g.sub|length }} grupo(s)</span>
+          <span class="text-muted" style="font-size:11px">· {{ g.qtd }} conta(s)</span>
         </td>
         <td class="num" style="font-weight:700">{{ fmt_brl(g.saldo) }}</td>
         <td class="num">{{ fmt_brl(g.pago) }}</td>
@@ -81,32 +80,18 @@
         <td class="num">—</td>
         <td></td>
       </tr>
-      {% for s in g.sub %}
-      {# ── Nível 2: CP / LP ───────────────────────────────────────────────── #}
-      <tr class="dre-filha filha-tipo-{{ g.id }} sub-toggle" data-sub="{{ s.id }}" style="display:none;cursor:pointer">
-        <td style="padding-left:22px">
-          <span class="expand-icon">▸</span>
-          {{ s.nome }} <span class="text-muted" style="font-size:11px">· {{ s.prefixo }} · {{ s.contas|length }} conta(s)</span>
-        </td>
-        <td class="num" style="font-weight:600">{{ fmt_brl(s.saldo) }}</td>
-        <td class="num">{{ fmt_brl(s.pago) }}</td>
-        <td class="num">{{ fmt_brl(s.ultima) }}</td>
-        <td class="num">—</td>
-        <td></td>
-      </tr>
-      {% for c in s.contas %}
-      {# ── Nível 3: Conta analítica ────────────────────────────────────────── #}
-      <tr class="dre-neta neta-sub-{{ s.id }}" style="display:none">
-        <td style="padding-left:44px">
+      {% for c in g.contas %}
+      <tr class="dre-filha filha-tipo-{{ g.id }}" style="display:none">
+        <td style="padding-left:28px">
           <span class="conta-cod">{{ c.cod }}</span>
+          <span class="text-muted" style="font-size:11px">{{ 'CP' if c.cp else 'LP' }}</span>
         </td>
-        <td class="num">{{ fmt_brl(c.saldo_abs) }}</td>
+        <td class="num" style="font-weight:600">{{ fmt_brl(c.saldo_abs) }}</td>
         <td class="num">{{ fmt_brl(c.pago) }}</td>
         <td class="num">{{ fmt_brl(c.ultima) }}</td>
         <td class="num">{{ ('~' ~ c.restantes) if c.restantes is not none else '—' }}</td>
         <td class="text-muted">{{ mes_label(c.ultima_comp) if c.ultima_comp else '—' }}</td>
       </tr>
-      {% endfor %}
       {% endfor %}
       {% endfor %}
       <tr class="det-grupo" style="font-weight:800">
@@ -120,7 +105,7 @@
     </tbody>
   </table>
   <p class="text-muted" style="font-size:11px;margin-top:10px">
-    <strong>Clique no tipo</strong> para abrir CP / LP; clique em CP ou LP para ver as contas.
+    <strong>Clique no tipo</strong> para abrir as contas (CP e LP juntas).
     <strong>Dívida a pagar</strong> = saldo no balancete{% if dados.comp_bal %} ({{ mes_label(dados.comp_bal) }}){% endif %};
     <strong>já pago</strong> e <strong>última parcela</strong> = débitos no Razão.
     <br>* <strong>Parcelas restantes</strong> é uma <strong>estimativa</strong> (saldo ÷ última parcela) — o número exato vem do CSV de vinculação.
@@ -133,17 +118,6 @@ document.querySelectorAll('.tipo-toggle').forEach(function(row){
     var t = this.getAttribute('data-tipo');
     var ic = this.querySelector('.expand-icon');
     document.querySelectorAll('.filha-tipo-' + t).forEach(function(f){
-      f.style.display = (f.style.display === 'none') ? 'table-row' : 'none';
-    });
-    if (ic) ic.textContent = (ic.textContent === '▸') ? '▾' : '▸';
-  });
-});
-document.querySelectorAll('.sub-toggle').forEach(function(row){
-  row.addEventListener('click', function(e){
-    e.stopPropagation();
-    var s = this.getAttribute('data-sub');
-    var ic = this.querySelector('.expand-icon');
-    document.querySelectorAll('.neta-sub-' + s).forEach(function(f){
       f.style.display = (f.style.display === 'none') ? 'table-row' : 'none';
     });
     if (ic) ic.textContent = (ic.textContent === '▸') ? '▾' : '▸';
