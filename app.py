@@ -212,7 +212,7 @@ def _resumo_endividamento_bancario(empresa_id: int) -> dict:
     ).fetchall()
     if not emprestimos:
         conn.close()
-        if empresa_id == EMPRESAS["mkb"]["id"]:
+        if empresa_id == EMPRESAS["gnileb"]["id"]:
             return {"saldo_a_pagar": 1916901.63, "valor_parcela_atual": 46753.70}
         return {"saldo_a_pagar": 0.0, "valor_parcela_atual": 0.0}
 
@@ -259,8 +259,8 @@ def _resumo_endividamento_bancario(empresa_id: int) -> dict:
 
     conn.close()
 
-    # Correção histórica MKB: enquanto razão não tem contas do empréstimo
-    if empresa_id == EMPRESAS["mkb"]["id"] and saldo_total == 0.0:
+    # Correção histórica Gnileb: enquanto razão não tem contas do empréstimo
+    if empresa_id == EMPRESAS["gnileb"]["id"] and saldo_total == 0.0:
         saldo_total = 1916901.63
         parcela_total = 46753.70
 
@@ -549,11 +549,11 @@ def index():
     pagos_banc_mkb = _pagamentos_mensais_bancario(EMPRESAS["mkb"]["id"], competencias)
     pagos_banc_gni = _pagamentos_mensais_bancario(EMPRESAS["gnileb"]["id"], competencias)
 
-    # MKB não tem emprestimos_bancarios no DB; parcela fixa R$ 46.753,70/mês
-    _PARCELA_BANC_MKB = 46753.70
+    # Gnileb não tem emprestimos_bancarios no DB; parcela fixa R$ 46.753,70/mês
+    _PARCELA_BANC_GNI = 46753.70
     for c in competencias:
-        if c <= "2026-05" and pagos_banc_mkb.get(c, 0.0) == 0.0:
-            pagos_banc_mkb[c] = _PARCELA_BANC_MKB
+        if c <= "2026-05" and pagos_banc_gni.get(c, 0.0) == 0.0:
+            pagos_banc_gni[c] = _PARCELA_BANC_GNI
 
     # Dívida tributária mensal: snapshot dos parcelamentos por competência
     conn_dash = get_conn()
@@ -578,14 +578,14 @@ def index():
         if comp not in divida_trib_por_mes:
             divida_trib_por_mes[comp] = val
 
-    # Dívida bancária mensal (MKB): saldo mai/2026 = 1.916.901,63; meses
+    # Dívida bancária mensal (Gnileb): saldo mai/2026 = 1.916.901,63; meses
     # anteriores reconstituídos somando parcelas de volta.
     _DIVIDA_BANC_HIST = {
         "2026-05": 1916901.63,
-        "2026-04": 1916901.63 + _PARCELA_BANC_MKB * 1,
-        "2026-03": 1916901.63 + _PARCELA_BANC_MKB * 2,
-        "2026-02": 1916901.63 + _PARCELA_BANC_MKB * 3,
-        "2026-01": 1916901.63 + _PARCELA_BANC_MKB * 4,
+        "2026-04": 1916901.63 + _PARCELA_BANC_GNI * 1,
+        "2026-03": 1916901.63 + _PARCELA_BANC_GNI * 2,
+        "2026-02": 1916901.63 + _PARCELA_BANC_GNI * 3,
+        "2026-01": 1916901.63 + _PARCELA_BANC_GNI * 4,
     }
 
     serie_endividamento_mensal = []
