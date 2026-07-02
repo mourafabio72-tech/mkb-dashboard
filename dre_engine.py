@@ -1737,6 +1737,16 @@ def analisar_despesas_fornecedores(empresa_id: int, competencias: list, tipo: st
     # (código + descrição oficial do plano de contas), bem mais granular que o
     # "balde" de grupo DRE (ex.: "SERV DE INFORMATICA" em vez de
     # "Serviço Contratado (Custo)").
+    # Contas cujo fornecedor é determinado pela própria conta (sem parceiro no histórico)
+    _FORNECEDOR_POR_CONTA = {
+        "4.4.1.04.01.001": "Juros",
+        "4.5.1.01.02.001": "IRPJ e CSLL",
+        "4.5.1.01.01.001": "IRPJ e CSLL",
+        "4.4.1.03.09.012": "Depreciação",
+        "4.4.1.03.01.008": "Iof",
+        "4.4.1.03.01.005": "Pis",
+    }
+
     pre = []   # [(competencia, conta_cod, codigo|None, nome_extraido|None, numero_nf|None, historico, data_lanc, valor)]
     nome_por_codigo: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for comp, conta_cod, hist, valor, codigo, data_lanc in linhas:
@@ -1749,6 +1759,10 @@ def analisar_despesas_fornecedores(empresa_id: int, competencias: list, tipo: st
         if tipo == "custo" and not eh_custo:
             continue
         if tipo == "despesa" and eh_custo:
+            continue
+        nome_fixo = _FORNECEDOR_POR_CONTA.get(conta_cod)
+        if nome_fixo:
+            pre.append((comp, conta_cod, None, nome_fixo, None, hist, data_lanc, valor))
             continue
         numero_nf, nome_extraido = _extrair_nf_fornecedor(hist)
         if codigo and nome_extraido:
@@ -1834,15 +1848,18 @@ def analisar_despesas_fornecedores(empresa_id: int, competencias: list, tipo: st
         elif nome_extraido and nome_extraido in nome_para_codigo:
             chave, nome, aproximado, via_similaridade = _resolve_por_codigo(nome_para_codigo[nome_extraido], nome_extraido)
         elif nome_extraido:
-            # "Tenta novamente" identificar a razão social oficial via fuzzy
-            # matching ANTES de cair no nome aproximado puro -- se achar, passa
-            # a agrupar pelo código oficial encontrado (consolidação melhor).
-            achado = _resolver_por_similaridade(nome_extraido)
-            if achado:
-                cod_fuzzy, nome = achado
-                chave, aproximado, via_similaridade = ("cod", cod_fuzzy), False, True
+            if nome_extraido in _FORNECEDOR_POR_CONTA.values():
+                chave, nome, aproximado = ("nome", nome_extraido), nome_extraido, False
             else:
-                chave, nome = ("nome", nome_extraido), nome_extraido
+                # "Tenta novamente" identificar a razão social oficial via fuzzy
+                # matching ANTES de cair no nome aproximado puro -- se achar, passa
+                # a agrupar pelo código oficial encontrado (consolidação melhor).
+                achado = _resolver_por_similaridade(nome_extraido)
+                if achado:
+                    cod_fuzzy, nome = achado
+                    chave, aproximado, via_similaridade = ("cod", cod_fuzzy), False, True
+                else:
+                    chave, nome = ("nome", nome_extraido), nome_extraido
         else:
             chave, nome, aproximado = ("sem_forn",), _SEM_FORNECEDOR, False
 
