@@ -99,6 +99,20 @@
 .rc-trend-down { background:rgba(239,68,68,.12); color:#ef4444; border:1px solid rgba(239,68,68,.25); }
 .rc-trend-pct  { display:block; font-size:8px; color:var(--muted); margin-top:1px; }
 
+/* Barra de filtro de tendência */
+.rc-tend-bar {
+  display:flex; align-items:center; gap:8px; margin-bottom:20px; flex-wrap:wrap;
+}
+.rc-tend-btn {
+  font-size:11px; font-weight:600; color:var(--muted);
+  background:var(--card2); border:1px solid var(--border); border-radius:6px;
+  padding:5px 12px; cursor:pointer; transition:all .15s;
+}
+.rc-tend-btn:hover { border-color:var(--accent); color:var(--primary); }
+.rc-tend-btn.ativo {
+  background:rgba(139,92,246,.15); border-color:var(--accent); color:var(--primary); font-weight:700;
+}
+
 /* Linha de cliente */
 .rc-cli td { padding:7px 6px; border-bottom:1px solid var(--border); }
 .rc-cli { cursor:pointer; }
@@ -201,20 +215,20 @@
       {% endfor %}
     </select>
   </div>
-  <div class="rc-filter-group">
-    <span class="rc-filter-label">Tendência</span>
-    <select id="filtro-tend" class="rc-select" onchange="filtrarTendencia()">
-      <option value="todos">Todos</option>
-      <option value="aumento">▲ Aumento</option>
-      <option value="reducao">▼ Redução</option>
-      <option value="atipico">▲▼ Ambos</option>
-    </select>
-  </div>
   <div class="rc-filter-sep"></div>
   <input type="text" id="busca-cliente" class="rc-search" placeholder="Buscar cliente..."
          oninput="filtrarClientes(this.value)">
   <noscript><button type="submit" class="rc-btn-sm">Filtrar</button></noscript>
 </form>
+
+{# ── Filtro de tendência (botões) ─────────────────────────────────────────── #}
+<div class="rc-tend-bar">
+  <span class="rc-filter-label">Tendência:</span>
+  <button class="rc-tend-btn ativo" data-tend="todos" onclick="selecionarTend(this)">Todos</button>
+  <button class="rc-tend-btn" data-tend="aumento" onclick="selecionarTend(this)">▲ Aumento</button>
+  <button class="rc-tend-btn" data-tend="reducao" onclick="selecionarTend(this)">▼ Redução</button>
+  <button class="rc-tend-btn" data-tend="atipico" onclick="selecionarTend(this)">▲▼ Ambos</button>
+</div>
 
 {# ── Alerta: meses sem CT1 ─────────────────────────────────────────────────── #}
 {% if analise.competencias_sem_ct1 %}
@@ -415,16 +429,17 @@ function expandirTodosClientes(abrir) {
   });
 }
 
+let _tendSelecionada = 'todos';
+
 function filtrarClientes(termo) {
-  const t = termo.trim().toLowerCase();
-  const tend = document.getElementById('filtro-tend').value;
+  const t = (termo || '').trim().toLowerCase();
   document.querySelectorAll('.cliente-row').forEach(row => {
     const nome = row.querySelector('.cliente-nome').textContent.toLowerCase();
     const bateNome = !t || nome.includes(t);
     const rt = row.dataset.tendencia || '';
-    const bateTend = tend === 'todos'
-      || (tend === 'atipico' && (rt === 'aumento' || rt === 'reducao'))
-      || rt === tend;
+    const bateTend = _tendSelecionada === 'todos'
+      || (_tendSelecionada === 'atipico' && (rt === 'aumento' || rt === 'reducao'))
+      || rt === _tendSelecionada;
     const visivel = bateNome && bateTend;
     row.style.display = visivel ? '' : 'none';
     const id = row.dataset.cliente;
@@ -439,9 +454,11 @@ function filtrarClientes(termo) {
   });
 }
 
-function filtrarTendencia() {
-  const busca = document.getElementById('busca-cliente').value;
-  filtrarClientes(busca);
+function selecionarTend(btn) {
+  document.querySelectorAll('.rc-tend-btn').forEach(b => b.classList.remove('ativo'));
+  btn.classList.add('ativo');
+  _tendSelecionada = btn.dataset.tend;
+  filtrarClientes(document.getElementById('busca-cliente').value);
 }
 </script>
 {% endblock %}
