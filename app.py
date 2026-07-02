@@ -213,7 +213,7 @@ def _resumo_endividamento_bancario(empresa_id: int) -> dict:
     if not emprestimos:
         conn.close()
         if empresa_id == EMPRESAS["gnileb"]["id"]:
-            return {"saldo_a_pagar": 1916901.63, "valor_parcela_atual": 46753.70}
+            return {"saldo_a_pagar": 1916902.00, "valor_parcela_atual": 46753.70}
         return {"saldo_a_pagar": 0.0, "valor_parcela_atual": 0.0}
 
     def _saldo_atual(conta):
@@ -259,9 +259,9 @@ def _resumo_endividamento_bancario(empresa_id: int) -> dict:
 
     conn.close()
 
-    # Correção histórica Gnileb: enquanto razão não tem contas do empréstimo
-    if empresa_id == EMPRESAS["gnileb"]["id"] and saldo_total == 0.0:
-        saldo_total = 1916901.63
+    # Valores fixos Gnileb (contrato CEF) — até Razão ter contas corretas
+    if empresa_id == EMPRESAS["gnileb"]["id"]:
+        saldo_total = 1916902.00
         parcela_total = 46753.70
 
     return {"saldo_a_pagar": saldo_total, "valor_parcela_atual": parcela_total}
@@ -578,14 +578,14 @@ def index():
         if comp not in divida_trib_por_mes:
             divida_trib_por_mes[comp] = val
 
-    # Dívida bancária mensal (Gnileb): saldo mai/2026 = 1.916.901,63; meses
+    # Dívida bancária mensal (Gnileb): saldo mai/2026 = 1.916.902; meses
     # anteriores reconstituídos somando parcelas de volta.
     _DIVIDA_BANC_HIST = {
-        "2026-05": 1916901.63,
-        "2026-04": 1916901.63 + _PARCELA_BANC_GNI * 1,
-        "2026-03": 1916901.63 + _PARCELA_BANC_GNI * 2,
-        "2026-02": 1916901.63 + _PARCELA_BANC_GNI * 3,
-        "2026-01": 1916901.63 + _PARCELA_BANC_GNI * 4,
+        "2026-05": 1916902.00,
+        "2026-04": 1916902.00 + _PARCELA_BANC_GNI * 1,
+        "2026-03": 1916902.00 + _PARCELA_BANC_GNI * 2,
+        "2026-02": 1916902.00 + _PARCELA_BANC_GNI * 3,
+        "2026-01": 1916902.00 + _PARCELA_BANC_GNI * 4,
     }
 
     serie_endividamento_mensal = []
