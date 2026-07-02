@@ -433,15 +433,15 @@ def usuarios():
 @admin_required
 def usuarios_novo():
     if request.method == "POST":
-        usuario = (request.form.get("usuario") or "").strip()
         nome    = (request.form.get("nome") or "").strip()
-        email   = (request.form.get("email") or "").strip() or None
+        email   = (request.form.get("email") or "").strip()
         senha   = (request.form.get("senha") or "").strip()
         role    = request.form.get("role", "leitura")
         role    = role if role in ("admin", "leitura") else "leitura"
+        usuario = email.split("@")[0] if email else ""
 
-        if not (usuario and nome and senha):
-            flash("Preencha usuário, nome e senha.", "warning")
+        if not (email and nome and senha):
+            flash("Preencha nome, e-mail e senha.", "warning")
             return redirect(url_for("usuarios_novo"))
         if len(senha) < 6:
             flash("A senha precisa ter pelo menos 6 caracteres.", "warning")
@@ -457,7 +457,7 @@ def usuarios_novo():
             conn.commit()
             flash(f"Usuário \"{usuario}\" criado ({role}).", "success")
         except sqlite3.IntegrityError:
-            flash(f"Já existe um usuário com o login \"{usuario}\".", "danger")
+            flash(f"Já existe um usuário com o e-mail \"{email}\".", "danger")
         finally:
             conn.close()
         return redirect(url_for("usuarios"))
