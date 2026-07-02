@@ -2501,6 +2501,15 @@ def endividamento_bancario(empresa):
             "detalhe": detalhe,
         })
 
+    # Valor para quitação: saldo das contas de empréstimo bancário
+    _CONTAS_QUITACAO = ("2.1.1.01.07.001", "2.1.1.01.07.002",
+                        "2.2.3.01.06.001", "2.2.3.01.06.002")
+    valor_quitacao = 0.0
+    for cq in _CONTAS_QUITACAO:
+        sq = _saldo_atual(cq)
+        if sq is not None:
+            valor_quitacao += sq
+
     conn.close()
 
     total_contratado      = sum(l["valor_contratado"] for l in linhas)
@@ -2544,10 +2553,11 @@ def endividamento_bancario(empresa):
         "endividamento_bancario.html",
         empresa=empresa_valida, linhas=linhas,
         ref_competencia=ref_competencia,
+        valor_original=1500000.00,
         total_contratado=total_contratado,
         total_pago_geral=total_pago_geral,
         total_saldo_geral=total_saldo_geral,
-        parcelas_a_pagar_total=parcelas_a_pagar_total,
+        valor_quitacao=valor_quitacao,
         algum_sem_dados=any(not l["tem_dados"] for l in linhas),
     )
 
