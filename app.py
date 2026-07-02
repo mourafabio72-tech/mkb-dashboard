@@ -1535,6 +1535,50 @@ def cadastro_pendencias(empresa="mkb"):
     )
 
 
+# --- ROTA: UPLOAD PLANO DE CONTAS (CSV) ---------------------------------------
+
+@app.route("/cadastro/pendencias/upload-plano", methods=["POST"])
+@login_required
+@admin_required
+def upload_plano_contas():
+    from plano_contas_parser import importar_plano_contas
+    import tempfile
+
+    empresa_chave = request.form.get("empresa", "mkb")
+    arquivo = request.files.get("arquivo")
+
+    if not arquivo or not arquivo.filename:
+        flash("Nenhum arquivo selecionado.", "warning")
+        return redirect(url_for("cadastro_pendencias", empresa=empresa_chave))
+
+    if not arquivo.filename.lower().endswith(".csv"):
+        flash("Formato inválido — envie um arquivo .csv (Conta;Descricao).", "danger")
+        return redirect(url_for("cadastro_pendencias", empresa=empresa_chave))
+
+    tmp = Path(tempfile.mkdtemp()) / arquivo.filename
+    arquivo.save(str(tmp))
+
+    try:
+        conn = get_conn()
+        resultado = importar_plano_contas(tmp, empresa_chave, conn)
+        conn.close()
+
+        if "erro" in resultado:
+            flash(f"Erro: {resultado['erro']}", "danger")
+        else:
+            flash(
+                f"✓ Plano de contas importado — {resultado['registros']} contas "
+                f"atualizadas para {resultado['empresa']}.",
+                "success"
+            )
+    except Exception as e:
+        flash(f"Erro ao processar arquivo: {e}", "danger")
+    finally:
+        tmp.unlink(missing_ok=True)
+
+    return redirect(url_for("cadastro_pendencias", empresa=empresa_chave))
+
+
 # --- ROTA: VALIDAÇÃO DRE × BALANCETE -----------------------------------------
 
 @app.route("/validacao")

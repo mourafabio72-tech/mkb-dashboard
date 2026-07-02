@@ -105,6 +105,32 @@
     </span>
   </div>
 
+  {# ── Upload do plano de contas ──────────────────────────────────────────── #}
+  <div class="pend-card" style="margin-bottom:12px">
+    <div class="pend-card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <span style="font-size:13px;font-weight:700;color:var(--primary)">📄 Importar Plano de Contas</span>
+        <span style="font-size:11px;color:var(--muted);margin-left:8px">CSV Protheus (Conta;Descricao) · resolve contas sem descrição</span>
+      </div>
+    </div>
+    <form method="POST" action="{{ url_for('upload_plano_contas') }}" enctype="multipart/form-data"
+          style="padding:14px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)">Empresa</span>
+        <select name="empresa" class="rc-select" style="padding:5px 8px;font-size:12px">
+          {% for chave, emp in EMPRESAS.items() %}
+            <option value="{{ chave }}" {% if empresa == chave %}selected{% endif %}>{{ emp.sigla }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <input type="file" name="arquivo" accept=".csv" required
+             style="font-size:12px;color:var(--text);flex:1;min-width:180px">
+      <button type="submit" class="rc-btn-sm" style="background:rgba(139,92,246,.15);border-color:var(--accent);color:var(--primary);font-weight:700;padding:6px 16px">
+        ⬆ Importar
+      </button>
+    </form>
+  </div>
+
   <div class="pend-card">
     {% if contas_sem_desc %}
     <div class="table-scroll">
