@@ -2517,15 +2517,13 @@ def endividamento_bancario(empresa):
     total_saldo_geral      = sum(l["saldo_a_pagar"] or 0 for l in linhas if l["tem_dados"])
     parcelas_a_pagar_total = sum(l["parcelas_a_pagar"] or 0 for l in linhas if l["tem_dados"])
 
-    # Correção histórica MKB: razão sem contas do empréstimo.
-    # Se não há empréstimos cadastrados ou nenhum com fonte "Razão",
-    # mostra os valores da contabilidade.
-    if empresa_valida == "mkb" and not any(l.get("fonte") == "Razão" for l in linhas):
+    # Fallback Gnileb: razão sem contas do empréstimo cadastradas.
+    # Mostra valores da contabilidade até que o cronograma seja importado.
+    if empresa_valida == "gnileb" and not any(l.get("fonte") == "Razão" for l in linhas):
         total_contratado       = 2082507.59
         total_pago_geral       = 165605.96
         total_saldo_geral      = 1916901.63
         valor_parcela_fixa     = 46753.70
-        parcelas_a_pagar_total = 41
         if not linhas:
             linhas.append({
                 "id": None, "banco": "CEF", "descricao": "Empréstimo Bancário",
@@ -2549,15 +2547,18 @@ def endividamento_bancario(empresa):
                 l["tem_dados"]           = True
                 l["fonte"]               = "Contabilidade (até mai/2026)"
 
+    # Valor original e quitação só se aplicam à Gnileb (contrato CEF)
+    v_original = 1500000.00 if empresa_valida == "gnileb" else None
+
     return render_template(
         "endividamento_bancario.html",
         empresa=empresa_valida, linhas=linhas,
         ref_competencia=ref_competencia,
-        valor_original=1500000.00,
+        valor_original=v_original,
         total_contratado=total_contratado,
         total_pago_geral=total_pago_geral,
         total_saldo_geral=total_saldo_geral,
-        valor_quitacao=valor_quitacao,
+        valor_quitacao=valor_quitacao if empresa_valida == "gnileb" else None,
         algum_sem_dados=any(not l["tem_dados"] for l in linhas),
     )
 

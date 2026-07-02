@@ -43,11 +43,13 @@
 
 {# ── Cards de resumo ──────────────────────────────────────────────────── #}
 <div class="kpi-grid">
+  {% if valor_original %}
   <div class="kpi-card">
     <div class="kpi-label">Valor Original</div>
     <div class="kpi-value">{{ valor_original | brl }}</div>
     <div class="kpi-sub">Valor original do empréstimo contratado</div>
   </div>
+  {% endif %}
   <div class="kpi-card kpi-highlight">
     <div class="kpi-label">Total Contratado</div>
     <div class="kpi-value">{{ total_contratado | brl }}</div>
@@ -63,11 +65,13 @@
     <div class="kpi-value">{{ total_saldo_geral | brl if not algum_sem_dados else '—' }}</div>
     <div class="kpi-sub">Saldo devedor líquido — Razão (se já importado) ou cronograma do contrato</div>
   </div>
+  {% if valor_quitacao is not none %}
   <div class="kpi-card">
     <div class="kpi-label">Valor para Quitação</div>
     <div class="kpi-value">{{ valor_quitacao | brl if valor_quitacao else '—' }}</div>
     <div class="kpi-sub">Saldo contábil das contas 2.1.1.01.07 + 2.2.3.01.06</div>
   </div>
+  {% endif %}
 </div>
 
 {# ── Tabela por contrato ──────────────────────────────────────────────── #}
