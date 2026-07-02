@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Pendências de Cadastro — {{ EMPRESAS[empresa].sigla }}{% endblock %}
+
+{% block content %}
+<style>
+.pend-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:20px; }
+.pend-title  { font-size:20px; font-weight:700; color:var(--primary); letter-spacing:-.2px; }
+.pend-sub    { font-size:12px; color:var(--muted); margin-top:3px; }
+
+.pend-kpi-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px; max-width:500px; }
+.pend-kpi {
+  background:var(--card2); border:1px solid var(--border);
+  border-radius:10px; padding:16px 20px;
+  display:flex; flex-direction:column; gap:3px;
+}
+.pend-kpi-warn  { border-color:rgba(251,191,36,.4); }
+.pend-kpi-ok    { border-color:rgba(52,211,153,.4); }
+.pend-kpi-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; color:var(--muted); }
+.pend-kpi-value { font-size:28px; font-weight:700; color:var(--text); line-height:1.15; }
+.pend-kpi-sub   { font-size:11px; color:var(--muted); }
+
+.pend-section { margin-bottom:28px; }
+.pend-section-title {
+  font-size:14px; font-weight:700; color:var(--primary);
+  margin-bottom:10px; display:flex; align-items:center; gap:8px;
+}
+.pend-section-badge {
+  font-size:10px; font-weight:700; color:#fff; border-radius:10px;
+  padding:2px 8px; display:inline-block;
+}
+.pend-badge-warn { background:rgba(251,191,36,.7); }
+.pend-badge-ok   { background:rgba(52,211,153,.7); }
+
+.pend-table { width:100%; border-collapse:collapse; font-size:12px; }
+.pend-table th {
+  padding:8px 12px; background:var(--card2);
+  border-bottom:2px solid var(--border);
+  font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px;
+  color:var(--muted); text-align:left;
+}
+.pend-table th.th-right { text-align:right; }
+.pend-table td {
+  padding:7px 12px; border-bottom:1px solid var(--border);
+  color:var(--text);
+}
+.pend-table tr:hover td { background-color:rgba(139,92,246,.06); }
+.pend-num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.pend-code {
+  font-family:monospace; font-size:11px; color:var(--accent);
+  background:rgba(139,92,246,.08); padding:2px 6px; border-radius:4px;
+}
+.pend-hist {
+  font-size:11px; color:var(--muted); max-width:400px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.pend-empty {
+  text-align:center; padding:32px; color:var(--muted); font-size:13px;
+}
+
+.pend-card {
+  background:var(--card2); border:1px solid var(--border);
+  border-radius:10px; overflow:hidden; margin-bottom:4px;
+}
+.pend-card-header {
+  padding:12px 18px; border-bottom:1px solid var(--border);
+  background:rgba(139,92,246,.03); border-radius:10px 10px 0 0;
+}
+</style>
+
+<div class="pend-header">
+  <div>
+    <h1 class="pend-title">⚠ Pendências de Cadastro</h1>
+    <p class="pend-sub">Contas sem descrição e fornecedores sem razão social · fonte: Razão CT1</p>
+  </div>
+  <div class="toggle-dre-tipo">
+    {% for chave, emp in EMPRESAS.items() %}
+      <a href="{{ url_for('cadastro_pendencias', empresa=chave) }}"
+         class="btn-toggle-tipo {% if empresa == chave %}ativo{% endif %}">
+        {{ emp.sigla }}
+      </a>
+    {% endfor %}
+  </div>
+</div>
+
+{# ── KPIs resumo ──────────────────────────────────────────────────────────── #}
+<div class="pend-kpi-row">
+  <div class="pend-kpi {% if contas_sem_desc %}pend-kpi-warn{% else %}pend-kpi-ok{% endif %}">
+    <span class="pend-kpi-label">Contas sem descrição</span>
+    <span class="pend-kpi-value">{{ contas_sem_desc | length }}</span>
+    <span class="pend-kpi-sub">{{ "contas usadas no razão" if contas_sem_desc else "tudo ok ✓" }}</span>
+  </div>
+  <div class="pend-kpi {% if forn_sem_razao %}pend-kpi-warn{% else %}pend-kpi-ok{% endif %}">
+    <span class="pend-kpi-label">Fornecedores sem razão social</span>
+    <span class="pend-kpi-value">{{ forn_sem_razao | length }}</span>
+    <span class="pend-kpi-sub">{{ "códigos sem cadastro" if forn_sem_razao else "tudo ok ✓" }}</span>
+  </div>
+</div>
+
+{# ── Seção 1: Contas sem descrição ────────────────────────────────────────── #}
+<div class="pend-section">
+  <div class="pend-section-title">
+    1. Contas contábeis sem descrição
+    <span class="pend-section-badge {% if contas_sem_desc %}pend-badge-warn{% else %}pend-badge-ok{% endif %}">
+      {{ contas_sem_desc | length }} {{ "pendências" if contas_sem_desc | length != 1 else "pendência" }}
+    </span>
+  </div>
+
+  <div class="pend-card">
+    {% if contas_sem_desc %}
+    <div class="table-scroll">
+    <table class="pend-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Código da Conta</th>
+          <th class="th-right">Lançamentos</th>
+          <th class="th-right">Valor Total (abs)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in contas_sem_desc %}
+        <tr>
+          <td class="pend-num">{{ loop.index }}</td>
+          <td><span class="pend-code">{{ row.conta_cod }}</span></td>
+          <td class="pend-num">{{ "{:,}".format(row.qtd_lanc).replace(",", ".") }}</td>
+          <td class="pend-num">{{ fmt_brl(row.valor_total) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="pend-empty">✓ Todas as contas usadas no razão possuem descrição no plano de contas.</p>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Seção 2: Fornecedores sem razão social ───────────────────────────────── #}
+<div class="pend-section">
+  <div class="pend-section-title">
+    2. Fornecedores sem razão social
+    <span class="pend-section-badge {% if forn_sem_razao %}pend-badge-warn{% else %}pend-badge-ok{% endif %}">
+      {{ forn_sem_razao | length }} {{ "pendências" if forn_sem_razao | length != 1 else "pendência" }}
+    </span>
+  </div>
+
+  <div class="pend-card">
+    {% if forn_sem_razao %}
+    <div class="table-scroll">
+    <table class="pend-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Código Parceiro</th>
+          <th class="th-right">Lançamentos</th>
+          <th class="th-right">Valor Total (abs)</th>
+          <th>Exemplo de Histórico</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in forn_sem_razao %}
+        <tr>
+          <td class="pend-num">{{ loop.index }}</td>
+          <td><span class="pend-code">{{ row.parceiro_cod }}</span></td>
+          <td class="pend-num">{{ "{:,}".format(row.qtd_lanc).replace(",", ".") }}</td>
+          <td class="pend-num">{{ fmt_brl(row.valor_total) }}</td>
+          <td class="pend-hist" title="{{ row.exemplo_hist }}">{{ row.exemplo_hist or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="pend-empty">✓ Todos os fornecedores do razão possuem razão social no cadastro.</p>
+    {% endif %}
+  </div>
+</div>
+
+<p style="font-size:11px; color:var(--muted); margin-top:16px;">
+  ℹ️ Contas sem descrição: importar o plano de contas ou adicionar manualmente via De-Para.
+  <br>
+  Fornecedores sem razão social: importar cadastro de fornecedores (Cli_For) ou mapear conta fixa em <code>_FORNECEDOR_POR_CONTA</code>.
+</p>
+{% endblock %}

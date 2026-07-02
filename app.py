@@ -1482,6 +1482,59 @@ def cadastro():
     return render_template("cadastro.html")
 
 
+# --- ROTA: PENDÊNCIAS DE CADASTRO --------------------------------------------
+
+@app.route("/cadastro/pendencias")
+@app.route("/cadastro/pendencias/<empresa>")
+@login_required
+@admin_required
+def cadastro_pendencias(empresa="mkb"):
+    empresa_valida = empresa if empresa in EMPRESAS else "mkb"
+    emp_id = EMPRESAS[empresa_valida]["id"]
+
+    conn = get_conn()
+
+    # 1) Contas usadas no razão sem descrição no plano de contas
+    contas_sem_desc = conn.execute("""
+        SELECT DISTINCT r.conta_cod, COUNT(*) as qtd_lanc,
+               SUM(ABS(r.valor)) as valor_total
+        FROM razao r
+        LEFT JOIN contas c ON c.cod = r.conta_cod AND c.empresa_id = r.empresa_id
+        WHERE r.empresa_id = ?
+          AND (c.descricao IS NULL OR c.descricao = '')
+        GROUP BY r.conta_cod
+        ORDER BY valor_total DESC
+    """, (emp_id,)).fetchall()
+
+    # 2) Fornecedores sem razão social (parceiro_cod no razão sem cadastro)
+    #    Traz o nome extraído do histórico (mais frequente) para referência
+    forn_sem_razao = conn.execute("""
+        SELECT r.parceiro_cod,
+               COUNT(*) as qtd_lanc,
+               SUM(ABS(r.valor)) as valor_total,
+               r.historico as exemplo_hist
+        FROM razao r
+        WHERE r.empresa_id = ?
+          AND r.parceiro_cod IS NOT NULL AND r.parceiro_cod != ''
+          AND r.conta_cod LIKE '4.%%'
+          AND r.parceiro_cod NOT IN (
+              SELECT cliente_cod FROM fornecedores_cadastro
+          )
+        GROUP BY r.parceiro_cod
+        ORDER BY valor_total DESC
+    """, (emp_id,)).fetchall()
+
+    conn.close()
+
+    return render_template(
+        "cadastro_pendencias.html",
+        empresa=empresa_valida,
+        contas_sem_desc=contas_sem_desc,
+        forn_sem_razao=forn_sem_razao,
+        fmt_brl=fmt_brl,
+    )
+
+
 # --- ROTA: VALIDAÇÃO DRE × BALANCETE -----------------------------------------
 
 @app.route("/validacao")
