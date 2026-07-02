@@ -1740,6 +1740,9 @@ def analisar_despesas_fornecedores(empresa_id: int, competencias: list, tipo: st
     # Contas cujo fornecedor é determinado pela própria conta (sem parceiro no histórico)
     _FORNECEDOR_POR_CONTA = {
         "4.4.1.04.01.001": "Juros",
+        "4.4.1.04.01.008": "Multas",
+        "4.4.1.04.02.002": "Desconto",
+        "4.4.1.04.02.003": "Rendimento aplicação",
         "4.5.1.01.02.001": "IRPJ e CSLL",
         "4.5.1.01.01.001": "IRPJ e CSLL",
         "4.4.1.03.09.012": "Depreciação",
