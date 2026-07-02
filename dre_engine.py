@@ -1293,11 +1293,37 @@ def analisar_receita_clientes(empresa_id: int, competencias: list) -> dict:
                 "total_geral": sum(info["totais"].values()),
             })
         notas.sort(key=lambda x: (x["data"] or "", x["numero"] or ""))
+
+        # Detecta movimentação atípica: último mês vs média dos anteriores
+        tendencia = None
+        tendencia_pct = 0.0
+        if len(comps_ok) >= 2:
+            valores_ord = [dados["totais"].get(c, 0.0) for c in comps_ok]
+            ultimo = valores_ord[-1]
+            anteriores = [v for v in valores_ord[:-1] if v]
+            if anteriores:
+                media_ant = sum(anteriores) / len(anteriores)
+                if media_ant > 0:
+                    variacao = (ultimo - media_ant) / media_ant
+                    tendencia_pct = variacao * 100
+                    if variacao >= 0.30:
+                        tendencia = "aumento"
+                    elif variacao <= -0.30:
+                        tendencia = "reducao"
+                elif ultimo > 0:
+                    tendencia = "aumento"
+                    tendencia_pct = 100.0
+            elif ultimo > 0:
+                tendencia = "aumento"
+                tendencia_pct = 100.0
+
         lista.append({
-            "nome":        nome,
-            "totais":      dados["totais"],
-            "total_geral": total_geral,
-            "notas":       notas,
+            "nome":          nome,
+            "totais":        dados["totais"],
+            "total_geral":   total_geral,
+            "notas":         notas,
+            "tendencia":     tendencia,
+            "tendencia_pct": tendencia_pct,
         })
     lista.sort(key=lambda x: x["total_geral"], reverse=True)
 

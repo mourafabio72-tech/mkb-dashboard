@@ -76,7 +76,7 @@
    sempre, de forma confiável, antes de todas as linhas. */
 .rc-table { width:100%; border-collapse:collapse; font-size:12px; }
 .rc-table th {
-  padding:8px 10px; background:var(--card2);
+  padding:6px 6px; background:var(--card2);
   border-bottom:2px solid var(--border);
   font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px;
   color:var(--muted); white-space:nowrap; text-align:right;
@@ -89,8 +89,18 @@
 }
 .th-sort { font-weight:400; color:rgba(107,107,154,.35); text-transform:none; letter-spacing:0; font-size:9px; margin-left:3px; }
 
+/* Coluna de tendência */
+.rc-trend { text-align:center; white-space:nowrap; width:32px; min-width:32px; }
+.rc-trend-icon {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:22px; height:22px; border-radius:50%; font-size:12px; line-height:1;
+}
+.rc-trend-up   { background:rgba(239,68,68,.12); color:#ef4444; border:1px solid rgba(239,68,68,.25); }
+.rc-trend-down { background:rgba(59,130,246,.12); color:#3b82f6; border:1px solid rgba(59,130,246,.25); }
+.rc-trend-pct  { display:block; font-size:8px; color:var(--muted); margin-top:1px; }
+
 /* Linha de cliente */
-.rc-cli td { padding:9px 10px; border-bottom:1px solid var(--border); }
+.rc-cli td { padding:7px 6px; border-bottom:1px solid var(--border); }
 .rc-cli { cursor:pointer; }
 .rc-cli:hover td { background-color:rgba(139,92,246,.06); }
 .rc-cli.grupo-expandido td { background-color:rgba(139,92,246,.09); }
@@ -107,9 +117,9 @@
 .rc-rank-3 { background:rgba(180,120,90,.12);  color:#c08060; border:1px solid rgba(180,120,90,.25); }
 
 /* Células numéricas */
-.rc-num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.rc-num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; font-size:11px; }
 .rc-num-total {
-  text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; font-weight:700;
+  text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; font-weight:700; font-size:11px;
   border-left:1px solid rgba(52,211,153,.2);
   background-color:rgba(52,211,153,.04) !important;
 }
@@ -271,6 +281,7 @@
         {% endfor %}
         <th class="th-total">Total</th>
         <th class="th-pct th-total" title="AV% no período">AV%</th>
+        <th title="Movimentação atípica: ≥30% variação vs média anterior">Tend.</th>
       </tr>
     </thead>
     <tbody>
@@ -299,6 +310,13 @@
         {% endfor %}
         <td class="rc-num-total">{{ fmt_brl(cli.total_geral) }}</td>
         <td class="rc-pct-total">{{ "%.1f"|format(cli_pct) }}%</td>
+        <td class="rc-trend">
+          {% if cli.tendencia == "aumento" %}
+            <span class="rc-trend-icon rc-trend-up" title="Aumento atípico: +{{ '%.0f'|format(cli.tendencia_pct) }}% vs média anterior">▲</span>
+          {% elif cli.tendencia == "reducao" %}
+            <span class="rc-trend-icon rc-trend-down" title="Redução atípica: {{ '%.0f'|format(cli.tendencia_pct) }}% vs média anterior">▼</span>
+          {% endif %}
+        </td>
       </tr>
 
       {# ── Notas fiscais (expansível) ──────────────────────────────────────── #}
@@ -309,6 +327,7 @@
           <th class="th-pct">AV%</th>
         {% endfor %}
         <th>Total</th>
+        <th></th>
         <th></th>
       </tr>
       {% for nf in cli.notas %}
@@ -328,6 +347,7 @@
         {% endfor %}
         <td class="rc-num" style="font-weight:600">{{ fmt_brl(nf.total_geral) }}</td>
         <td></td>
+        <td></td>
       </tr>
       {% endfor %}
       {% endfor %}
@@ -341,6 +361,7 @@
         {% endfor %}
         <td class="rc-num">{{ fmt_brl(analise.total_geral) }}</td>
         <td style="text-align:right;font-size:10px;color:var(--muted)">100%</td>
+        <td></td>
       </tr>
     </tfoot>
   </table>
@@ -351,6 +372,8 @@
   ℹ️ Nome do cliente extraído do campo <em>histórico</em> do lançamento Protheus
   (padrão <code>VL.NF.&lt;número&gt; - &lt;CLIENTE&gt;</code>). Largura fixa na origem —
   nomes longos podem aparecer truncados (marcados com <span class="badge-ct2">?</span>).
+  <br>
+  <span style="color:#ef4444">▲</span> Aumento atípico · <span style="color:#3b82f6">▼</span> Redução atípica — variação ≥ 30% do último mês vs média dos anteriores.
 </p>
 
 {% endif %}
