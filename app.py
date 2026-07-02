@@ -2520,9 +2520,9 @@ def endividamento_bancario(empresa):
     # Fallback Gnileb: razão sem contas do empréstimo cadastradas.
     # Mostra valores da contabilidade até que o cronograma seja importado.
     if empresa_valida == "gnileb" and not any(l.get("fonte") == "Razão" for l in linhas):
-        total_contratado       = 2082507.59
-        total_pago_geral       = 165605.96
-        total_saldo_geral      = 1916901.63
+        total_contratado       = 2082508.00
+        total_pago_geral       = 165606.00
+        total_saldo_geral      = 1916902.00
         valor_parcela_fixa     = 46753.70
         if not linhas:
             linhas.append({
@@ -2549,6 +2549,8 @@ def endividamento_bancario(empresa):
 
     # Valor original e quitação só se aplicam à Gnileb (contrato CEF)
     v_original = 1500000.00 if empresa_valida == "gnileb" else None
+    if empresa_valida == "gnileb" and valor_quitacao == 0.0:
+        valor_quitacao = 1447888.05
 
     return render_template(
         "endividamento_bancario.html",

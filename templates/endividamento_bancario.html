@@ -56,18 +56,18 @@
     <div class="kpi-sub">Soma do valor líquido liberado de todos os empréstimos</div>
   </div>
   <div class="kpi-card">
-    <div class="kpi-label">Total Pago até {{ mes_label(ref_competencia) }}</div>
+    <div class="kpi-label">Total Amortizado até {{ mes_label(ref_competencia) }}</div>
     <div class="kpi-value">{{ total_pago_geral | brl if not algum_sem_dados else '—' }}</div>
     <div class="kpi-sub">Amortização paga (Total Contratado − Saldo a Pagar)</div>
   </div>
   <div class="kpi-card">
-    <div class="kpi-label">Saldo a Pagar</div>
+    <div class="kpi-label">Saldo Devedor a Pagar</div>
     <div class="kpi-value">{{ total_saldo_geral | brl if not algum_sem_dados else '—' }}</div>
     <div class="kpi-sub">Saldo devedor líquido — Razão (se já importado) ou cronograma do contrato</div>
   </div>
   {% if valor_quitacao is not none %}
   <div class="kpi-card">
-    <div class="kpi-label">Valor para Quitação</div>
+    <div class="kpi-label">Valor Aproximado para Quitação</div>
     <div class="kpi-value">{{ valor_quitacao | brl if valor_quitacao else '—' }}</div>
     <div class="kpi-sub">Saldo contábil das contas 2.1.1.01.07 + 2.2.3.01.06</div>
   </div>
