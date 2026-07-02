@@ -95,8 +95,8 @@
   display:inline-flex; align-items:center; justify-content:center;
   width:22px; height:22px; border-radius:50%; font-size:12px; line-height:1;
 }
-.rc-trend-up   { background:rgba(239,68,68,.12); color:#ef4444; border:1px solid rgba(239,68,68,.25); }
-.rc-trend-down { background:rgba(59,130,246,.12); color:#3b82f6; border:1px solid rgba(59,130,246,.25); }
+.rc-trend-up   { background:rgba(52,211,153,.12); color:#34d399; border:1px solid rgba(52,211,153,.25); }
+.rc-trend-down { background:rgba(239,68,68,.12); color:#ef4444; border:1px solid rgba(239,68,68,.25); }
 .rc-trend-pct  { display:block; font-size:8px; color:var(--muted); margin-top:1px; }
 
 /* Linha de cliente */
@@ -201,6 +201,15 @@
       {% endfor %}
     </select>
   </div>
+  <div class="rc-filter-group">
+    <span class="rc-filter-label">Tendência</span>
+    <select id="filtro-tend" class="rc-select" onchange="filtrarTendencia()">
+      <option value="todos">Todos</option>
+      <option value="aumento">▲ Aumento</option>
+      <option value="reducao">▼ Redução</option>
+      <option value="atipico">▲▼ Ambos</option>
+    </select>
+  </div>
   <div class="rc-filter-sep"></div>
   <input type="text" id="busca-cliente" class="rc-search" placeholder="Buscar cliente..."
          oninput="filtrarClientes(this.value)">
@@ -288,7 +297,7 @@
       {% for cli in analise.clientes %}
       {% set safe_id  = "cli-" ~ loop.index %}
       {% set cli_pct  = cli.total_geral / analise.total_geral * 100 if analise.total_geral else 0 %}
-      <tr class="rc-cli cliente-row" data-cliente="{{ safe_id }}" onclick="toggleCliente(this)">
+      <tr class="rc-cli cliente-row" data-cliente="{{ safe_id }}" data-tendencia="{{ cli.tendencia or '' }}" onclick="toggleCliente(this)">
         <td>
           <div class="rc-cli-nome">
             {% if loop.index <= 3 %}
@@ -373,7 +382,7 @@
   (padrão <code>VL.NF.&lt;número&gt; - &lt;CLIENTE&gt;</code>). Largura fixa na origem —
   nomes longos podem aparecer truncados (marcados com <span class="badge-ct2">?</span>).
   <br>
-  <span style="color:#ef4444">▲</span> Aumento atípico · <span style="color:#3b82f6">▼</span> Redução atípica — variação ≥ 30% do último mês vs média dos anteriores.
+  <span style="color:#34d399">▲</span> Aumento atípico · <span style="color:#ef4444">▼</span> Redução atípica — variação ≥ 30% do último mês vs média dos anteriores.
 </p>
 
 {% endif %}
@@ -408,12 +417,18 @@ function expandirTodosClientes(abrir) {
 
 function filtrarClientes(termo) {
   const t = termo.trim().toLowerCase();
+  const tend = document.getElementById('filtro-tend').value;
   document.querySelectorAll('.cliente-row').forEach(row => {
     const nome = row.querySelector('.cliente-nome').textContent.toLowerCase();
-    const bate = !t || nome.includes(t);
-    row.style.display = bate ? '' : 'none';
+    const bateNome = !t || nome.includes(t);
+    const rt = row.dataset.tendencia || '';
+    const bateTend = tend === 'todos'
+      || (tend === 'atipico' && (rt === 'aumento' || rt === 'reducao'))
+      || rt === tend;
+    const visivel = bateNome && bateTend;
+    row.style.display = visivel ? '' : 'none';
     const id = row.dataset.cliente;
-    if (!bate) {
+    if (!visivel) {
       const hdr = document.getElementById(`hdr-${id}`);
       if (hdr) hdr.style.display = 'none';
       document.querySelectorAll(`[id^="${id}-"]`).forEach(r => r.style.display = 'none');
@@ -422,6 +437,11 @@ function filtrarClientes(termo) {
       if (icon) icon.textContent = '▶';
     }
   });
+}
+
+function filtrarTendencia() {
+  const busca = document.getElementById('busca-cliente').value;
+  filtrarClientes(busca);
 }
 </script>
 {% endblock %}
