@@ -30,17 +30,17 @@ from openpyxl.utils.datetime import from_excel
 
 from config import EMPRESAS
 
-SHEET_NAME = "ANUAL"
+SHEET_NAMES = ("ANUAL", "IRPJ CSLL")
 
 _MESES_PT = ("jan", "fev", "mar", "abr", "mai", "jun",
              "jul", "ago", "set", "out", "nov", "dez")
 
 # Marcadores (tolerantes a acento/caixa) usados para classificar as linhas.
-# "a pagar" foi removido: dá falso positivo em linhas que não são o total
-# final (ex.: "Provisões de Serviços a Pagar", um item de adição/exclusão).
-# "a recolher" é o marcador real observado na planilha do cliente
-# ("CSLL A RECOLHER" / "IRPJ A RECOLHER" -- sempre a última linha do bloco).
+# "a recolher" = Lucro Real; para Presumido, "IR A PAGAR" / "CSLL A PAGAR"
+# são as linhas finais (detectadas por regex para evitar falso positivo com
+# "Provisões de Serviços a Pagar").
 _MARCADORES_DESTAQUE = ("a recolher", "final")
+_RE_DESTAQUE_PAGAR = re.compile(r"^(ir|irpj|csll)\s+a\s+pagar", re.IGNORECASE)
 
 # Linhas de subtotal/marco do cálculo -- ficam em negrito na tela para
 # evidenciar a estrutura da apuração (lucro contábil/líquido, adições,
@@ -49,10 +49,10 @@ _MARCADORES_DESTAQUE = ("a recolher", "final")
 _SUBTOTAL_EXATO = (
     "adicoes", "adicoes permanente", "adicoes temporarias",
     "exclusoes", "exclusao permanente", "exclusoes temporarias",
-    "csll devida", "irpj devido",
+    "csll devida", "irpj devido", "imposto devido",
 )
 _SUBTOTAL_PREFIXO = ("lucro contabil", "lucro liquido")
-_SUBTOTAL_CONTEM = ("compensacao", "base bruta")
+_SUBTOTAL_CONTEM = ("compensacao", "base bruta", "base de calculo")
 
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -174,39 +174,34 @@ def _to_float(valor) -> float | None:
 
 # ─── LEITURA DO EXCEL ─────────────────────────────────────────────────────────
 
-def parse_irpj_csll(caminho: Path) -> dict:
+def _encontrar_aba(wb) -> str:
+    """Encontra a aba de IRPJ/CSLL: 'ANUAL', 'IRPJ CSLL *', ou fallback 1ª."""
+    for n in wb.sheetnames:
+        nu = n.strip().upper()
+        if nu == "ANUAL":
+            return n
+        for prefix in SHEET_NAMES:
+            if nu.startswith(prefix.upper()):
+                return n
+    return wb.sheetnames[0]
+
+
+def _detectar_layout(rows) -> tuple:
     """
-    Lê a aba ANUAL (case-insensitive; fallback 1ª aba) e retorna:
-        {"competencias": ["2026-01", ...], "registros": [...]}
+    Detecta automaticamente o layout da planilha:
+    - Lucro Real (MKB): conta col A(0), desc col B(1), meses C+(2+), seção inicial CSLL
+    - Presumido (Gnileb): conta col B(1), desc col C(2), meses D+(3+), seção inicial IRPJ
 
-    Cada registro: {competencia, secao, ordem, conta_cod, descricao, valor, is_destaque}
-    `ordem` preserva a posição original da linha na planilha (1-based, contínua
-    entre os dois blocos) para reconstrução fiel na tela.
+    Retorna (header_idx, col_comp, col_conta, col_desc, secao_inicial).
     """
-    print(f"  Abrindo IRPJ/CSLL (ANUAL): {caminho.name}")
-    wb = openpyxl.load_workbook(caminho, data_only=True, read_only=True)
-
-    nome_aba = next(
-        (n for n in wb.sheetnames if n.strip().upper() == SHEET_NAME),
-        wb.sheetnames[0],
-    )
-    ws = wb[nome_aba]
-    rows = list(ws.iter_rows(values_only=True))
-    wb.close()
-
-    if not rows:
-        return {"competencias": [], "registros": []}
-
-    # 1. Detecta linha de cabeçalho com os meses (colunas C+, índice >= 2).
-    #    Aceita texto ("Jan/26"), datas numéricas ("01/2026") e células
-    #    formatadas como data (datetime/date) -- comum quando o Excel
-    #    formata o cabeçalho do mês como data em vez de texto.
     ano_default = datetime.now().year
-    header_idx = None
-    col_comp: dict[int, str] = {}
+
+    # Procura a primeira linha com >= 2 meses reconhecidos. A coluna MÍNIMA
+    # onde o primeiro mês aparece determina o layout:
+    #   - col 2 → Real (conta A, desc B, meses C+)
+    #   - col 3+ → Presumido (conta B, desc C, meses D+)
     for r_idx, row in enumerate(rows[:15]):
         achou = {}
-        nao_reconhecidas = []
         for c_idx in range(2, len(row)):
             cel = row[c_idx]
             if cel in (None, ""):
@@ -215,31 +210,68 @@ def parse_irpj_csll(caminho: Path) -> dict:
             if resolvido:
                 mes_num, ano = resolvido
                 achou[c_idx] = f"{ano}-{mes_num:02d}"
+        if len(achou) >= 2:
+            primeiro_col = min(achou.keys())
+            if primeiro_col == 2:
+                return r_idx, achou, 0, 1, "CSLL"
             else:
-                nao_reconhecidas.append((c_idx, repr(cel), type(cel).__name__))
-        if achou and nao_reconhecidas:
-            # Diagnóstico: linha de cabeçalho identificada, mas com células
-            # vizinhas não reconhecidas como mês -- ajuda a investigar casos
-            # como número de série Excel fora do intervalo esperado.
-            print(f"  AVISO: colunas de cabecalho nao reconhecidas como mes na linha {r_idx+1}: {nao_reconhecidas}")
-        if achou:
-            header_idx = r_idx
-            col_comp = achou
-            break
+                secao_ini = _detectar_secao_inicial(rows, r_idx)
+                return r_idx, achou, 1, 2, secao_ini
+
+    return None, {}, 0, 1, "CSLL"
+
+
+def _detectar_secao_inicial(rows, header_idx) -> str:
+    """Verifica se o cabeçalho pré-dados indica IRPJ ou CSLL primeiro."""
+    for row in rows[:header_idx + 1]:
+        for cel in row:
+            if cel is None:
+                continue
+            t = _norm(str(cel))
+            if "imposto de renda" in t or t.strip(" :-—.") == "irpj":
+                return "IRPJ"
+            if "contribuicao social" in t or t.strip(" :-—.") == "csll":
+                return "CSLL"
+    return "IRPJ"
+
+
+def parse_irpj_csll(caminho: Path) -> dict:
+    """
+    Lê a aba ANUAL ou 'IRPJ CSLL *' e retorna:
+        {"competencias": ["2026-01", ...], "registros": [...]}
+
+    Suporta dois layouts:
+    - Lucro Real (ANUAL): conta A, desc B, meses C+, CSLL primeiro
+    - Presumido (IRPJ CSLL *): conta B, desc C, meses D+, IRPJ primeiro
+    """
+    print(f"  Abrindo IRPJ/CSLL: {caminho.name}")
+    wb = openpyxl.load_workbook(caminho, data_only=True, read_only=True)
+
+    nome_aba = _encontrar_aba(wb)
+    ws = wb[nome_aba]
+    rows = list(ws.iter_rows(values_only=True))
+    wb.close()
+
+    if not rows:
+        return {"competencias": [], "registros": []}
+
+    header_idx, col_comp, col_conta, col_desc, secao_inicial = _detectar_layout(rows)
 
     if header_idx is None:
         print("  AVISO: nenhuma linha de cabecalho de mes encontrada na aba.")
         return {"competencias": [], "registros": []}
 
+    outra_secao = "CSLL" if secao_inicial == "IRPJ" else "IRPJ"
+    print(f"  Layout: conta=col{col_conta} desc=col{col_desc} | secao inicial={secao_inicial} | aba={nome_aba}")
+
     cols_ordenadas = sorted(col_comp.keys())
 
-    # 3. Processa linhas de dados (abaixo do cabeçalho), classificando seção
-    secao_atual = "CSLL"
+    secao_atual = secao_inicial
     registros = []
     ordem = 0
     for row in rows[header_idx + 1:]:
-        conta_cod = str(row[0]).strip() if len(row) > 0 and row[0] is not None else ""
-        descricao = str(row[1]).strip() if len(row) > 1 and row[1] is not None else ""
+        conta_cod = str(row[col_conta]).strip() if len(row) > col_conta and row[col_conta] is not None else ""
+        descricao = str(row[col_desc]).strip() if len(row) > col_desc and row[col_desc] is not None else ""
         if not descricao:
             continue
 
@@ -247,23 +279,20 @@ def parse_irpj_csll(caminho: Path) -> dict:
         desc_norm = _norm(descricao)
         desc_pontuacao_solta = desc_norm.strip(" :-—.")
 
-        # Transição CSLL -> IRPJ: a planilha real usa uma linha-título isolada
-        # contendo só a palavra "IRPJ" (sem mais nada) para abrir o 2º bloco
-        # -- ex.: "IRPJ" sozinho na coluna B, seguido de "Descrição" repetido.
-        # Mantém também o padrão alternativo "irpj"+"base" (outras planilhas
-        # podem nomear o início do bloco como "Base de Cálculo do IRPJ").
-        eh_titulo_irpj = desc_pontuacao_solta == "irpj"
-        eh_base_irpj   = "irpj" in desc_norm and "base" in desc_norm
-        if secao_atual == "CSLL" and (eh_titulo_irpj or eh_base_irpj):
-            secao_atual = "IRPJ"
+        # Transição entre seções
+        if secao_atual == secao_inicial:
+            eh_titulo_outra = desc_pontuacao_solta == _norm(outra_secao)
+            if outra_secao == "IRPJ":
+                eh_base_outra = "irpj" in desc_norm and "base" in desc_norm
+            else:
+                eh_base_outra = "contribuicao social" in desc_norm
+            if eh_titulo_outra or eh_base_outra:
+                secao_atual = outra_secao
 
-        # is_destaque/is_subtotal dependem só da DESCRIÇÃO da linha, nunca do
-        # valor -- "CSLL/IRPJ A RECOLHER" continua sendo a linha-destaque
-        # mesmo quando o valor é zero em todos os meses (ex.: quando as
-        # antecipações cobrem 100% do imposto devido). Calcular em função do
-        # valor faria o card de resumo "desaparecer" justamente no caso mais
-        # comum (imposto zerado).
-        is_destaque = any(m in desc_norm for m in _MARCADORES_DESTAQUE)
+        is_destaque = (
+            any(m in desc_norm for m in _MARCADORES_DESTAQUE)
+            or bool(_RE_DESTAQUE_PAGAR.search(descricao))
+        )
         is_subtotal = _is_subtotal_linha(desc_norm)
 
         valores_por_col = {
