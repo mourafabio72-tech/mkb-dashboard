@@ -22,12 +22,38 @@ Uso:
     def admin_only(): ...
 """
 
+import time
 from functools import wraps
 
 from flask import session, redirect, url_for, request, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from config import DASHBOARD_USERS_RAW
+
+_MAX_ATTEMPTS = 5
+_BLOCK_SECONDS = 300
+_login_attempts: dict[str, list] = {}  # ip -> [timestamps of failures]
+
+
+# ─── RATE LIMITING ──────────────────────────────────────────────────────────
+
+def rate_limit_login(ip: str, *, check_only: bool = False, reset: bool = False) -> tuple[bool, int]:
+    """Bloqueia IP após _MAX_ATTEMPTS falhas em _BLOCK_SECONDS.
+    Retorna (bloqueado, segundos_restantes)."""
+    now = time.time()
+    if reset:
+        _login_attempts.pop(ip, None)
+        return False, 0
+    attempts = _login_attempts.get(ip, [])
+    attempts = [t for t in attempts if now - t < _BLOCK_SECONDS]
+    _login_attempts[ip] = attempts
+    if len(attempts) >= _MAX_ATTEMPTS:
+        wait = int(_BLOCK_SECONDS - (now - attempts[0]))
+        return True, max(wait, 1)
+    if not check_only:
+        attempts.append(now)
+        _login_attempts[ip] = attempts
+    return False, 0
 
 
 # ─── BOOTSTRAP (seed do 1º admin a partir do DASHBOARD_USERS antigo) ────────
@@ -62,14 +88,16 @@ def bootstrap_usuarios(conn) -> None:
 
 # ─── VERIFICAÇÃO ─────────────────────────────────────────────────────────────
 
-def verificar_credenciais(conn, usuario: str, senha: str) -> dict | None:
+def verificar_credenciais(conn, login: str, senha: str) -> dict | None:
     """
     Retorna o dict do usuário ({id, usuario, nome, role}) se as credenciais
     forem válidas e o usuário estiver ativo; None caso contrário.
+    Aceita tanto o campo 'usuario' quanto 'email' como identificador de login.
     """
     row = conn.execute(
-        "SELECT id, usuario, nome, role, senha_hash FROM usuarios WHERE usuario = ? AND ativo = 1",
-        (usuario,)
+        "SELECT id, usuario, nome, role, senha_hash FROM usuarios "
+        "WHERE (usuario = ? OR email = ?) AND ativo = 1",
+        (login, login),
     ).fetchone()
     if row is None:
         return None

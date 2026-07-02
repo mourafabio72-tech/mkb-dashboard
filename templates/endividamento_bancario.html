@@ -16,8 +16,10 @@
      class="btn-mes {% if empresa == 'mkb' %}btn-mes-ativo{% endif %}">MKB</a>
   <a href="{{ url_for('endividamento_bancario', empresa='gnileb') }}"
      class="btn-mes {% if empresa == 'gnileb' %}btn-mes-ativo{% endif %}">Gnileb</a>
+  {% if session.usuario_logado and session.usuario_logado.role == 'admin' %}
   <span class="sep-emp">|</span>
   <a href="{{ url_for('endividamento_bancario_cadastro') }}" class="btn-mes">+ Cadastrar / cronograma</a>
+  {% endif %}
 </div>
 
 {% if not linhas %}
@@ -25,7 +27,9 @@
   <div class="empty-icon">🏦</div>
   <h2>Nenhum empréstimo cadastrado para {{ empresa | upper }}</h2>
   <p>Cadastre o contrato (banco, valores, parcelas, contas vinculadas) para começar.</p>
+  {% if session.usuario_logado and session.usuario_logado.role == 'admin' %}
   <a href="{{ url_for('endividamento_bancario_cadastro') }}" class="btn btn-primary btn-lg">+ Cadastrar empréstimo</a>
+  {% endif %}
 </div>
 {% else %}
 

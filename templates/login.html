@@ -57,8 +57,9 @@
     <form method="POST" action="{{ url_for('login') }}">
       {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
       <div class="form-group">
-        <label>Usuário</label>
+        <label>E-mail ou Usuário</label>
         <input type="text" name="usuario" autocomplete="username"
+               placeholder="seu@email.com ou login"
                value="{{ ultimo_usuario or '' }}" autofocus required>
       </div>
       <div class="form-group">

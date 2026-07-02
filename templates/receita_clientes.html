@@ -206,7 +206,9 @@
     {% for c in analise.competencias_sem_ct1 %}
       <span class="badge-ct2" style="margin-left:4px">{{ mes_label(c) }}</span>
     {% endfor %}
+    {% if session.usuario_logado and session.usuario_logado.role == 'admin' %}
     &nbsp;<a href="{{ url_for('ingest') }}">Importar Razão →</a>
+    {% endif %}
   </div>
 </div>
 {% endif %}
@@ -215,7 +217,9 @@
 <div class="card-full" style="text-align:center;padding:48px">
   <p class="text-muted">Nenhum lançamento de receita bruta (3.1.1.x) com CT1 para
      <strong>{{ EMPRESAS[empresa].sigla }}</strong> no período selecionado.</p>
+  {% if session.usuario_logado and session.usuario_logado.role == 'admin' %}
   <a href="{{ url_for('ingest') }}" class="btn btn-primary" style="margin-top:12px">⬆ Importar Razão CT1</a>
+  {% endif %}
 </div>
 {% else %}
 

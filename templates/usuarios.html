@@ -34,6 +34,9 @@
         <td>{% if u.ativo %}<span style="color:var(--success);">Ativo</span>{% else %}<span style="color:var(--danger);">Inativo</span>{% endif %}</td>
         <td>{{ u.criado_em }}</td>
         <td>
+          <a href="{{ url_for('usuarios_senha', usuario_id=u.id) }}" class="btn btn-secondary" style="font-size:11px;padding:4px 10px;text-decoration:none;">
+            🔑 Senha
+          </a>
           <form method="POST" action="{{ url_for('usuarios_alternar', usuario_id=u.id) }}" style="display:inline;">
             <button type="submit" class="btn btn-secondary" style="font-size:11px;padding:4px 10px;">
               {{ 'Desativar' if u.ativo else 'Reativar' }}

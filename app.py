@@ -11,7 +11,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from werkzeug.security import generate_password_hash
 
 from config import SECRET_KEY, PORT, DEBUG, EMPRESAS
-from auth import login_required, admin_required, verificar_credenciais
+from auth import login_required, admin_required, verificar_credenciais, rate_limit_login
 from ingestion import get_conn, criar_schema, seed_empresas, importar, ler_template_dre, salvar_lancamentos
 from importar_mes import importar_mes_completo
 from razao_parser import importar_razao
@@ -33,8 +33,17 @@ from dre_engine import (
 )
 from balancete_parser import importar_balancete
 
+from datetime import timedelta as _td
+
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+app.config.update(
+    PERMANENT_SESSION_LIFETIME=_td(hours=8),
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+)
+if not DEBUG:
+    app.config["SESSION_COOKIE_SECURE"] = True
 
 
 @app.after_request
@@ -372,15 +381,24 @@ def login():
         senha   = (request.form.get("senha")   or "").strip()
         next_url = request.form.get("next") or url_for("index")
 
+        ip = request.remote_addr or "unknown"
+        blocked, wait = rate_limit_login(ip, check_only=True)
+        if blocked:
+            return render_template("login.html",
+                                   erro=f"Muitas tentativas. Aguarde {wait} segundos.",
+                                   ultimo_usuario=usuario, next_url=next_url)
+
         conn = get_conn()
         criar_schema(conn)
         dados_usuario = verificar_credenciais(conn, usuario, senha)
         conn.close()
 
         if dados_usuario:
+            rate_limit_login(ip, reset=True)
             session.permanent = True
             session["usuario_logado"] = dados_usuario
             return redirect(next_url)
+        rate_limit_login(ip)
         return render_template("login.html", erro="Usuário ou senha incorretos.",
                                ultimo_usuario=usuario, next_url=next_url)
     next_url = request.args.get("next", "")
@@ -466,6 +484,40 @@ def usuarios_alternar(usuario_id):
         )
     conn.close()
     return redirect(url_for("usuarios"))
+
+
+@app.route("/usuarios/<int:usuario_id>/senha", methods=["GET", "POST"])
+@login_required
+@admin_required
+def usuarios_senha(usuario_id):
+    conn = get_conn()
+    criar_schema(conn)
+    row = conn.execute("SELECT id, usuario, nome FROM usuarios WHERE id=?", (usuario_id,)).fetchone()
+    if not row:
+        conn.close()
+        flash("Usuário não encontrado.", "danger")
+        return redirect(url_for("usuarios"))
+
+    if request.method == "POST":
+        nova_senha = (request.form.get("nova_senha") or "").strip()
+        confirma   = (request.form.get("confirma_senha") or "").strip()
+        if not nova_senha or len(nova_senha) < 6:
+            flash("A senha precisa ter pelo menos 6 caracteres.", "warning")
+            return render_template("usuarios_senha.html", alvo=row)
+        if nova_senha != confirma:
+            flash("As senhas não conferem.", "warning")
+            return render_template("usuarios_senha.html", alvo=row)
+        conn.execute(
+            "UPDATE usuarios SET senha_hash=? WHERE id=?",
+            (generate_password_hash(nova_senha), usuario_id),
+        )
+        conn.commit()
+        conn.close()
+        flash(f"Senha de \"{row['usuario']}\" alterada com sucesso.", "success")
+        return redirect(url_for("usuarios"))
+
+    conn.close()
+    return render_template("usuarios_senha.html", alvo=row)
 
 
 # --- ROTAS PROTEGIDAS --------------------------------------------------------
@@ -1984,6 +2036,7 @@ def _endividamento_do_razao(empresa_id: int, competencia: str | None = None) -> 
 
 @app.route("/debug/endiv/<empresa>")
 @login_required
+@admin_required
 def debug_endiv(empresa):
     if empresa not in EMPRESAS:
         return "empresa não encontrada", 404

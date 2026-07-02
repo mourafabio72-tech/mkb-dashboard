@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Alterar Senha{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🔑 Alterar Senha</h1>
+  <p class="subtitle">Usuário: <strong>{{ alvo.usuario }}</strong> ({{ alvo.nome }})</p>
+</div>
+
+<div class="section-card">
+  <form method="POST" action="{{ url_for('usuarios_senha', usuario_id=alvo.id) }}" class="form-ingest">
+    <div class="form-row">
+      <label>Nova senha (mín. 6 caracteres)</label>
+      <input type="password" name="nova_senha" class="input-sm" style="width:280px" required minlength="6">
+    </div>
+
+    <div class="form-row">
+      <label>Confirmar nova senha</label>
+      <input type="password" name="confirma_senha" class="input-sm" style="width:280px" required minlength="6">
+    </div>
+
+    <button type="submit" class="btn btn-primary">💾 Salvar Nova Senha</button>
+    <a href="{{ url_for('usuarios') }}" class="btn btn-secondary" style="margin-left:8px;">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

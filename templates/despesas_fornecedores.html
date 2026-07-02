@@ -89,7 +89,9 @@
     {% for c in analise.competencias_sem_ct1 %}
       <span class="badge-ct2" style="margin-left:4px">{{ mes_label(c) }}</span>
     {% endfor %}
+    {% if session.usuario_logado and session.usuario_logado.role == 'admin' %}
     &nbsp;<a href="{{ url_for('ingest') }}">Importar Razão →</a>
+    {% endif %}
   </div>
 </div>
 {% endif %}
@@ -104,7 +106,9 @@
      (4.x, exceto folha{% if tipo != 'todos' %}, filtro: <strong>{{ 'Custo' if tipo == 'custo' else 'Despesa' }}</strong>{% endif %})
      com CT1 para <strong>{{ EMPRESAS[empresa].sigla }}</strong> no período.
      {% if tipo != 'todos' %}<br><a href="{{ url_for('despesas_fornecedores', empresa=empresa, de=comp_ini, ate=comp_fim, visao=visao, tipo='todos') }}">Ver todos →</a>{% endif %}</p>
+  {% if session.usuario_logado and session.usuario_logado.role == 'admin' %}
   <a href="{{ url_for('ingest') }}" class="btn btn-primary" style="margin-top:10px">⬆ Importar Razão CT1</a>
+  {% endif %}
 </div>
 {% else %}
 
@@ -301,7 +305,7 @@
   ℹ️ A classificação por <strong>Conta Contábil</strong> usa a <strong>descrição oficial do plano de contas</strong>
   (ex.: "SERV DE INFORMATICA", "SEGUROS DE VEÍCULOS"). Contas sem descrição cadastrada aparecem como
   <span class="badge-ct2">"Conta X (sem descrição)"</span> — basta importar o Plano de Contas em
-  <a href="{{ url_for('ingest') }}">⬆ Importar</a>.<br>
+  {% if session.usuario_logado and session.usuario_logado.role == 'admin' %}<a href="{{ url_for('ingest') }}">⬆ Importar</a>{% endif %}.<br>
   Exclui: Pró-labore, Folha e Encargos (4.1.1.01.x / 4.4.1.01.x). Linhas ordenadas do maior para o menor valor.<br>
   <strong>AV%</strong> = participação percentual no total de custos/despesas do mês.<br>
   <strong>Drill-down 3 níveis:</strong> clique na linha-mãe → abre {{ rotulo_filha | lower }}

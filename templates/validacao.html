@@ -32,7 +32,7 @@
         {% endfor %}
       </select>
     </form>
-    {% if competencia %}
+    {% if competencia and session.usuario_logado and session.usuario_logado.role == 'admin' %}
     <form method="POST" action="{{ url_for('ajustes_recalcular') }}" style="display:inline">
       <input type="hidden" name="empresa" value="{{ empresa }}">
       <input type="hidden" name="competencia" value="{{ competencia }}">
@@ -60,7 +60,9 @@
   <div class="empty-icon">📋</div>
   <h2>Nenhum balancete importado</h2>
   <p>Suba o Balancete de Verificação na tela de importação para validar a DRE.</p>
+  {% if session.usuario_logado and session.usuario_logado.role == 'admin' %}
   <a href="{{ url_for('ingest') }}" class="btn btn-primary">⬆ Importar Balancete</a>
+  {% endif %}
 </div>
 {% elif resultado %}
 

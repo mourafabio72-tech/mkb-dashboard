@@ -134,6 +134,8 @@
   Parcelas, datas e processo vêm do snapshot da planilha de vinculação importado para
   <strong>{{ mes_label_atual }}</strong>. "Saldo a Pagar" é o saldo devedor da contabilidade
   de cada parcelamento.
+  {% if session.usuario_logado and session.usuario_logado.role == 'admin' %}
   Importar em <a href="{{ url_for('ingest') }}">Importar Dados</a>.
+  {% endif %}
 </div>
 {% endblock %}

@@ -58,9 +58,11 @@
     </div>
     <h1>MKB Dashboard</h1>
     <p>Dashboard gerencial do Grupo Markbuilding</p>
+    {% if session.usuario_logado and session.usuario_logado.role == 'admin' %}
     <a href="{{ url_for('ingest') }}" class="min-cta">
       <i class="ph-bold ph-cloud-arrow-up"></i> Importar dados
     </a>
+    {% endif %}
   </div>
   <div class="min-modules">
     <span class="min-modules-label">Módulos</span>

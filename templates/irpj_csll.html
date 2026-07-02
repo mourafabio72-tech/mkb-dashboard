@@ -103,7 +103,7 @@
 
 <div class="info-box" style="margin-top:20px;">
   Dados importados manualmente via planilha ANUAL (aba "ANUAL") em
-  <a href="{{ url_for('ingest') }}">Importar Dados</a>. Linhas com valor zero em todo o
+  {% if session.usuario_logado and session.usuario_logado.role == 'admin' %}<a href="{{ url_for('ingest') }}">Importar Dados</a>{% else %}Importar Dados{% endif %}. Linhas com valor zero em todo o
   período exibido ficam ocultas. Esta apuração é independente da provisão contábil de
   IRPJ/CSLL exibida no DRE (conta 4.5.x).
 </div>
