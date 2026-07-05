@@ -2608,12 +2608,25 @@ def endividamento_bancario(empresa):
             # Razão disponível -- fonte oficial (ver Endividamento Tributário)
             saldo_a_pagar = (s_cp_p or 0) + (s_cp_j or 0) + (s_lp_p or 0) + (s_lp_j or 0)
             total_pago    = e["valor_contratado"] - saldo_a_pagar
-            parcelas_pagas    = sum(1 for p in parcelas if p["competencia"] <= ref_competencia)
+            if parcelas:
+                parcelas_pagas = sum(1 for p in parcelas if p["competencia"] <= ref_competencia)
+                valor_parcela_atual = next(
+                    (p["valor_parcela"] for p in parcelas if p["competencia"] > ref_competencia),
+                    parcelas[-1]["valor_parcela"],
+                )
+            else:
+                # Sem cronograma — estima parcelas pagas pelos meses decorridos
+                # desde data_primeira_parcela (mês do desembolso; 1ª parcela = mês seguinte)
+                dp = e["data_primeira_parcela"] or ""
+                if len(dp) >= 7 and len(ref_competencia) >= 7:
+                    ay, am = int(dp[:4]), int(dp[5:7])
+                    ry, rm = int(ref_competencia[:4]), int(ref_competencia[5:7])
+                    parcelas_pagas = max(0, min((ry - ay) * 12 + (rm - am), e["qtd_parcelas"]))
+                else:
+                    parcelas_pagas = 0
+                vlr_medio = e["valor_contratado"] / e["qtd_parcelas"] if e["qtd_parcelas"] else 0
+                valor_parcela_atual = round(vlr_medio, 2) if vlr_medio > 0 else None
             parcelas_a_pagar  = e["qtd_parcelas"] - parcelas_pagas
-            valor_parcela_atual = next(
-                (p["valor_parcela"] for p in parcelas if p["competencia"] > ref_competencia),
-                parcelas[-1]["valor_parcela"] if parcelas else None,
-            )
         elif parcelas:
             # Sem Razão ainda -- usa o cronograma de amortização do contrato
             # (planilha do banco) como fonte do detalhamento mês a mês.
