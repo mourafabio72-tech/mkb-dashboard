@@ -2615,12 +2615,18 @@ def endividamento_bancario(empresa):
                     parcelas[-1]["valor_parcela"],
                 )
             else:
-                # Sem cronograma — estima parcelas pagas pelos meses decorridos
-                # desde data_primeira_parcela (mês do desembolso; 1ª parcela = mês seguinte)
+                # Sem cronograma — estima parcelas pagas pelos meses decorridos.
+                # Usa mês anterior ao atual (não ref_competencia, que depende do
+                # Razão e pode estar defasado — parcela bancária segue calendário fixo).
                 dp = e["data_primeira_parcela"] or ""
-                if len(dp) >= 7 and len(ref_competencia) >= 7:
+                if len(dp) >= 7:
                     ay, am = int(dp[:4]), int(dp[5:7])
-                    ry, rm = int(ref_competencia[:4]), int(ref_competencia[5:7])
+                    hoje = datetime.now()
+                    rm = hoje.month - 1
+                    ry = hoje.year
+                    if rm < 1:
+                        rm = 12
+                        ry -= 1
                     parcelas_pagas = max(0, min((ry - ay) * 12 + (rm - am), e["qtd_parcelas"]))
                 else:
                     parcelas_pagas = 0
