@@ -2423,6 +2423,14 @@ def endividamento(empresa, competencia):
 
     pct_endividamento_rob = (total_endividamento / rob_acumulada * 100) if rob_acumulada else None
 
+    # Desembolso do mês (total pago) ÷ Receita Bruta do mês
+    desembolso_mes = totais_pagos_por_mes.get(competencia, 0.0)
+    try:
+        rob_mes = calcular_dre(empresa_id, competencia).get("ROB", 0) or 0
+    except Exception:
+        rob_mes = 0
+    pct_desembolso_rob_mes = (desembolso_mes / rob_mes * 100) if rob_mes else None
+
     return render_template(
         "endividamento.html",
         empresa=empresa, competencia=competencia,
@@ -2435,6 +2443,9 @@ def endividamento(empresa, competencia):
         rob_acumulada=rob_acumulada,
         desembolso_total=desembolso_total,
         pct_endividamento_rob=pct_endividamento_rob,
+        pct_desembolso_rob_mes=pct_desembolso_rob_mes,
+        desembolso_mes=desembolso_mes,
+        rob_mes=rob_mes,
         mes_label_anterior=_mes_label(mes_referencia_anterior),
         total_saldo_anterior=total_saldo_anterior,
         total_a_pagar_geral=total_a_pagar_geral,

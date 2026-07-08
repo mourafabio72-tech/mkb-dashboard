@@ -53,9 +53,9 @@
     <div class="kpi-sub">Jan a {{ mes_label_atual.split('/')[0] }} — mesma ROB do DRE</div>
   </div>
   <div class="kpi-card">
-    <div class="kpi-label">Desembolso Mensal Total</div>
-    <div class="kpi-value">{{ desembolso_total | brl }}</div>
-    <div class="kpi-sub">Soma das parcelas mensais de todos os acordos</div>
+    <div class="kpi-label">Desembolso ÷ Receita Bruta (mês)</div>
+    <div class="kpi-value">{{ '%.1f'|format(pct_desembolso_rob_mes) ~ '%' if pct_desembolso_rob_mes is not none else '—' }}</div>
+    <div class="kpi-sub">{{ desembolso_mes | brl }} pago no mês ÷ {{ rob_mes | brl }} de receita bruta</div>
   </div>
   <div class="kpi-card">
     <div class="kpi-label">Endividamento ÷ ROB Acumulada</div>
