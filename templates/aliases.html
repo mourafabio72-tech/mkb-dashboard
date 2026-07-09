@@ -3,21 +3,25 @@
 
 {% block content %}
 <style>
-.alias-section { max-width: 900px; margin-bottom: 32px; }
-.alias-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.alias-table th { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
-.alias-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
-.alias-table tr:hover { background: rgba(167,139,250,.04); }
+.alias-section { max-width: 960px; margin-bottom: 32px; }
 .alias-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.alias-form input[type="text"] { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 13px; min-width: 240px; }
+.alias-form input[type="text"] { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 13px; min-width: 280px; }
 .alias-form button { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
 .btn-add { background: #34d399; color: #1a1a2e; }
 .btn-add:hover { background: #2cc48a; }
 .btn-del { background: transparent; color: #f87171; border: 1px solid #f87171 !important; font-size: 11px; padding: 3px 10px; }
 .btn-del:hover { background: #f87171; color: #fff; }
 .aprox-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.aprox-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; background: rgba(167,139,250,.1); border: 1px solid rgba(167,139,250,.2); font-size: 12px; cursor: pointer; transition: background .15s; }
+.aprox-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: rgba(167,139,250,.1); border: 1px solid rgba(167,139,250,.2); font-size: 12px; cursor: pointer; transition: background .15s, border-color .15s; user-select: none; }
 .aprox-chip:hover { background: rgba(167,139,250,.2); }
+.aprox-chip.selecionado { background: rgba(167,139,250,.3); border-color: rgba(167,139,250,.6); font-weight: 600; }
+.aprox-chip input[type="checkbox"] { margin: 0; cursor: pointer; accent-color: #7c6fbf; }
+.batch-bar { display: none; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 14px; border-radius: 8px; background: rgba(167,139,250,.08); border: 1px solid rgba(167,139,250,.2); flex-wrap: wrap; }
+.batch-bar.visivel { display: flex; }
+.batch-bar input[type="text"] { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 13px; flex: 1; min-width: 240px; }
+.batch-bar button { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 700; background: #7c6fbf; color: #fff; }
+.batch-bar button:hover { background: #6a5eaa; }
+.batch-count { font-size: 12px; font-weight: 600; color: var(--fg); white-space: nowrap; }
 .grupo-alias { margin-bottom: 12px; padding: 10px 14px; border-radius: 8px; background: rgba(52,211,153,.04); border-left: 3px solid rgba(52,211,153,.4); }
 .grupo-alias-nome { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
 .grupo-alias-itens { font-size: 12px; color: var(--muted); }
@@ -41,19 +45,18 @@
 {% endif %}
 {% endwith %}
 
-{# ── Formulário: adicionar alias ─────────────────────────────────────────────── #}
+{# ── Formulário: adicionar alias individual ──────────────────────────────────── #}
 <div class="alias-section">
   <div class="card-full" style="padding:16px 20px">
-    <h3 style="margin:0 0 10px;font-size:14px">Adicionar alias</h3>
+    <h3 style="margin:0 0 10px;font-size:14px">Adicionar alias (individual)</h3>
     <form method="POST" action="{{ url_for('aliases_salvar') }}" class="alias-form">
       <input type="text" name="nome_aproximado" id="inp-aprox" placeholder="Nome aproximado (ex: BDM GODOY CONSULT)" required
              list="dl-aprox" autocomplete="off">
       <span style="font-size:18px;color:var(--muted)">→</span>
-      <input type="text" name="nome_canonical" id="inp-canon" placeholder="Razão social correta (ex: BDM GODOY CONSULTORIA LTDA)" required
+      <input type="text" name="nome_canonical" id="inp-canon" placeholder="Razão social correta" required
              list="dl-canon" autocomplete="off">
-      <button type="submit" class="btn-add">+ Salvar alias</button>
+      <button type="submit" class="btn-add">+ Salvar</button>
     </form>
-    <p class="datalist-hint">Clique em um nome aproximado abaixo para preencher automaticamente.</p>
 
     <datalist id="dl-aprox">
       {% for n in nomes_aprox %}<option value="{{ n }}">{% endfor %}
@@ -64,20 +67,32 @@
   </div>
 </div>
 
-{# ── Nomes aproximados pendentes ─────────────────────────────────────────────── #}
+{# ── Nomes aproximados pendentes (com checkbox) ─────────────────────────────── #}
 {% if nomes_aprox %}
 <div class="alias-section">
-  <h3 style="font-size:14px;margin-bottom:8px">Nomes aproximados pendentes ({{ nomes_aprox | length }})</h3>
+  <h3 style="font-size:14px;margin-bottom:4px">Nomes aproximados pendentes ({{ nomes_aprox | length }})</h3>
   <p style="font-size:12px;color:var(--muted);margin-bottom:8px">
-    Nomes extraídos do histórico que ainda não têm alias nem cadastro oficial. Clique para preencher o formulário.
+    Marque os nomes que pertencem ao mesmo fornecedor, digite a razão social correta e salve todos de uma vez.
   </p>
-  <div class="aprox-list">
-    {% for nome in nomes_aprox %}
-    <span class="aprox-chip" onclick="preencherAprox('{{ nome | e }}')" title="Clique para usar como nome aproximado">
-      {{ nome }}
-    </span>
-    {% endfor %}
-  </div>
+
+  <form method="POST" action="{{ url_for('aliases_salvar_batch') }}" id="form-batch">
+    <div class="aprox-list" id="chips-list">
+      {% for nome in nomes_aprox %}
+      <label class="aprox-chip" id="chip-{{ loop.index }}">
+        <input type="checkbox" name="nomes" value="{{ nome }}" onchange="atualizarBatch()">
+        {{ nome }}
+      </label>
+      {% endfor %}
+    </div>
+
+    <div class="batch-bar" id="batch-bar">
+      <span class="batch-count" id="batch-count">0 selecionados</span>
+      <span style="font-size:16px;color:var(--muted)">→</span>
+      <input type="text" name="nome_canonical" placeholder="Razão social correta para todos os selecionados"
+             list="dl-canon" autocomplete="off" id="batch-canon">
+      <button type="submit">Salvar selecionados</button>
+    </div>
+  </form>
 </div>
 {% endif %}
 
@@ -86,7 +101,6 @@
   <h3 style="font-size:14px;margin-bottom:8px">Aliases cadastrados ({{ aliases | length }})</h3>
 
   {% if aliases %}
-  {# Agrupa por nome_canonical para visualização ─────────────────────────────── #}
   {% set ns = namespace(grupos={}) %}
   {% for aprox, canon, dt in aliases %}
     {% if canon not in ns.grupos %}
@@ -124,9 +138,29 @@
 
 {% block scripts %}
 <script>
-function preencherAprox(nome) {
-  document.getElementById('inp-aprox').value = nome;
-  document.getElementById('inp-canon').focus();
+function atualizarBatch() {
+  var checks = document.querySelectorAll('#chips-list input[type="checkbox"]');
+  var n = 0;
+  checks.forEach(function(cb) {
+    var chip = cb.closest('.aprox-chip');
+    if (cb.checked) { n++; chip.classList.add('selecionado'); }
+    else { chip.classList.remove('selecionado'); }
+  });
+  var bar = document.getElementById('batch-bar');
+  var cnt = document.getElementById('batch-count');
+  if (n > 0) {
+    bar.classList.add('visivel');
+    cnt.textContent = n + ' selecionado' + (n > 1 ? 's' : '');
+  } else {
+    bar.classList.remove('visivel');
+  }
 }
+
+document.getElementById('form-batch').addEventListener('submit', function(e) {
+  var canon = document.getElementById('batch-canon').value.trim();
+  if (!canon) { e.preventDefault(); alert('Digite a razão social correta.'); return; }
+  var checks = document.querySelectorAll('#chips-list input[type="checkbox"]:checked');
+  if (checks.length === 0) { e.preventDefault(); alert('Selecione ao menos um nome.'); }
+});
 </script>
 {% endblock %}

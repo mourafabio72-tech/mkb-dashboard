@@ -1556,6 +1556,32 @@ def aliases_salvar():
     return redirect(url_for("aliases"))
 
 
+@app.route("/cadastro/aliases/salvar-batch", methods=["POST"])
+@login_required
+@admin_required
+def aliases_salvar_batch():
+    nomes = request.form.getlist("nomes")
+    nome_canon = request.form.get("nome_canonical", "").strip()
+
+    if not nomes or not nome_canon:
+        flash("Selecione ao menos um nome e preencha a razão social.", "danger")
+        return redirect(url_for("aliases"))
+
+    conn = get_conn()
+    for nome in nomes:
+        nome = nome.strip()
+        if nome:
+            conn.execute(
+                "INSERT OR REPLACE INTO nome_aliases (nome_aproximado, nome_canonical) VALUES (?, ?)",
+                (nome, nome_canon)
+            )
+    conn.commit()
+    conn.close()
+
+    flash(f'{len(nomes)} alias(es) salvos → "{nome_canon}"', "success")
+    return redirect(url_for("aliases"))
+
+
 @app.route("/cadastro/aliases/excluir", methods=["POST"])
 @login_required
 @admin_required
