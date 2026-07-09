@@ -1482,6 +1482,98 @@ def cadastro():
     return render_template("cadastro.html")
 
 
+# --- ROTA: ALIASES DE FORNECEDORES -------------------------------------------
+
+@app.route("/cadastro/aliases")
+@login_required
+@admin_required
+def aliases():
+    conn = get_conn()
+    criar_schema(conn)
+
+    # Aliases já cadastrados
+    aliases_rows = conn.execute(
+        "SELECT nome_aproximado, nome_canonical, criado_em FROM nome_aliases ORDER BY nome_canonical, nome_aproximado"
+    ).fetchall()
+
+    # Nomes aproximados que aparecem na análise (para sugerir ao usuário)
+    cadastro_cods = {r[0] for r in conn.execute("SELECT cliente_cod FROM fornecedores_cadastro").fetchall()}
+    alias_nomes = {r[0] for r in conn.execute("SELECT nome_aproximado FROM nome_aliases").fetchall()}
+
+    linhas = conn.execute("""
+        SELECT DISTINCT historico, parceiro_cod
+        FROM razao
+        WHERE conta_cod LIKE '4.%%' AND historico IS NOT NULL
+    """).fetchall()
+    conn.close()
+
+    import re
+    re_de    = re.compile(r'NF\.?\s*\d+\s+DE\s+(.+)$', re.IGNORECASE)
+    re_traco = re.compile(r'NF\.?\s*\d+\s*[-–]\s*(.+)$', re.IGNORECASE)
+
+    nomes_aprox = set()
+    for hist, codigo in linhas:
+        if codigo and codigo in cadastro_cods:
+            continue
+        h = hist.strip()
+        m = re_de.search(h) or re_traco.search(h)
+        if m:
+            nome = m.group(1).strip()
+            if nome and nome not in alias_nomes:
+                nomes_aprox.add(nome)
+
+    nomes_aprox_sorted = sorted(nomes_aprox)
+    canonicos = sorted({r[1] for r in aliases_rows})
+
+    return render_template(
+        "aliases.html",
+        aliases=aliases_rows,
+        nomes_aprox=nomes_aprox_sorted,
+        canonicos=canonicos,
+    )
+
+
+@app.route("/cadastro/aliases/salvar", methods=["POST"])
+@login_required
+@admin_required
+def aliases_salvar():
+    nome_aprox = request.form.get("nome_aproximado", "").strip()
+    nome_canon = request.form.get("nome_canonical", "").strip()
+
+    if not nome_aprox or not nome_canon:
+        flash("Preencha ambos os campos.", "danger")
+        return redirect(url_for("aliases"))
+
+    conn = get_conn()
+    conn.execute(
+        "INSERT OR REPLACE INTO nome_aliases (nome_aproximado, nome_canonical) VALUES (?, ?)",
+        (nome_aprox, nome_canon)
+    )
+    conn.commit()
+    conn.close()
+
+    flash(f'Alias salvo: "{nome_aprox}" → "{nome_canon}"', "success")
+    return redirect(url_for("aliases"))
+
+
+@app.route("/cadastro/aliases/excluir", methods=["POST"])
+@login_required
+@admin_required
+def aliases_excluir():
+    nome_aprox = request.form.get("nome_aproximado", "").strip()
+    if not nome_aprox:
+        flash("Nome não informado.", "danger")
+        return redirect(url_for("aliases"))
+
+    conn = get_conn()
+    conn.execute("DELETE FROM nome_aliases WHERE nome_aproximado = ?", (nome_aprox,))
+    conn.commit()
+    conn.close()
+
+    flash(f'Alias removido: "{nome_aprox}"', "success")
+    return redirect(url_for("aliases"))
+
+
 # --- ROTA: PENDÊNCIAS DE CADASTRO --------------------------------------------
 
 @app.route("/cadastro/pendencias")

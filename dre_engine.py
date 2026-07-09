@@ -1664,6 +1664,19 @@ def analisar_despesas_fornecedores(empresa_id: int, competencias: list, tipo: st
     cadastro = {r[0]: r[1] for r in cadastro_rows}
     tem_cadastro = bool(cadastro)
 
+    # Aliases manuais: nome aproximado → nome canônico (tabela `nome_aliases`,
+    # gerida pela tela Cadastro > Aliases). Invertido para lookup rápido:
+    # nome_canonical → set de nomes aproximados que apontam para ele.
+    aliases: dict[str, str] = {}
+    try:
+        aliases = {
+            r[0]: r[1] for r in conn.execute(
+                "SELECT nome_aproximado, nome_canonical FROM nome_aliases"
+            ).fetchall()
+        }
+    except Exception:
+        pass
+
     # Índice para correspondência aproximada (fuzzy matching) -- nome oficial
     # normalizado (razão social OU nome fantasia) → (código, razão social).
     # Usado no Passo 4 para "tentar novamente" identificar fornecedores cujo
@@ -1842,6 +1855,18 @@ def analisar_despesas_fornecedores(empresa_id: int, competencias: list, tipo: st
 
     # ── Passo 4: resolve a identidade final do fornecedor de cada linha e
     #             agrega por (conta_cod, fornecedor) -- base única p/ as 2 visões ──
+    # Índice reverso de aliases: nome_canonical → chave de agrupamento estável
+    _alias_chaves: dict[str, tuple] = {}
+
+    def _aplicar_alias(nome: str, aproximado: bool, chave: tuple):
+        """Se o nome tem alias manual, retorna (chave_alias, nome_canonical, False).
+        Caso contrário, retorna os valores originais."""
+        if nome in aliases:
+            canonical = aliases[nome]
+            chave_alias = _alias_chaves.setdefault(canonical, ("alias", canonical))
+            return chave_alias, canonical, False
+        return chave, nome, aproximado
+
     agregados: dict[tuple, dict] = {}
     for comp, conta_cod, codigo, nome_extraido, numero_nf, hist, data_lanc, valor in pre:
         aproximado = True
@@ -1854,9 +1879,6 @@ def analisar_despesas_fornecedores(empresa_id: int, competencias: list, tipo: st
             if nome_extraido in _FORNECEDOR_POR_CONTA.values():
                 chave, nome, aproximado = ("nome", nome_extraido), nome_extraido, False
             else:
-                # "Tenta novamente" identificar a razão social oficial via fuzzy
-                # matching ANTES de cair no nome aproximado puro -- se achar, passa
-                # a agrupar pelo código oficial encontrado (consolidação melhor).
                 achado = _resolver_por_similaridade(nome_extraido)
                 if achado:
                     cod_fuzzy, nome = achado
@@ -1865,6 +1887,11 @@ def analisar_despesas_fornecedores(empresa_id: int, competencias: list, tipo: st
                     chave, nome = ("nome", nome_extraido), nome_extraido
         else:
             chave, nome, aproximado = ("sem_forn",), _SEM_FORNECEDOR, False
+
+        # Alias manual: sobrepõe qualquer resolução anterior quando o nome
+        # (aproximado ou não) tem mapeamento na tabela `nome_aliases`
+        if aliases and nome != _SEM_FORNECEDOR:
+            chave, nome, aproximado = _aplicar_alias(nome, aproximado, chave)
 
         item = agregados.setdefault((conta_cod, chave), {
             "nome": nome, "aproximado": aproximado, "via_similaridade": via_similaridade,

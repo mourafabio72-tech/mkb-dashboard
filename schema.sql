@@ -178,6 +178,16 @@ CREATE TABLE IF NOT EXISTS fornecedores_cadastro (
     importado_em  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+-- ─── ALIASES de nomes de fornecedores/clientes ─────────────────────────────
+-- Normalização manual: mapeia nomes aproximados (truncados/variações) para a
+-- razão social correta. Usado pela análise de Despesas por Fornecedor para
+-- agrupar entradas que o fuzzy matching automático não conseguiu resolver.
+CREATE TABLE IF NOT EXISTS nome_aliases (
+    nome_aproximado  TEXT PRIMARY KEY,   -- nome como aparece (aproximado/truncado)
+    nome_canonical   TEXT NOT NULL,      -- razão social correta (destino do agrupamento)
+    criado_em        TEXT DEFAULT (datetime('now','localtime'))
+);
+
 -- ─── BALANCETE de Verificação (saldo acumulado por conta) ──────────────────
 -- Upload manual do balancete do Protheus (aba "12-00 - Balancete de Verificac").
 -- Usado pela tela /validacao para conferir a DRE detalhada (movimento acumulado

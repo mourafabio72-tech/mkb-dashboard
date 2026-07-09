@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Aliases de Fornecedores{% endblock %}
+
+{% block content %}
+<style>
+.alias-section { max-width: 900px; margin-bottom: 32px; }
+.alias-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.alias-table th { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.alias-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+.alias-table tr:hover { background: rgba(167,139,250,.04); }
+.alias-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.alias-form input[type="text"] { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 13px; min-width: 240px; }
+.alias-form button { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
+.btn-add { background: #34d399; color: #1a1a2e; }
+.btn-add:hover { background: #2cc48a; }
+.btn-del { background: transparent; color: #f87171; border: 1px solid #f87171 !important; font-size: 11px; padding: 3px 10px; }
+.btn-del:hover { background: #f87171; color: #fff; }
+.aprox-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.aprox-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; background: rgba(167,139,250,.1); border: 1px solid rgba(167,139,250,.2); font-size: 12px; cursor: pointer; transition: background .15s; }
+.aprox-chip:hover { background: rgba(167,139,250,.2); }
+.grupo-alias { margin-bottom: 12px; padding: 10px 14px; border-radius: 8px; background: rgba(52,211,153,.04); border-left: 3px solid rgba(52,211,153,.4); }
+.grupo-alias-nome { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+.grupo-alias-itens { font-size: 12px; color: var(--muted); }
+.datalist-hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+</style>
+
+<div class="page-header">
+  <h1>🔗 Aliases de Fornecedores</h1>
+  <p class="subtitle">Mapeie nomes truncados/variações para a razão social correta.
+    Os aliases são aplicados automaticamente na análise de Despesas por Fornecedor.</p>
+</div>
+
+{# ── Flash messages ─────────────────────────────────────────────────────────── #}
+{% with messages = get_flashed_messages(with_categories=True) %}
+{% if messages %}
+<div class="flash-box">
+  {% for cat, msg in messages %}
+    <div class="flash flash-{{ cat }}">{{ msg }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+{# ── Formulário: adicionar alias ─────────────────────────────────────────────── #}
+<div class="alias-section">
+  <div class="card-full" style="padding:16px 20px">
+    <h3 style="margin:0 0 10px;font-size:14px">Adicionar alias</h3>
+    <form method="POST" action="{{ url_for('aliases_salvar') }}" class="alias-form">
+      <input type="text" name="nome_aproximado" id="inp-aprox" placeholder="Nome aproximado (ex: BDM GODOY CONSULT)" required
+             list="dl-aprox" autocomplete="off">
+      <span style="font-size:18px;color:var(--muted)">→</span>
+      <input type="text" name="nome_canonical" id="inp-canon" placeholder="Razão social correta (ex: BDM GODOY CONSULTORIA LTDA)" required
+             list="dl-canon" autocomplete="off">
+      <button type="submit" class="btn-add">+ Salvar alias</button>
+    </form>
+    <p class="datalist-hint">Clique em um nome aproximado abaixo para preencher automaticamente.</p>
+
+    <datalist id="dl-aprox">
+      {% for n in nomes_aprox %}<option value="{{ n }}">{% endfor %}
+    </datalist>
+    <datalist id="dl-canon">
+      {% for n in canonicos %}<option value="{{ n }}">{% endfor %}
+    </datalist>
+  </div>
+</div>
+
+{# ── Nomes aproximados pendentes ─────────────────────────────────────────────── #}
+{% if nomes_aprox %}
+<div class="alias-section">
+  <h3 style="font-size:14px;margin-bottom:8px">Nomes aproximados pendentes ({{ nomes_aprox | length }})</h3>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:8px">
+    Nomes extraídos do histórico que ainda não têm alias nem cadastro oficial. Clique para preencher o formulário.
+  </p>
+  <div class="aprox-list">
+    {% for nome in nomes_aprox %}
+    <span class="aprox-chip" onclick="preencherAprox('{{ nome | e }}')" title="Clique para usar como nome aproximado">
+      {{ nome }}
+    </span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# ── Aliases cadastrados ─────────────────────────────────────────────────────── #}
+<div class="alias-section">
+  <h3 style="font-size:14px;margin-bottom:8px">Aliases cadastrados ({{ aliases | length }})</h3>
+
+  {% if aliases %}
+  {# Agrupa por nome_canonical para visualização ─────────────────────────────── #}
+  {% set ns = namespace(grupos={}) %}
+  {% for aprox, canon, dt in aliases %}
+    {% if canon not in ns.grupos %}
+      {% set _ = ns.grupos.update({canon: []}) %}
+    {% endif %}
+    {% set _ = ns.grupos[canon].append(aprox) %}
+  {% endfor %}
+
+  {% for canon, lista in ns.grupos.items() | sort %}
+  <div class="grupo-alias">
+    <div class="grupo-alias-nome">{{ canon }}</div>
+    <div class="grupo-alias-itens">
+      {% for aprox in lista | sort %}
+      <span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;margin-bottom:4px">
+        <span class="badge-ct2">{{ aprox }}</span>
+        <form method="POST" action="{{ url_for('aliases_excluir') }}" style="display:inline;margin:0">
+          <input type="hidden" name="nome_aproximado" value="{{ aprox }}">
+          <button type="submit" class="btn-del" title="Remover alias" onclick="return confirm('Remover alias \'{{ aprox }}\'?')">✕</button>
+        </form>
+      </span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+  {% else %}
+  <p class="text-muted">Nenhum alias cadastrado ainda.</p>
+  {% endif %}
+</div>
+
+<p class="text-muted" style="font-size:12px">
+  ← <a href="{{ url_for('cadastro') }}">Voltar ao Cadastro</a>
+</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function preencherAprox(nome) {
+  document.getElementById('inp-aprox').value = nome;
+  document.getElementById('inp-canon').focus();
+}
+</script>
+{% endblock %}
