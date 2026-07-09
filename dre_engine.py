@@ -1677,6 +1677,43 @@ def analisar_despesas_fornecedores(empresa_id: int, competencias: list, tipo: st
     except Exception:
         pass
 
+    # Índice fuzzy de aliases: nome normalizado → nome_canonical.
+    # Permite que novas variações de nomes já mapeados sejam resolvidas
+    # automaticamente (ex: "AMIL ASSISTENCIA MEDICA" casa com alias
+    # existente "AMIL ASSISTENC" → "AMIL"). Inclui tanto os nomes
+    # aproximados quanto os canônicos como âncoras de comparação.
+    _aliases_fuzzy_idx: dict[str, str] = {}
+    for aprox, canon in aliases.items():
+        na = _normaliza_nome_fuzzy(aprox)
+        if na:
+            _aliases_fuzzy_idx.setdefault(na, canon)
+        nc = _normaliza_nome_fuzzy(canon)
+        if nc:
+            _aliases_fuzzy_idx.setdefault(nc, canon)
+    _cache_alias_fuzzy: dict[str, str | None] = {}
+
+    def _resolver_alias_fuzzy(nome: str) -> str | None:
+        """Tenta casar um nome com aliases existentes por similaridade."""
+        if not nome or not _aliases_fuzzy_idx:
+            return None
+        if nome in _cache_alias_fuzzy:
+            return _cache_alias_fuzzy[nome]
+        chave_norm = _normaliza_nome_fuzzy(nome)
+        resultado = None
+        if chave_norm in _aliases_fuzzy_idx:
+            resultado = _aliases_fuzzy_idx[chave_norm]
+        else:
+            for alias_norm, canon in _aliases_fuzzy_idx.items():
+                if _sao_variacoes(chave_norm, alias_norm):
+                    resultado = canon
+                    break
+            if resultado is None:
+                proximos = _difflib.get_close_matches(chave_norm, _aliases_fuzzy_idx.keys(), n=1, cutoff=0.84)
+                if proximos:
+                    resultado = _aliases_fuzzy_idx[proximos[0]]
+        _cache_alias_fuzzy[nome] = resultado
+        return resultado
+
     # Índice para correspondência aproximada (fuzzy matching) -- nome oficial
     # normalizado (razão social OU nome fantasia) → (código, razão social).
     # Usado no Passo 4 para "tentar novamente" identificar fornecedores cujo
@@ -1859,10 +1896,13 @@ def analisar_despesas_fornecedores(empresa_id: int, competencias: list, tipo: st
     _alias_chaves: dict[str, tuple] = {}
 
     def _aplicar_alias(nome: str, aproximado: bool, chave: tuple):
-        """Se o nome tem alias manual, retorna (chave_alias, nome_canonical, False).
-        Caso contrário, retorna os valores originais."""
-        if nome in aliases:
-            canonical = aliases[nome]
+        """Se o nome tem alias manual (exato ou por similaridade), retorna
+        (chave_alias, nome_canonical, False). Caso contrário, retorna os
+        valores originais."""
+        canonical = aliases.get(nome)
+        if canonical is None:
+            canonical = _resolver_alias_fuzzy(nome)
+        if canonical is not None:
             chave_alias = _alias_chaves.setdefault(canonical, ("alias", canonical))
             return chave_alias, canonical, False
         return chave, nome, aproximado
