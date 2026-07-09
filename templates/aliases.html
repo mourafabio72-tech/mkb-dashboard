@@ -53,11 +53,19 @@
       Marque os nomes que pertencem ao mesmo fornecedor, digite a razão social correta e salve.
     </p>
 
-    <div class="busca-box">
-      <input type="text" id="busca-chips" placeholder="🔍 Filtrar nomes..." oninput="filtrarChips(this.value)">
-    </div>
-
     <form method="POST" action="{{ url_for('aliases_salvar_batch') }}" id="form-batch">
+      <div class="batch-bar visivel" id="batch-bar" style="position:relative;margin-bottom:12px">
+        <span class="batch-count" id="batch-count">0 selecionados</span>
+        <span style="font-size:16px;color:var(--muted)">→</span>
+        <input type="text" name="nome_canonical" placeholder="Razão social correta para todos os selecionados"
+               list="dl-canon" autocomplete="off" id="batch-canon">
+        <button type="submit">Salvar selecionados</button>
+      </div>
+
+      <div class="busca-box">
+        <input type="text" id="busca-chips" placeholder="🔍 Filtrar nomes..." oninput="filtrarChips(this.value)">
+      </div>
+
       <div class="aprox-list" id="chips-list">
         {% for nome in nomes_aprox %}
         <label class="aprox-chip" data-nome="{{ nome | lower }}">
@@ -65,14 +73,6 @@
           {{ nome }}
         </label>
         {% endfor %}
-      </div>
-
-      <div class="batch-bar" id="batch-bar">
-        <span class="batch-count" id="batch-count">0 selecionados</span>
-        <span style="font-size:16px;color:var(--muted)">→</span>
-        <input type="text" name="nome_canonical" placeholder="Razão social correta para todos os selecionados"
-               list="dl-canon" autocomplete="off" id="batch-canon">
-        <button type="submit">Salvar selecionados</button>
       </div>
     </form>
   </div>
