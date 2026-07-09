@@ -4,12 +4,9 @@
 {% block content %}
 <style>
 .alias-section { max-width: 960px; margin-bottom: 32px; }
-.alias-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.alias-form input[type="text"] { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 13px; min-width: 280px; }
-.alias-form button { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
-.btn-add { background: #34d399; color: #1a1a2e; }
+.btn-add { background: #34d399; color: #1a1a2e; padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
 .btn-add:hover { background: #2cc48a; }
-.btn-del { background: transparent; color: #f87171; border: 1px solid #f87171 !important; font-size: 11px; padding: 3px 10px; }
+.btn-del { background: transparent; color: #f87171; border: 1px solid #f87171 !important; font-size: 11px; padding: 3px 10px; border-radius: 6px; cursor: pointer; font-weight: 600; }
 .btn-del:hover { background: #f87171; color: #fff; }
 .aprox-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .aprox-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: rgba(167,139,250,.1); border: 1px solid rgba(167,139,250,.2); font-size: 12px; cursor: pointer; transition: background .15s, border-color .15s; user-select: none; }
@@ -25,8 +22,17 @@
 .grupo-alias { margin-bottom: 12px; padding: 10px 14px; border-radius: 8px; background: rgba(52,211,153,.04); border-left: 3px solid rgba(52,211,153,.4); }
 .grupo-alias-nome { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
 .grupo-alias-itens { font-size: 12px; color: var(--muted); }
-.datalist-hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.indiv-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.indiv-form input[type="text"] { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 13px; min-width: 240px; }
 </style>
+
+{# ── Datalists globais (fora de qualquer form) ───────────────────────────────── #}
+<datalist id="dl-aprox">
+  {% for n in nomes_aprox %}<option value="{{ n }}">{% endfor %}
+</datalist>
+<datalist id="dl-canon">
+  {% for n in canonicos %}<option value="{{ n }}">{% endfor %}
+</datalist>
 
 <div class="page-header">
   <h1>🔗 Aliases de Fornecedores</h1>
@@ -45,56 +51,51 @@
 {% endif %}
 {% endwith %}
 
-{# ── Formulário: adicionar alias individual ──────────────────────────────────── #}
-<div class="alias-section">
-  <div class="card-full" style="padding:16px 20px">
-    <h3 style="margin:0 0 10px;font-size:14px">Adicionar alias (individual)</h3>
-    <form method="POST" action="{{ url_for('aliases_salvar') }}" class="alias-form">
-      <input type="text" name="nome_aproximado" id="inp-aprox" placeholder="Nome aproximado (ex: BDM GODOY CONSULT)" required
-             list="dl-aprox" autocomplete="off">
-      <span style="font-size:18px;color:var(--muted)">→</span>
-      <input type="text" name="nome_canonical" id="inp-canon" placeholder="Razão social correta" required
-             list="dl-canon" autocomplete="off">
-      <button type="submit" class="btn-add">+ Salvar</button>
-    </form>
-
-    <datalist id="dl-aprox">
-      {% for n in nomes_aprox %}<option value="{{ n }}">{% endfor %}
-    </datalist>
-    <datalist id="dl-canon">
-      {% for n in canonicos %}<option value="{{ n }}">{% endfor %}
-    </datalist>
-  </div>
-</div>
-
 {# ── Nomes aproximados pendentes (com checkbox) ─────────────────────────────── #}
 {% if nomes_aprox %}
 <div class="alias-section">
-  <h3 style="font-size:14px;margin-bottom:4px">Nomes aproximados pendentes ({{ nomes_aprox | length }})</h3>
-  <p style="font-size:12px;color:var(--muted);margin-bottom:8px">
-    Marque os nomes que pertencem ao mesmo fornecedor, digite a razão social correta e salve todos de uma vez.
-  </p>
+  <div class="card-full" style="padding:16px 20px">
+    <h3 style="margin:0 0 8px;font-size:14px">Nomes aproximados pendentes ({{ nomes_aprox | length }})</h3>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 10px">
+      Marque os nomes que pertencem ao mesmo fornecedor, digite a razão social correta e salve todos de uma vez.
+    </p>
 
-  <form method="POST" action="{{ url_for('aliases_salvar_batch') }}" id="form-batch">
-    <div class="aprox-list" id="chips-list">
-      {% for nome in nomes_aprox %}
-      <label class="aprox-chip" id="chip-{{ loop.index }}">
-        <input type="checkbox" name="nomes" value="{{ nome }}" onchange="atualizarBatch()">
-        {{ nome }}
-      </label>
-      {% endfor %}
-    </div>
+    <form method="POST" action="{{ url_for('aliases_salvar_batch') }}" id="form-batch">
+      <div class="aprox-list" id="chips-list">
+        {% for nome in nomes_aprox %}
+        <label class="aprox-chip">
+          <input type="checkbox" name="nomes" value="{{ nome }}" onchange="atualizarBatch()">
+          {{ nome }}
+        </label>
+        {% endfor %}
+      </div>
 
-    <div class="batch-bar" id="batch-bar">
-      <span class="batch-count" id="batch-count">0 selecionados</span>
-      <span style="font-size:16px;color:var(--muted)">→</span>
-      <input type="text" name="nome_canonical" placeholder="Razão social correta para todos os selecionados"
-             list="dl-canon" autocomplete="off" id="batch-canon">
-      <button type="submit">Salvar selecionados</button>
-    </div>
-  </form>
+      <div class="batch-bar" id="batch-bar">
+        <span class="batch-count" id="batch-count">0 selecionados</span>
+        <span style="font-size:16px;color:var(--muted)">→</span>
+        <input type="text" name="nome_canonical" placeholder="Razão social correta para todos os selecionados"
+               list="dl-canon" autocomplete="off" id="batch-canon">
+        <button type="submit">Salvar selecionados</button>
+      </div>
+    </form>
+  </div>
 </div>
 {% endif %}
+
+{# ── Alias individual (formulário separado) ──────────────────────────────────── #}
+<div class="alias-section">
+  <div class="card-full" style="padding:16px 20px">
+    <h3 style="margin:0 0 8px;font-size:14px">Adicionar alias individual</h3>
+    <form method="POST" action="{{ url_for('aliases_salvar') }}" class="indiv-form">
+      <input type="text" name="nome_aproximado" placeholder="Nome aproximado" required
+             list="dl-aprox" autocomplete="off">
+      <span style="font-size:18px;color:var(--muted)">→</span>
+      <input type="text" name="nome_canonical" placeholder="Razão social correta" required
+             list="dl-canon" autocomplete="off">
+      <button type="submit" class="btn-add">+ Salvar</button>
+    </form>
+  </div>
+</div>
 
 {# ── Aliases cadastrados ─────────────────────────────────────────────────────── #}
 <div class="alias-section">
