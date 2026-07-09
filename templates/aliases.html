@@ -4,8 +4,6 @@
 {% block content %}
 <style>
 .alias-section { max-width: 960px; margin-bottom: 32px; }
-.btn-add { background: #34d399; color: #1a1a2e; padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
-.btn-add:hover { background: #2cc48a; }
 .btn-del { background: transparent; color: #f87171; border: 1px solid #f87171 !important; font-size: 11px; padding: 3px 10px; border-radius: 6px; cursor: pointer; font-weight: 600; }
 .btn-del:hover { background: #f87171; color: #fff; }
 .aprox-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -13,23 +11,19 @@
 .aprox-chip:hover { background: rgba(167,139,250,.2); }
 .aprox-chip.selecionado { background: rgba(167,139,250,.3); border-color: rgba(167,139,250,.6); font-weight: 600; }
 .aprox-chip input[type="checkbox"] { margin: 0; cursor: pointer; accent-color: #7c6fbf; }
-.batch-bar { display: none; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 14px; border-radius: 8px; background: rgba(167,139,250,.08); border: 1px solid rgba(167,139,250,.2); flex-wrap: wrap; }
+.batch-bar { display: none; position: sticky; bottom: 0; z-index: 10; align-items: center; gap: 10px; margin-top: 12px; padding: 12px 16px; border-radius: 8px; background: var(--bg); border: 2px solid rgba(167,139,250,.4); box-shadow: 0 -4px 20px rgba(0,0,0,.15); flex-wrap: wrap; }
 .batch-bar.visivel { display: flex; }
-.batch-bar input[type="text"] { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 13px; flex: 1; min-width: 240px; }
-.batch-bar button { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 700; background: #7c6fbf; color: #fff; }
+.batch-bar input[type="text"] { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 14px; flex: 1; min-width: 260px; }
+.batch-bar button { padding: 8px 18px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 700; background: #7c6fbf; color: #fff; }
 .batch-bar button:hover { background: #6a5eaa; }
-.batch-count { font-size: 12px; font-weight: 600; color: var(--fg); white-space: nowrap; }
+.batch-count { font-size: 13px; font-weight: 600; color: var(--fg); white-space: nowrap; }
 .grupo-alias { margin-bottom: 12px; padding: 10px 14px; border-radius: 8px; background: rgba(52,211,153,.04); border-left: 3px solid rgba(52,211,153,.4); }
 .grupo-alias-nome { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
 .grupo-alias-itens { font-size: 12px; color: var(--muted); }
-.indiv-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
-.indiv-form input[type="text"] { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 13px; min-width: 240px; }
+.busca-box { margin-bottom: 10px; }
+.busca-box input { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 13px; width: 280px; }
 </style>
 
-{# ── Datalists globais (fora de qualquer form) ───────────────────────────────── #}
-<datalist id="dl-aprox">
-  {% for n in nomes_aprox %}<option value="{{ n }}">{% endfor %}
-</datalist>
 <datalist id="dl-canon">
   {% for n in canonicos %}<option value="{{ n }}">{% endfor %}
 </datalist>
@@ -40,7 +34,6 @@
     Os aliases são aplicados automaticamente na análise de Despesas por Fornecedor.</p>
 </div>
 
-{# ── Flash messages ─────────────────────────────────────────────────────────── #}
 {% with messages = get_flashed_messages(with_categories=True) %}
 {% if messages %}
 <div class="flash-box">
@@ -51,19 +44,23 @@
 {% endif %}
 {% endwith %}
 
-{# ── Nomes aproximados pendentes (com checkbox) ─────────────────────────────── #}
+{# ── Nomes aproximados pendentes (com checkbox + barra sticky) ───────────────── #}
 {% if nomes_aprox %}
 <div class="alias-section">
   <div class="card-full" style="padding:16px 20px">
     <h3 style="margin:0 0 8px;font-size:14px">Nomes aproximados pendentes ({{ nomes_aprox | length }})</h3>
     <p style="font-size:12px;color:var(--muted);margin:0 0 10px">
-      Marque os nomes que pertencem ao mesmo fornecedor, digite a razão social correta e salve todos de uma vez.
+      Marque os nomes que pertencem ao mesmo fornecedor, digite a razão social correta e salve.
     </p>
+
+    <div class="busca-box">
+      <input type="text" id="busca-chips" placeholder="🔍 Filtrar nomes..." oninput="filtrarChips(this.value)">
+    </div>
 
     <form method="POST" action="{{ url_for('aliases_salvar_batch') }}" id="form-batch">
       <div class="aprox-list" id="chips-list">
         {% for nome in nomes_aprox %}
-        <label class="aprox-chip">
+        <label class="aprox-chip" data-nome="{{ nome | lower }}">
           <input type="checkbox" name="nomes" value="{{ nome }}" onchange="atualizarBatch()">
           {{ nome }}
         </label>
@@ -81,21 +78,6 @@
   </div>
 </div>
 {% endif %}
-
-{# ── Alias individual (formulário separado) ──────────────────────────────────── #}
-<div class="alias-section">
-  <div class="card-full" style="padding:16px 20px">
-    <h3 style="margin:0 0 8px;font-size:14px">Adicionar alias individual</h3>
-    <form method="POST" action="{{ url_for('aliases_salvar') }}" class="indiv-form">
-      <input type="text" name="nome_aproximado" placeholder="Nome aproximado" required
-             list="dl-aprox" autocomplete="off">
-      <span style="font-size:18px;color:var(--muted)">→</span>
-      <input type="text" name="nome_canonical" placeholder="Razão social correta" required
-             list="dl-canon" autocomplete="off">
-      <button type="submit" class="btn-add">+ Salvar</button>
-    </form>
-  </div>
-</div>
 
 {# ── Aliases cadastrados ─────────────────────────────────────────────────────── #}
 <div class="alias-section">
@@ -163,5 +145,13 @@ document.getElementById('form-batch').addEventListener('submit', function(e) {
   var checks = document.querySelectorAll('#chips-list input[type="checkbox"]:checked');
   if (checks.length === 0) { e.preventDefault(); alert('Selecione ao menos um nome.'); }
 });
+
+function filtrarChips(termo) {
+  var t = termo.trim().toLowerCase();
+  document.querySelectorAll('#chips-list .aprox-chip').forEach(function(chip) {
+    var nome = chip.dataset.nome || '';
+    chip.style.display = (!t || nome.indexOf(t) >= 0) ? '' : 'none';
+  });
+}
 </script>
 {% endblock %}
