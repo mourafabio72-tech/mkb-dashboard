@@ -1672,30 +1672,52 @@ def aliases_sugerir_ia():
 
     nomes_lista = sorted(nomes_aprox)
 
-    # Envia em batches de ~150 nomes (cabe no contexto do GPT-4o-mini)
+    # Lista de fornecedores já cadastrados (para a IA poder casar nomes pendentes)
+    conn2 = get_conn()
+    cadastro_nomes = sorted({
+        r[0] for r in conn2.execute(
+            "SELECT DISTINCT cliente_nome FROM fornecedores_cadastro WHERE cliente_nome IS NOT NULL"
+        ).fetchall()
+        if r[0]
+    })
+    conn2.close()
+
+    # Envia em batches de ~120 nomes (com cadastro no contexto, batch menor)
     from openai import OpenAI
     client = OpenAI(api_key=api_key)
 
-    BATCH_SIZE = 150
+    bloco_cadastro = ""
+    if cadastro_nomes:
+        bloco_cadastro = (
+            "\n\nFORNECEDORES JÁ CADASTRADOS (use como referência para casar nomes pendentes):\n"
+            + "\n".join(f"  {n}" for n in cadastro_nomes)
+        )
+
+    BATCH_SIZE = 120
     todos_grupos = []
 
     for i in range(0, len(nomes_lista), BATCH_SIZE):
         batch = nomes_lista[i:i + BATCH_SIZE]
         prompt = (
             "Você é um assistente de normalização de cadastros contábeis brasileiros.\n\n"
-            "Abaixo está uma lista de nomes de fornecedores extraídos de lançamentos contábeis. "
-            "Muitos estão TRUNCADOS ou com VARIAÇÕES de grafia do mesmo fornecedor real.\n\n"
-            "TAREFA: Agrupe os nomes que pertencem ao MESMO fornecedor e sugira a razão social "
-            "correta (completa, em maiúsculas) para cada grupo. Se um nome parece ser único "
-            "(sem variações na lista), inclua-o como grupo de 1 elemento.\n\n"
+            "Abaixo está uma lista de NOMES PENDENTES extraídos de lançamentos contábeis. "
+            "Muitos estão TRUNCADOS ou com VARIAÇÕES de grafia.\n\n"
+            "Também há uma lista de FORNECEDORES JÁ CADASTRADOS no sistema.\n\n"
+            "TAREFA:\n"
+            "1. Para cada nome pendente, verifique se corresponde a um fornecedor JÁ CADASTRADO "
+            "(truncamento, abreviação ou variação). Se sim, use o nome cadastrado como canonical.\n"
+            "2. Agrupe nomes pendentes que pertencem ao MESMO fornecedor.\n"
+            "3. Todo nome pendente DEVE aparecer em exatamente um grupo (inclusive grupos de 1 elemento).\n\n"
             "REGRAS:\n"
+            "- PRIORIZE casar com fornecedores já cadastrados\n"
             "- Só agrupe se tiver CERTEZA que são o mesmo fornecedor\n"
-            "- Na dúvida, mantenha separados (falso negativo é melhor que falso positivo)\n"
-            "- A razão social sugerida deve ser a versão mais completa e correta possível\n"
-            "- Nomes que são apenas números+letras (ex: '54.252.132 ROS') provavelmente são CNPJ truncado + início do nome\n\n"
+            "- Na dúvida, mantenha separados\n"
+            "- A razão social canonical deve ser a versão mais completa possível, em MAIÚSCULAS\n"
+            "- Nomes com números+letras (ex: '54.252.132 ROS') provavelmente são CNPJ truncado + início do nome\n\n"
             "FORMATO DE RESPOSTA (JSON puro, sem markdown):\n"
             '[{"canonical": "RAZAO SOCIAL COMPLETA", "nomes": ["VARIACAO1", "VARIACAO2"]}, ...]\n\n'
-            "NOMES:\n" + "\n".join(f"- {n}" for n in batch)
+            "NOMES PENDENTES:\n" + "\n".join(f"- {n}" for n in batch)
+            + bloco_cadastro
         )
 
         try:
@@ -1706,14 +1728,13 @@ def aliases_sugerir_ia():
                 max_tokens=4000,
             )
             texto = resp.choices[0].message.content.strip()
-            # Remove possível markdown code block
             if texto.startswith("```"):
                 texto = texto.split("\n", 1)[1] if "\n" in texto else texto[3:]
                 if texto.endswith("```"):
                     texto = texto[:-3]
                 texto = texto.strip()
             grupos = json.loads(texto)
-            todos_grupos.extend([g for g in grupos if len(g.get("nomes", [])) >= 2])
+            todos_grupos.extend([g for g in grupos if g.get("nomes")])
         except Exception as e:
             return jsonify({"erro": f"Erro na API OpenAI: {str(e)}"}), 500
 
