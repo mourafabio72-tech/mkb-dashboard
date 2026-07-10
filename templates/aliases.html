@@ -84,29 +84,20 @@
 </div>
 {% endif %}
 
-{# ── Sugestão automática por IA ──────────────────────────────────────────────── #}
+{# ── Correção automática por IA (dispara ao carregar) ────────────────────────── #}
 {% if nomes_aprox %}
 <div class="alias-section">
   <div class="card-full" style="padding:16px 20px">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
-      <div>
-        <h3 style="margin:0;font-size:14px">Correção automática com IA</h3>
-        <p style="font-size:12px;color:var(--muted);margin:4px 0 0">
-          Analisa os {{ nomes_aprox | length }} nomes pendentes, agrupa variações e salva os aliases automaticamente.
-        </p>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="ia-btn" id="btn-ia-auto" onclick="autoCorrigir()" style="background:linear-gradient(135deg,#10b981,#059669)">
-          <span id="ia-auto-icon">🤖</span>
-          <span id="ia-auto-text">Auto-corrigir tudo</span>
-        </button>
-        <button class="ia-btn" id="btn-ia" onclick="sugerirIA()" style="background:rgba(107,107,154,.2);color:var(--fg);font-size:12px;padding:6px 12px">
-          <span id="ia-btn-icon">🔍</span>
-          <span id="ia-btn-text">Revisar antes</span>
-        </button>
-      </div>
+    <h3 style="margin:0 0 4px;font-size:14px">🤖 Correção automática com IA</h3>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 10px">
+      {{ nomes_aprox | length }} nomes pendentes — analisando e corrigindo automaticamente...
+    </p>
+    <div id="ia-resultado" class="ia-resultado">
+      <p id="ia-status" style="color:var(--muted);font-size:13px">
+        <span class="ia-spinner" style="vertical-align:middle;margin-right:6px;border-color:rgba(16,185,129,.3);border-top-color:#10b981"></span>
+        Enviando nomes para a IA... aguarde.
+      </p>
     </div>
-    <div id="ia-resultado" class="ia-resultado" style="display:none"></div>
   </div>
 </div>
 {% endif %}
@@ -215,18 +206,10 @@ function filtrarChips(termo) {
   });
 }
 
-/* ── IA: auto-corrigir tudo ────────────────────────────────────────────────── */
-function autoCorrigir() {
-  var btn = document.getElementById('btn-ia-auto');
-  var ico = document.getElementById('ia-auto-icon');
-  var txt = document.getElementById('ia-auto-text');
+/* ── IA: auto-corrigir ao carregar a página ───────────────────────────────── */
+(function() {
   var res = document.getElementById('ia-resultado');
-
-  btn.disabled = true;
-  ico.innerHTML = '<span class="ia-spinner"></span>';
-  txt.textContent = 'Analisando e salvando...';
-  res.style.display = 'block';
-  res.innerHTML = '<p style="color:var(--muted);font-size:13px">Enviando {{ nomes_aprox | length }} nomes para a IA e salvando automaticamente... aguarde.</p>';
+  if (!res) return;
 
   var form = new URLSearchParams();
   form.append('auto', '1');
@@ -234,10 +217,6 @@ function autoCorrigir() {
   fetch('{{ url_for("aliases_sugerir_ia") }}', { method: 'POST', body: form })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    btn.disabled = false;
-    ico.innerHTML = '🤖';
-    txt.textContent = 'Auto-corrigir novamente';
-
     if (data.erro) {
       res.innerHTML = '<div class="flash flash-danger">' + data.erro + '</div>';
       return;
@@ -246,8 +225,13 @@ function autoCorrigir() {
     var sug = data.sugestoes || [];
     var salvos = data.auto_salvos || 0;
 
+    if (salvos === 0 && sug.length === 0) {
+      res.innerHTML = '<p style="font-size:13px;color:var(--muted)">Nenhum agrupamento identificado — os nomes parecem ser todos distintos.</p>';
+      return;
+    }
+
     res.innerHTML = '<div style="padding:14px;border-radius:8px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3)">' +
-      '<p style="font-size:15px;font-weight:700;margin:0 0 6px;color:#10b981">✅ Correção automática concluída</p>' +
+      '<p style="font-size:15px;font-weight:700;margin:0 0 6px;color:#10b981">Correção automática concluída</p>' +
       '<p style="font-size:13px;margin:0 0 8px">' +
       '<strong>' + sug.length + '</strong> agrupamento(s) identificados · ' +
       '<strong>' + salvos + '</strong> alias(es) salvos automaticamente</p>' +
@@ -255,136 +239,8 @@ function autoCorrigir() {
       '</div>';
   })
   .catch(function(err) {
-    btn.disabled = false;
-    ico.innerHTML = '🤖';
-    txt.textContent = 'Auto-corrigir tudo';
     res.innerHTML = '<div class="flash flash-danger">Erro: ' + err.message + '</div>';
   });
-}
-
-/* ── IA: sugerir agrupamentos (com revisão) ───────────────────────────────── */
-function sugerirIA() {
-  var btn = document.getElementById('btn-ia');
-  var ico = document.getElementById('ia-btn-icon');
-  var txt = document.getElementById('ia-btn-text');
-  var res = document.getElementById('ia-resultado');
-
-  btn.disabled = true;
-  ico.innerHTML = '<span class="ia-spinner"></span>';
-  txt.textContent = 'Analisando nomes...';
-  res.style.display = 'block';
-  res.innerHTML = '<p style="color:var(--muted);font-size:13px">Enviando ' +
-    '{{ nomes_aprox | length }} nomes para a IA... isso pode levar alguns segundos.</p>';
-
-  fetch('{{ url_for("aliases_sugerir_ia") }}', { method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    btn.disabled = false;
-    ico.innerHTML = '🤖';
-    txt.textContent = 'Sugerir novamente';
-
-    if (data.erro) {
-      res.innerHTML = '<div class="flash flash-danger">' + data.erro + '</div>';
-      return;
-    }
-
-    var sug = data.sugestoes || [];
-    if (sug.length === 0) {
-      res.innerHTML = '<p class="text-muted">Nenhum agrupamento sugerido — os nomes parecem ser todos distintos.</p>';
-      return;
-    }
-
-    var html = '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px">' +
-      '<p style="font-size:13px;margin:0"><strong>' + sug.length +
-      ' agrupamento(s)</strong> sugeridos.</p>' +
-      '<div style="display:flex;gap:8px">' +
-      '<button class="ia-btn" id="btn-aceitar-todos" onclick="aceitarTodos()" style="font-size:13px;padding:8px 18px">✓ Aceitar todos (' + sug.length + ')</button>' +
-      '</div></div>';
-
-    html += '<div id="ia-progresso" style="display:none;margin-bottom:12px;padding:8px 14px;border-radius:8px;background:rgba(16,185,129,.08);font-size:13px"></div>';
-
-    sug.forEach(function(g, i) {
-      html += '<div class="ia-grupo" id="ia-grp-' + i + '">' +
-        '<div class="ia-grupo-itens">';
-      g.nomes.forEach(function(n) {
-        html += '<span>' + escHtml(n) + '</span>';
-      });
-      html += '</div>' +
-        '<div class="ia-grupo-nome">' +
-        '→ <input type="text" id="ia-canon-' + i + '" value="' + escAttr(g.canonical) + '">' +
-        '</div>' +
-        '<div class="ia-grupo-acoes" id="ia-acoes-' + i + '">' +
-        '<button class="ia-aceitar" onclick="aceitarGrupo(' + i + ')">✓ Aceitar</button>' +
-        '<button class="ia-rejeitar" onclick="rejeitarGrupo(' + i + ')">✕ Rejeitar</button>' +
-        '</div></div>';
-    });
-
-    res.innerHTML = html;
-    window._iaSugestoes = sug;
-  })
-  .catch(function(err) {
-    btn.disabled = false;
-    ico.innerHTML = '🤖';
-    txt.textContent = 'Sugerir agrupamentos';
-    res.innerHTML = '<div class="flash flash-danger">Erro de conexão: ' + err.message + '</div>';
-  });
-}
-
-function escHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-function escAttr(s) { return s.replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
-
-function aceitarGrupo(idx) {
-  var canon = document.getElementById('ia-canon-' + idx).value.trim();
-  if (!canon) { alert('Preencha a razão social.'); return; }
-  var g = window._iaSugestoes[idx];
-  var form = new FormData();
-  g.nomes.forEach(function(n) { form.append('nomes', n); });
-  form.append('nome_canonical', canon);
-
-  return fetch('{{ url_for("aliases_salvar_batch") }}', { method: 'POST', body: form })
-  .then(function() {
-    var el = document.getElementById('ia-grp-' + idx);
-    el.classList.add('ia-aceito');
-    document.getElementById('ia-acoes-' + idx).innerHTML =
-      '<span style="color:#10b981;font-weight:600">✓ ' + g.nomes.length + ' alias(es) salvos</span>';
-    return true;
-  });
-}
-
-function rejeitarGrupo(idx) {
-  document.getElementById('ia-grp-' + idx).classList.add('ia-rejeitado');
-}
-
-async function aceitarTodos() {
-  var sug = window._iaSugestoes || [];
-  var btn = document.getElementById('btn-aceitar-todos');
-  var prog = document.getElementById('ia-progresso');
-  btn.disabled = true;
-  btn.textContent = 'Salvando...';
-  prog.style.display = 'block';
-
-  var total = 0, salvos = 0;
-  for (var i = 0; i < sug.length; i++) {
-    var el = document.getElementById('ia-grp-' + i);
-    if (!el.classList.contains('ia-aceito') && !el.classList.contains('ia-rejeitado')) {
-      total++;
-    }
-  }
-
-  for (var i = 0; i < sug.length; i++) {
-    var el = document.getElementById('ia-grp-' + i);
-    if (el.classList.contains('ia-aceito') || el.classList.contains('ia-rejeitado')) continue;
-    salvos++;
-    prog.innerHTML = '⏳ Salvando ' + salvos + ' de ' + total + '...';
-    try { await aceitarGrupo(i); } catch(e) {}
-  }
-
-  prog.innerHTML = '✅ <strong>' + salvos + ' agrupamento(s) salvos!</strong> Recarregue a página para ver o resultado.';
-  btn.textContent = '✓ Concluído';
-  btn.onclick = function() { location.reload(); };
-  btn.disabled = false;
-}
+})();
 </script>
 {% endblock %}
