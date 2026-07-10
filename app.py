@@ -1671,6 +1671,44 @@ def aliases_sugerir_ia():
         return jsonify({"erro": "Nenhum nome pendente para analisar."}), 400
 
     nomes_lista = sorted(nomes_aprox)
+    auto = request.form.get("auto") == "1"
+
+    # ── Passo 0: agrupar truncamentos por prefixo comum (determinístico) ───
+    prefixo_aliases = 0
+    if auto:
+        agrupados = {}
+        for n in sorted(nomes_lista, key=len, reverse=True):
+            colocado = False
+            for canon in list(agrupados.keys()):
+                if canon.startswith(n) or n.startswith(canon):
+                    if len(n) > len(canon):
+                        agrupados[n] = agrupados.pop(canon) | {canon, n}
+                    else:
+                        agrupados[canon].add(n)
+                    colocado = True
+                    break
+            if not colocado:
+                agrupados[n] = {n}
+        conn_pre = get_conn()
+        for canon, membros in agrupados.items():
+            if len(membros) < 2:
+                continue
+            for m in membros:
+                if m != canon:
+                    conn_pre.execute(
+                        "INSERT OR REPLACE INTO nome_aliases (nome_aproximado, nome_canonical) VALUES (?, ?)",
+                        (m, canon)
+                    )
+                    prefixo_aliases += 1
+        conn_pre.commit()
+        conn_pre.close()
+        if prefixo_aliases:
+            alias_nomes_atualizado = {r[0] for r in get_conn().execute("SELECT nome_aproximado FROM nome_aliases").fetchall()}
+            nomes_lista = [n for n in nomes_lista if n not in alias_nomes_atualizado]
+            nomes_aprox -= alias_nomes_atualizado
+
+    if not nomes_aprox:
+        return jsonify({"sugestoes": [], "auto_salvos": prefixo_aliases})
 
     # Lista de fornecedores já cadastrados (para a IA poder casar nomes pendentes)
     conn2 = get_conn()
@@ -1741,7 +1779,6 @@ def aliases_sugerir_ia():
             return jsonify({"erro": f"Erro na API OpenAI: {str(e)}"}), 500
 
     # Auto-salvar: grava todos os aliases direto no banco sem revisão
-    auto = request.form.get("auto") == "1"
     total_aliases = 0
     if auto and todos_grupos:
         conn = get_conn()
@@ -1762,7 +1799,7 @@ def aliases_sugerir_ia():
 
     return jsonify({
         "sugestoes": todos_grupos,
-        "auto_salvos": total_aliases if auto else 0,
+        "auto_salvos": (total_aliases + prefixo_aliases) if auto else 0,
     })
 
 
