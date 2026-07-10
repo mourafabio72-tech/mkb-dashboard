@@ -1713,12 +1713,34 @@ def aliases_sugerir_ia():
                     texto = texto[:-3]
                 texto = texto.strip()
             grupos = json.loads(texto)
-            # Filtra apenas grupos com 2+ variações (os de 1 são nomes únicos)
             todos_grupos.extend([g for g in grupos if len(g.get("nomes", [])) >= 2])
         except Exception as e:
             return jsonify({"erro": f"Erro na API OpenAI: {str(e)}"}), 500
 
-    return jsonify({"sugestoes": todos_grupos})
+    # Auto-salvar: grava todos os aliases direto no banco sem revisão
+    auto = request.form.get("auto") == "1"
+    total_aliases = 0
+    if auto and todos_grupos:
+        conn = get_conn()
+        for g in todos_grupos:
+            canonical = g.get("canonical", "").strip()
+            if not canonical:
+                continue
+            for nome in g.get("nomes", []):
+                nome = nome.strip()
+                if nome:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO nome_aliases (nome_aproximado, nome_canonical) VALUES (?, ?)",
+                        (nome, canonical)
+                    )
+                    total_aliases += 1
+        conn.commit()
+        conn.close()
+
+    return jsonify({
+        "sugestoes": todos_grupos,
+        "auto_salvos": total_aliases if auto else 0,
+    })
 
 
 # --- ROTA: PENDÊNCIAS DE CADASTRO --------------------------------------------
