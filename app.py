@@ -1676,7 +1676,7 @@ def aliases_sugerir_ia():
     conn2 = get_conn()
     cadastro_nomes = sorted({
         r[0] for r in conn2.execute(
-            "SELECT DISTINCT cliente_nome FROM fornecedores_cadastro WHERE cliente_nome IS NOT NULL"
+            "SELECT DISTINCT razao_social FROM fornecedores_cadastro WHERE razao_social IS NOT NULL"
         ).fetchall()
         if r[0]
     })
