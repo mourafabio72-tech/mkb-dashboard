@@ -10,7 +10,7 @@ from pathlib import Path
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from werkzeug.security import generate_password_hash
 
-from config import SECRET_KEY, PORT, DEBUG, EMPRESAS
+from config import SECRET_KEY, PORT, DEBUG, EMPRESAS, OPENAI_API_KEY
 from auth import login_required, admin_required, verificar_credenciais, rate_limit_login
 from ingestion import get_conn, criar_schema, seed_empresas, importar, ler_template_dre, salvar_lancamentos
 from importar_mes import importar_mes_completo
@@ -1608,9 +1608,11 @@ def aliases_sugerir_ia():
     de agrupamento como JSON para revisão no frontend."""
     import os, json
 
-    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    api_key = OPENAI_API_KEY or os.environ.get("OPENAI_API_KEY", "").strip()
     if not api_key:
-        return jsonify({"erro": "OPENAI_API_KEY não configurada no servidor."}), 400
+        # Diagnóstico: lista variáveis que contêm "KEY" ou "OPENAI" (sem expor valores)
+        env_keys = [k for k in os.environ if "KEY" in k.upper() or "OPENAI" in k.upper()]
+        return jsonify({"erro": f"OPENAI_API_KEY não configurada. Variáveis encontradas: {env_keys}"}), 400
 
     # Coleta nomes pendentes (mesma lógica da rota aliases)
     conn = get_conn()

@@ -108,6 +108,9 @@ SECRET_KEY = os.environ.get("SECRET_KEY") or _secrets.token_hex(32)
 PORT       = int(os.environ.get("PORT", 5001))
 DEBUG      = os.environ.get("DEBUG", "false").lower() == "true"
 
+# ─── OPENAI (sugestão automática de aliases de fornecedores) ─────────────────
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
+
 # ─── AUTENTICAÇÃO ─────────────────────────────────────────────────────────────
 # DASHBOARD_USERS = "usuario1:senha1,usuario2:senha2"
 # Em produção defina como variável de ambiente no Render (nunca comite senhas).
