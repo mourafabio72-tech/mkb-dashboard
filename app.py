@@ -1779,6 +1779,8 @@ def aliases_sugerir_ia():
             return jsonify({"erro": f"Erro na API OpenAI: {str(e)}"}), 500
 
     # Auto-salvar: grava todos os aliases direto no banco sem revisão
+    # Índice para casar nomes da IA (que podem vir levemente diferentes) com os originais
+    nomes_upper = {n.upper(): n for n in nomes_lista}
     total_aliases = 0
     if auto and todos_grupos:
         conn = get_conn()
@@ -1786,12 +1788,15 @@ def aliases_sugerir_ia():
             canonical = g.get("canonical", "").strip()
             if not canonical:
                 continue
-            for nome in g.get("nomes", []):
-                nome = nome.strip()
-                if nome:
+            for nome_ia in g.get("nomes", []):
+                nome_ia = nome_ia.strip()
+                if not nome_ia:
+                    continue
+                nome_real = nomes_upper.get(nome_ia.upper(), nome_ia)
+                if nome_real != canonical:
                     conn.execute(
                         "INSERT OR REPLACE INTO nome_aliases (nome_aproximado, nome_canonical) VALUES (?, ?)",
-                        (nome, canonical)
+                        (nome_real, canonical)
                     )
                     total_aliases += 1
         conn.commit()
