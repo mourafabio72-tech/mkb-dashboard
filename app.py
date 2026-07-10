@@ -1525,11 +1525,15 @@ def aliases():
     nomes_aprox_sorted = sorted(nomes_aprox)
     canonicos = sorted({r[1] for r in aliases_rows})
 
+    from pathlib import Path as _P
+    tem_key = bool(OPENAI_API_KEY) or _P("/data/openai_key.txt").exists()
+
     return render_template(
         "aliases.html",
         aliases=aliases_rows,
         nomes_aprox=nomes_aprox_sorted,
         canonicos=canonicos,
+        tem_openai_key=tem_key,
     )
 
 
@@ -1600,6 +1604,26 @@ def aliases_excluir():
     return redirect(url_for("aliases"))
 
 
+@app.route("/cadastro/aliases/config-ia", methods=["POST"])
+@login_required
+@admin_required
+def aliases_config_ia():
+    """Salva a API key do OpenAI em /data/openai_key.txt (disco persistente)."""
+    from pathlib import Path as _P
+    chave = request.form.get("api_key", "").strip()
+    if not chave or not chave.startswith("sk-"):
+        flash("Chave inválida — deve começar com sk-", "danger")
+        return redirect(url_for("aliases"))
+    _P("/data/openai_key.txt").write_text(chave)
+    # Atualiza em memória para uso imediato
+    import config
+    config.OPENAI_API_KEY = chave
+    global OPENAI_API_KEY
+    OPENAI_API_KEY = chave
+    flash("API key salva com sucesso.", "success")
+    return redirect(url_for("aliases"))
+
+
 @app.route("/cadastro/aliases/sugerir-ia", methods=["POST"])
 @login_required
 @admin_required
@@ -1607,12 +1631,18 @@ def aliases_sugerir_ia():
     """Envia nomes aproximados pendentes para GPT-4o-mini e retorna sugestões
     de agrupamento como JSON para revisão no frontend."""
     import os, json
+    from pathlib import Path as _P
 
-    api_key = OPENAI_API_KEY or os.environ.get("OPENAI_API_KEY", "").strip()
+    api_key = OPENAI_API_KEY
     if not api_key:
-        # Diagnóstico: lista variáveis que contêm "KEY" ou "OPENAI" (sem expor valores)
-        env_keys = [k for k in os.environ if "KEY" in k.upper() or "OPENAI" in k.upper()]
-        return jsonify({"erro": f"OPENAI_API_KEY não configurada. Variáveis encontradas: {env_keys}"}), 400
+        try:
+            p = _P("/data/openai_key.txt")
+            if p.exists():
+                api_key = p.read_text().strip()
+        except Exception:
+            pass
+    if not api_key:
+        return jsonify({"erro": "API key não configurada. Use o botão 'Configurar API key' acima."}), 400
 
     # Coleta nomes pendentes (mesma lógica da rota aliases)
     conn = get_conn()

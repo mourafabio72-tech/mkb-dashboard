@@ -109,7 +109,21 @@ PORT       = int(os.environ.get("PORT", 5001))
 DEBUG      = os.environ.get("DEBUG", "false").lower() == "true"
 
 # ─── OPENAI (sugestão automática de aliases de fornecedores) ─────────────────
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
+# Lê de env var OU de /data/openai_key.txt (fallback para Easypanel onde
+# variáveis de ambiente nem sempre chegam ao container)
+def _ler_openai_key() -> str:
+    chave = os.environ.get("OPENAI_API_KEY", "").strip()
+    if chave:
+        return chave
+    try:
+        p = Path("/data/openai_key.txt")
+        if p.exists():
+            return p.read_text().strip()
+    except Exception:
+        pass
+    return ""
+
+OPENAI_API_KEY = _ler_openai_key()
 
 # ─── AUTENTICAÇÃO ─────────────────────────────────────────────────────────────
 # DASHBOARD_USERS = "usuario1:senha1,usuario2:senha2"

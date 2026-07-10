@@ -66,6 +66,24 @@
 {% endif %}
 {% endwith %}
 
+{# ── Config API key (se não configurada) ──────────────────────────────────── #}
+{% if not tem_openai_key %}
+<div class="alias-section">
+  <div class="card-full" style="padding:16px 20px">
+    <h3 style="margin:0 0 8px;font-size:14px">⚙️ Configurar API key OpenAI</h3>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 10px">
+      Para usar a sugestão automática com IA, informe a API key do OpenAI (começa com <code>sk-</code>).
+      A chave é salva no servidor e não precisa ser configurada novamente.
+    </p>
+    <form method="POST" action="{{ url_for('aliases_config_ia') }}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="password" name="api_key" placeholder="sk-proj-..." required
+             style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:13px;min-width:340px">
+      <button type="submit" style="padding:6px 14px;border:none;border-radius:6px;background:#10b981;color:#fff;font-weight:600;font-size:12px;cursor:pointer">Salvar chave</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
 {# ── Sugestão automática por IA ──────────────────────────────────────────────── #}
 {% if nomes_aprox %}
 <div class="alias-section">
