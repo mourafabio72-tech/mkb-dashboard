@@ -1710,10 +1710,12 @@ def aliases_sugerir_ia():
             "3. Todo nome pendente DEVE aparecer em exatamente um grupo (inclusive grupos de 1 elemento).\n\n"
             "REGRAS:\n"
             "- PRIORIZE casar com fornecedores já cadastrados\n"
-            "- Só agrupe se tiver CERTEZA que são o mesmo fornecedor\n"
-            "- Na dúvida, mantenha separados\n"
-            "- A razão social canonical deve ser a versão mais completa possível, em MAIÚSCULAS\n"
-            "- Nomes com números+letras (ex: '54.252.132 ROS') provavelmente são CNPJ truncado + início do nome\n\n"
+            "- Nomes que começam com as mesmas palavras mas um é mais curto são TRUNCAMENTOS do mesmo "
+            "fornecedor — SEMPRE agrupe (ex: 'SIGMA SERVICOS EM' e 'SIGMA SERVICOS EM SEG' = mesmo)\n"
+            "- Na dúvida entre dois nomes muito parecidos, agrupe (falso positivo é aceitável)\n"
+            "- A razão social canonical deve ser a versão mais LONGA e completa possível, em MAIÚSCULAS\n"
+            "- Nomes com números+letras (ex: '54.252.132 ROS') provavelmente são CNPJ truncado + início do nome\n"
+            "- NÃO retorne grupos de 1 elemento onde o canonical é igual ao próprio nome — isso não ajuda\n\n"
             "FORMATO DE RESPOSTA (JSON puro, sem markdown):\n"
             '[{"canonical": "RAZAO SOCIAL COMPLETA", "nomes": ["VARIACAO1", "VARIACAO2"]}, ...]\n\n'
             "NOMES PENDENTES:\n" + "\n".join(f"- {n}" for n in batch)
