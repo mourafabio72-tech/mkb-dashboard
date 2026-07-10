@@ -243,8 +243,14 @@ function sugerirIA() {
       return;
     }
 
-    var html = '<p style="font-size:13px;margin-bottom:12px"><strong>' + sug.length +
-      ' agrupamento(s)</strong> sugeridos. Revise a razão social e clique <strong>Aceitar</strong> para salvar.</p>';
+    var html = '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px">' +
+      '<p style="font-size:13px;margin:0"><strong>' + sug.length +
+      ' agrupamento(s)</strong> sugeridos.</p>' +
+      '<div style="display:flex;gap:8px">' +
+      '<button class="ia-btn" id="btn-aceitar-todos" onclick="aceitarTodos()" style="font-size:13px;padding:8px 18px">✓ Aceitar todos (' + sug.length + ')</button>' +
+      '</div></div>';
+
+    html += '<div id="ia-progresso" style="display:none;margin-bottom:12px;padding:8px 14px;border-radius:8px;background:rgba(16,185,129,.08);font-size:13px"></div>';
 
     sug.forEach(function(g, i) {
       html += '<div class="ia-grupo" id="ia-grp-' + i + '">' +
@@ -261,10 +267,6 @@ function sugerirIA() {
         '<button class="ia-rejeitar" onclick="rejeitarGrupo(' + i + ')">✕ Rejeitar</button>' +
         '</div></div>';
     });
-
-    html += '<div style="margin-top:12px;display:flex;gap:8px">' +
-      '<button class="ia-btn" onclick="aceitarTodos()" style="font-size:12px;padding:6px 14px">✓ Aceitar todos</button>' +
-      '</div>';
 
     res.innerHTML = html;
     window._iaSugestoes = sug;
@@ -288,12 +290,13 @@ function aceitarGrupo(idx) {
   g.nomes.forEach(function(n) { form.append('nomes', n); });
   form.append('nome_canonical', canon);
 
-  fetch('{{ url_for("aliases_salvar_batch") }}', { method: 'POST', body: form })
+  return fetch('{{ url_for("aliases_salvar_batch") }}', { method: 'POST', body: form })
   .then(function() {
     var el = document.getElementById('ia-grp-' + idx);
     el.classList.add('ia-aceito');
     document.getElementById('ia-acoes-' + idx).innerHTML =
       '<span style="color:#10b981;font-weight:600">✓ ' + g.nomes.length + ' alias(es) salvos</span>';
+    return true;
   });
 }
 
@@ -301,14 +304,34 @@ function rejeitarGrupo(idx) {
   document.getElementById('ia-grp-' + idx).classList.add('ia-rejeitado');
 }
 
-function aceitarTodos() {
+async function aceitarTodos() {
   var sug = window._iaSugestoes || [];
-  sug.forEach(function(g, i) {
+  var btn = document.getElementById('btn-aceitar-todos');
+  var prog = document.getElementById('ia-progresso');
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+  prog.style.display = 'block';
+
+  var total = 0, salvos = 0;
+  for (var i = 0; i < sug.length; i++) {
     var el = document.getElementById('ia-grp-' + i);
     if (!el.classList.contains('ia-aceito') && !el.classList.contains('ia-rejeitado')) {
-      aceitarGrupo(i);
+      total++;
     }
-  });
+  }
+
+  for (var i = 0; i < sug.length; i++) {
+    var el = document.getElementById('ia-grp-' + i);
+    if (el.classList.contains('ia-aceito') || el.classList.contains('ia-rejeitado')) continue;
+    salvos++;
+    prog.innerHTML = '⏳ Salvando ' + salvos + ' de ' + total + '...';
+    try { await aceitarGrupo(i); } catch(e) {}
+  }
+
+  prog.innerHTML = '✅ <strong>' + salvos + ' agrupamento(s) salvos!</strong> Recarregue a página para ver o resultado.';
+  btn.textContent = '✓ Concluído';
+  btn.onclick = function() { location.reload(); };
+  btn.disabled = false;
 }
 </script>
 {% endblock %}
