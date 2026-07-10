@@ -1600,6 +1600,95 @@ def aliases_excluir():
     return redirect(url_for("aliases"))
 
 
+@app.route("/cadastro/aliases/sugerir-ia", methods=["POST"])
+@login_required
+@admin_required
+def aliases_sugerir_ia():
+    """Envia nomes aproximados pendentes para GPT-4o-mini e retorna sugestões
+    de agrupamento como JSON para revisão no frontend."""
+    import os, json
+
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        return jsonify({"erro": "OPENAI_API_KEY não configurada no servidor."}), 400
+
+    # Coleta nomes pendentes (mesma lógica da rota aliases)
+    conn = get_conn()
+    cadastro_cods = {r[0] for r in conn.execute("SELECT cliente_cod FROM fornecedores_cadastro").fetchall()}
+    alias_nomes = {r[0] for r in conn.execute("SELECT nome_aproximado FROM nome_aliases").fetchall()}
+    linhas = conn.execute("""
+        SELECT DISTINCT historico, parceiro_cod
+        FROM razao WHERE conta_cod LIKE '4.%%' AND historico IS NOT NULL
+    """).fetchall()
+    conn.close()
+
+    import re as _re
+    re_de    = _re.compile(r'NF\.?\s*\d+\s+DE\s+(.+)$', _re.IGNORECASE)
+    re_traco = _re.compile(r'NF\.?\s*\d+\s*[-–]\s*(.+)$', _re.IGNORECASE)
+    nomes_aprox = set()
+    for hist, codigo in linhas:
+        if codigo and codigo in cadastro_cods:
+            continue
+        m = re_de.search(hist.strip()) or re_traco.search(hist.strip())
+        if m:
+            nome = m.group(1).strip()
+            if nome and nome not in alias_nomes:
+                nomes_aprox.add(nome)
+
+    if not nomes_aprox:
+        return jsonify({"erro": "Nenhum nome pendente para analisar."}), 400
+
+    nomes_lista = sorted(nomes_aprox)
+
+    # Envia em batches de ~150 nomes (cabe no contexto do GPT-4o-mini)
+    from openai import OpenAI
+    client = OpenAI(api_key=api_key)
+
+    BATCH_SIZE = 150
+    todos_grupos = []
+
+    for i in range(0, len(nomes_lista), BATCH_SIZE):
+        batch = nomes_lista[i:i + BATCH_SIZE]
+        prompt = (
+            "Você é um assistente de normalização de cadastros contábeis brasileiros.\n\n"
+            "Abaixo está uma lista de nomes de fornecedores extraídos de lançamentos contábeis. "
+            "Muitos estão TRUNCADOS ou com VARIAÇÕES de grafia do mesmo fornecedor real.\n\n"
+            "TAREFA: Agrupe os nomes que pertencem ao MESMO fornecedor e sugira a razão social "
+            "correta (completa, em maiúsculas) para cada grupo. Se um nome parece ser único "
+            "(sem variações na lista), inclua-o como grupo de 1 elemento.\n\n"
+            "REGRAS:\n"
+            "- Só agrupe se tiver CERTEZA que são o mesmo fornecedor\n"
+            "- Na dúvida, mantenha separados (falso negativo é melhor que falso positivo)\n"
+            "- A razão social sugerida deve ser a versão mais completa e correta possível\n"
+            "- Nomes que são apenas números+letras (ex: '54.252.132 ROS') provavelmente são CNPJ truncado + início do nome\n\n"
+            "FORMATO DE RESPOSTA (JSON puro, sem markdown):\n"
+            '[{"canonical": "RAZAO SOCIAL COMPLETA", "nomes": ["VARIACAO1", "VARIACAO2"]}, ...]\n\n'
+            "NOMES:\n" + "\n".join(f"- {n}" for n in batch)
+        )
+
+        try:
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                max_tokens=4000,
+            )
+            texto = resp.choices[0].message.content.strip()
+            # Remove possível markdown code block
+            if texto.startswith("```"):
+                texto = texto.split("\n", 1)[1] if "\n" in texto else texto[3:]
+                if texto.endswith("```"):
+                    texto = texto[:-3]
+                texto = texto.strip()
+            grupos = json.loads(texto)
+            # Filtra apenas grupos com 2+ variações (os de 1 são nomes únicos)
+            todos_grupos.extend([g for g in grupos if len(g.get("nomes", [])) >= 2])
+        except Exception as e:
+            return jsonify({"erro": f"Erro na API OpenAI: {str(e)}"}), 500
+
+    return jsonify({"sugestoes": todos_grupos})
+
+
 # --- ROTA: PENDÊNCIAS DE CADASTRO --------------------------------------------
 
 @app.route("/cadastro/pendencias")
