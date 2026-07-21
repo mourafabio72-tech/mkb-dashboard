@@ -108,6 +108,18 @@ SECRET_KEY = os.environ.get("SECRET_KEY") or _secrets.token_hex(32)
 PORT       = int(os.environ.get("PORT", 5001))
 DEBUG      = os.environ.get("DEBUG", "false").lower() == "true"
 
+# ─── SSO ZOARIA HUB (opt-in via env) ─────────────────────────────────────────
+# Quando ZOARIA_SECRET_KEY é definida (a MESMA do hub em zoaria.com.br), a
+# sessão criada no hub passa a valer aqui via cookie compartilhado no domínio
+# .zoaria.com.br. Sem essas env vars, o login local continua como sempre.
+ZOARIA_SECRET_KEY = os.environ.get("ZOARIA_SECRET_KEY", "").strip()
+if ZOARIA_SECRET_KEY:
+    SECRET_KEY = ZOARIA_SECRET_KEY
+ZOARIA_COOKIE_DOMAIN = os.environ.get("ZOARIA_COOKIE_DOMAIN", "").strip() or None
+ZOARIA_COOKIE_NAME   = os.environ.get("ZOARIA_COOKIE_NAME", "zoaria_session")
+HUB_URL    = os.environ.get("HUB_URL", "").strip().rstrip("/")
+MODULO_HUB = "controladoria"   # módulo deste app no catálogo do hub
+
 # ─── OPENAI (sugestão automática de aliases de fornecedores) ─────────────────
 # Lê de env var OU de /data/openai_key.txt (fallback para Easypanel onde
 # variáveis de ambiente nem sempre chegam ao container)

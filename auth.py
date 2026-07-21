@@ -24,11 +24,12 @@ Uso:
 
 import time
 from functools import wraps
+from urllib.parse import quote
 
 from flask import session, redirect, url_for, request, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from config import DASHBOARD_USERS_RAW
+from config import DASHBOARD_USERS_RAW, HUB_URL, MODULO_HUB
 
 _MAX_ATTEMPTS = 5
 _BLOCK_SECONDS = 300
@@ -119,11 +120,18 @@ def is_admin() -> bool:
 # ─── DECORATORS ──────────────────────────────────────────────────────────────
 
 def login_required(f):
-    """Redireciona para /login (preservando ?next=) se ninguém estiver logado."""
+    """Redireciona para o login (hub, se configurado) se ninguém estiver logado.
+    Sessões vindas do hub também passam pela checagem de módulo."""
     @wraps(f)
     def wrapper(*args, **kwargs):
-        if not usuario_logado():
+        u = usuario_logado()
+        if not u:
+            if HUB_URL:
+                return redirect(f"{HUB_URL}/login?next={quote(request.url, safe='')}")
             return redirect(url_for("login", next=request.path))
+        if u.get("origem") == "hub" and MODULO_HUB not in (u.get("modulos") or []):
+            return ("Seu usuário não tem acesso ao módulo deste aplicativo. "
+                    "Solicite a liberação a um administrador no hub zoaria.com.br.", 403)
         return f(*args, **kwargs)
     return wrapper
 

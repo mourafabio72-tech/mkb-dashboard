@@ -10,7 +10,10 @@ from pathlib import Path
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from werkzeug.security import generate_password_hash
 
-from config import SECRET_KEY, PORT, DEBUG, EMPRESAS, OPENAI_API_KEY
+from config import (
+    SECRET_KEY, PORT, DEBUG, EMPRESAS, OPENAI_API_KEY,
+    ZOARIA_COOKIE_DOMAIN, ZOARIA_COOKIE_NAME, HUB_URL,
+)
 from auth import login_required, admin_required, verificar_credenciais, rate_limit_login
 from ingestion import get_conn, criar_schema, seed_empresas, importar, ler_template_dre, salvar_lancamentos
 from importar_mes import importar_mes_completo
@@ -41,7 +44,10 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=_td(hours=8),
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_NAME=ZOARIA_COOKIE_NAME,
 )
+if ZOARIA_COOKIE_DOMAIN:
+    app.config["SESSION_COOKIE_DOMAIN"] = ZOARIA_COOKIE_DOMAIN
 if not DEBUG:
     app.config["SESSION_COOKIE_SECURE"] = True
 
@@ -404,12 +410,18 @@ def login():
     next_url = request.args.get("next", "")
     if session.get("usuario_logado"):
         return redirect(next_url or url_for("index"))
+    # SSO: com hub configurado, o login padrão é o do hub (?local=1 força o local)
+    if HUB_URL and not request.args.get("local"):
+        destino = request.url_root.rstrip("/") + (next_url or "/")
+        return redirect(f"{HUB_URL}/login?next={destino}")
     return render_template("login.html", erro=None, ultimo_usuario=None, next_url=next_url)
 
 
 @app.route("/logout")
 def logout():
     session.clear()
+    if HUB_URL:
+        return redirect(f"{HUB_URL}/login")
     return redirect(url_for("login"))
 
 
