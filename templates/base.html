@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
 
-  <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('mkb-theme') || 'dark');</script>
+  <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('mkb-theme') || 'light');</script>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <style>
     /* ── Navbar · ícones Phosphor ─────────────────────────────────────────── */
@@ -208,7 +208,7 @@
 <script>
 (function(){
   var saved = localStorage.getItem('mkb-theme');
-  var theme = saved || 'dark';
+  var theme = saved || 'light';
   document.documentElement.setAttribute('data-theme', theme);
   var btn = document.getElementById('themeToggle');
   var icon = btn.querySelector('i');
