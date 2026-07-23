@@ -760,13 +760,11 @@ def balanco(competencia=None):
         empresa = "mkb"
     conn = get_conn()
     comps = competencias_com_balancete(conn, EMPRESAS[empresa]["id"])
-    if not comps:
-        conn.close()
-        flash("Nenhum balancete importado ainda. Importe em Cadastro → Balancete.", "warning")
-        return redirect(url_for("index"))
-    if competencia not in comps:
-        competencia = comps[-1]
-    dados = montar_balanco(conn, EMPRESAS[empresa]["id"], competencia)
+    dados = None
+    if comps:
+        if competencia not in comps:
+            competencia = comps[-1]
+        dados = montar_balanco(conn, EMPRESAS[empresa]["id"], competencia)
     conn.close()
     return render_template(
         "balanco.html",
@@ -775,6 +773,7 @@ def balanco(competencia=None):
         competencias=comps,
         empresa=empresa,
         empresa_nome=EMPRESAS[empresa].get("nome") or EMPRESAS[empresa].get("sigla", empresa.upper()),
+        empresas=[(chave, e["sigla"]) for chave, e in EMPRESAS.items()],
         fmt_brl=fmt_brl,
     )
 

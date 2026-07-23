@@ -1,26 +1,42 @@
 {% extends "base.html" %}
-{% block title %}Balanço — {{ mes_label(competencia) }}{% endblock %}
+{% block title %}Balanço{% if competencia %} — {{ mes_label(competencia) }}{% endif %}{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
     <div>
-      <h1>Balanço Patrimonial — {{ mes_label(competencia) }}</h1>
+      <h1>Balanço Patrimonial{% if competencia %} — {{ mes_label(competencia) }}{% endif %}</h1>
       <p class="subtitle">{{ empresa_nome }} · apurado do balancete mensal (saldo final)</p>
     </div>
-    <div style="display:flex;gap:8px;align-items:center">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <div class="toggle-dre-tipo">
+        {% for chave, sigla in empresas %}
+        <a href="{{ url_for('balanco', empresa=chave) }}"
+           class="btn-toggle-tipo {% if chave == empresa %}ativo{% endif %}">{{ sigla }}</a>
+        {% endfor %}
+      </div>
+      {% if competencia %}
       <a href="{{ url_for('dre_resumida', competencia=competencia) }}" class="btn-toggle-tipo">
         <i class="ph ph-trend-up"></i> Ver DRE
       </a>
+      {% endif %}
     </div>
   </div>
 </div>
+
+{% if not dados %}
+<div style="margin-top:22px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:34px 28px;text-align:center;color:var(--muted)">
+  <div style="font-size:30px;margin-bottom:8px"><i class="ph ph-scales"></i></div>
+  <div style="font-weight:700;color:var(--text);margin-bottom:4px">Nenhum balancete importado para {{ empresa_nome }}</div>
+  <div style="font-size:13px">Importe o balancete mensal em <b>Cadastro → Balancete</b> selecionando a empresa — a aba monta o balanço automaticamente.</div>
+</div>
+{% else %}
 
 {# ── Seletor de mês ──────────────────────────────────────────────────────── #}
 <div class="mes-selector">
   <span class="selector-label">Mês:</span>
   {% for comp in competencias %}
-    <a href="{{ url_for('balanco', competencia=comp) }}"
+    <a href="{{ url_for('balanco', competencia=comp, empresa=empresa) }}"
        class="btn-mes {% if comp == competencia %}btn-mes-ativo{% endif %}">
       {{ mes_label(comp) }}
     </a>
@@ -125,4 +141,5 @@
   {% endif %}
   <span>Lucro do Exercício apurado por diferença patrimonial (resultado ainda não encerrado no balancete).</span>
 </div>
+{% endif %}
 {% endblock %}
