@@ -748,6 +748,37 @@ def index():
     )
 
 
+# --- ROTA: BALANÇO PATRIMONIAL (a partir do balancete) -----------------------
+
+@app.route("/balanco")
+@app.route("/balanco/<competencia>")
+@login_required
+def balanco(competencia=None):
+    from balanco_engine import montar_balanco, competencias_com_balancete
+    empresa = request.args.get("empresa", "mkb")
+    if empresa not in EMPRESAS:
+        empresa = "mkb"
+    conn = get_conn()
+    comps = competencias_com_balancete(conn, EMPRESAS[empresa]["id"])
+    if not comps:
+        conn.close()
+        flash("Nenhum balancete importado ainda. Importe em Cadastro → Balancete.", "warning")
+        return redirect(url_for("index"))
+    if competencia not in comps:
+        competencia = comps[-1]
+    dados = montar_balanco(conn, EMPRESAS[empresa]["id"], competencia)
+    conn.close()
+    return render_template(
+        "balanco.html",
+        dados=dados,
+        competencia=competencia,
+        competencias=comps,
+        empresa=empresa,
+        empresa_nome=EMPRESAS[empresa].get("nome") or EMPRESAS[empresa].get("sigla", empresa.upper()),
+        fmt_brl=fmt_brl,
+    )
+
+
 # --- ROTA: DRE (OFICIAL ou GERENCIAL) ----------------------------------------
 
 @app.route("/dre/<competencia>")

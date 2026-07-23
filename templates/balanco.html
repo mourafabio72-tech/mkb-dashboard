@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Balanço — {{ mes_label(competencia) }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div>
+      <h1>Balanço Patrimonial — {{ mes_label(competencia) }}</h1>
+      <p class="subtitle">{{ empresa_nome }} · apurado do balancete mensal (saldo final)</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <a href="{{ url_for('dre_resumida', competencia=competencia) }}" class="btn-toggle-tipo">
+        <i class="ph ph-trend-up"></i> Ver DRE
+      </a>
+    </div>
+  </div>
+</div>
+
+{# ── Seletor de mês ──────────────────────────────────────────────────────── #}
+<div class="mes-selector">
+  <span class="selector-label">Mês:</span>
+  {% for comp in competencias %}
+    <a href="{{ url_for('balanco', competencia=comp) }}"
+       class="btn-mes {% if comp == competencia %}btn-mes-ativo{% endif %}">
+      {{ mes_label(comp) }}
+    </a>
+  {% endfor %}
+</div>
+
+<style>
+  .bal-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start;margin-top:14px}
+  @media(max-width:900px){.bal-grid{grid-template-columns:1fr}}
+  .bal-col{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .bal-head{padding:13px 18px;font-weight:700;letter-spacing:.18em;font-size:13px;color:#fff;background:var(--accent);text-align:center}
+  .bal-sec{display:flex;justify-content:space-between;gap:12px;padding:10px 18px;background:var(--row-final);font-weight:700;font-size:13px;border-top:1px solid var(--border)}
+  .bal-sub{display:flex;justify-content:space-between;gap:12px;padding:8px 18px 8px 30px;background:var(--row-res);font-weight:600;font-size:12.5px;border-top:1px solid var(--border)}
+  .bal-linha{display:flex;justify-content:space-between;gap:12px;padding:7px 18px 7px 30px;font-size:13px;border-top:1px solid var(--border)}
+  .bal-linha .n{color:var(--text)}
+  .bal-linha .v,.bal-sec .v,.bal-sub .v,.bal-total .v{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .bal-neg{color:var(--danger)}
+  .bal-total{display:flex;justify-content:space-between;gap:12px;padding:13px 18px;font-weight:800;font-size:14px;background:var(--row-final);border-top:2px solid var(--accent)}
+  .bal-fech{margin-top:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:12.5px;color:var(--muted)}
+  .bal-ok{display:inline-flex;align-items:center;gap:6px;color:var(--success);font-weight:700;border:1px solid var(--border);padding:4px 12px;border-radius:999px;background:var(--card)}
+  .bal-warn{color:var(--warning);font-weight:700}
+</style>
+
+<div class="bal-grid">
+
+  {# ═══ ATIVO ═══ #}
+  <div class="bal-col">
+    <div class="bal-head">A&nbsp;T&nbsp;I&nbsp;V&nbsp;O</div>
+
+    <div class="bal-sec"><span>Ativo Circulante</span>
+      <span class="v">{{ fmt_brl(dados.ativo_circulante.total) }}</span></div>
+    {% for nome, v in dados.ativo_circulante.linhas %}
+    <div class="bal-linha"><span class="n">{{ nome }}</span>
+      <span class="v {% if v < 0 %}bal-neg{% endif %}">{{ fmt_brl(v) }}</span></div>
+    {% endfor %}
+
+    <div class="bal-sec"><span>Ativo Não Circulante</span>
+      <span class="v">{{ fmt_brl(dados.ativo_nao_circulante_total) }}</span></div>
+    {% for nome, v in dados.ativo_nao_circulante.linhas %}
+    <div class="bal-linha"><span class="n">{{ nome }}</span>
+      <span class="v {% if v < 0 %}bal-neg{% endif %}">{{ fmt_brl(v) }}</span></div>
+    {% endfor %}
+
+    <div class="bal-sub"><span>Ativo Permanente</span>
+      <span class="v">{{ fmt_brl(dados.ativo_permanente.total) }}</span></div>
+    {% for nome, v in dados.ativo_permanente.linhas %}
+    <div class="bal-linha"><span class="n">{{ nome }}</span>
+      <span class="v {% if v < 0 %}bal-neg{% endif %}">{{ fmt_brl(v) }}</span></div>
+    {% endfor %}
+
+    {% if dados.ativo_nao_mapeado|abs > 0.005 %}
+    <div class="bal-linha"><span class="n bal-warn">⚠ Outras contas (fora do de-para)</span>
+      <span class="v">{{ fmt_brl(dados.ativo_nao_mapeado) }}</span></div>
+    {% endif %}
+
+    <div class="bal-total"><span>TOTAL DO ATIVO</span>
+      <span class="v">{{ fmt_brl(dados.total_ativo) }}</span></div>
+  </div>
+
+  {# ═══ PASSIVO ═══ #}
+  <div class="bal-col">
+    <div class="bal-head">P&nbsp;A&nbsp;S&nbsp;S&nbsp;I&nbsp;V&nbsp;O</div>
+
+    <div class="bal-sec"><span>Passivo Circulante</span>
+      <span class="v">{{ fmt_brl(dados.passivo_circulante.total) }}</span></div>
+    {% for nome, v in dados.passivo_circulante.linhas %}
+    <div class="bal-linha"><span class="n">{{ nome }}</span>
+      <span class="v {% if v < 0 %}bal-neg{% endif %}">{{ fmt_brl(v) }}</span></div>
+    {% endfor %}
+
+    <div class="bal-sec"><span>Passivo Não Circulante</span>
+      <span class="v">{{ fmt_brl(dados.passivo_nao_circulante.total) }}</span></div>
+    {% for nome, v in dados.passivo_nao_circulante.linhas %}
+    <div class="bal-linha"><span class="n">{{ nome }}</span>
+      <span class="v {% if v < 0 %}bal-neg{% endif %}">{{ fmt_brl(v) }}</span></div>
+    {% endfor %}
+
+    <div class="bal-sec"><span>Patrimônio Líquido</span>
+      <span class="v">{{ fmt_brl(dados.pl_total) }}</span></div>
+    {% for nome, v in dados.patrimonio_liquido.linhas %}
+    <div class="bal-linha"><span class="n">{{ nome }}</span>
+      <span class="v {% if v < 0 %}bal-neg{% endif %}">{{ fmt_brl(v) }}</span></div>
+    {% endfor %}
+    <div class="bal-linha"><span class="n">Lucro (Prejuízo) do Exercício</span>
+      <span class="v {% if dados.lucro_exercicio < 0 %}bal-neg{% endif %}">{{ fmt_brl(dados.lucro_exercicio) }}</span></div>
+
+    {% if dados.passivo_nao_mapeado|abs > 0.005 %}
+    <div class="bal-linha"><span class="n bal-warn">⚠ Outras contas (fora do de-para)</span>
+      <span class="v">{{ fmt_brl(dados.passivo_nao_mapeado) }}</span></div>
+    {% endif %}
+
+    <div class="bal-total"><span>TOTAL DO PASSIVO</span>
+      <span class="v">{{ fmt_brl(dados.total_passivo) }}</span></div>
+  </div>
+</div>
+
+<div class="bal-fech">
+  {% if dados.diferenca|abs < 0.01 %}
+    <span class="bal-ok"><i class="ph-bold ph-check-circle"></i> Ativo = Passivo</span>
+  {% else %}
+    <span class="bal-warn">⚠ Diferença Ativo − Passivo: {{ fmt_brl(dados.diferenca) }}</span>
+  {% endif %}
+  <span>Lucro do Exercício apurado por diferença patrimonial (resultado ainda não encerrado no balancete).</span>
+</div>
+{% endblock %}

@@ -8,6 +8,7 @@
 {% set uc = c or '2026-04' %}
 {% set itens = [
   {'endpoint': 'dre_resumida',                 'params': {'competencia': uc},            'cor': '#6e7f63', 'txt': '#ffffff', 'icone': 'ph-trend-up',       'label': 'DRE Gerencial',           'sub': 'Resultado mensal e acumulado'},
+  {'endpoint': 'balanco',                      'params': {'competencia': uc},            'cor': '#55684d', 'txt': '#ffffff', 'icone': 'ph-scales',         'label': 'Balanço',                 'sub': 'Patrimonial · Ativo × Passivo'},
   {'endpoint': 'irpj',                         'params': {'empresa': 'mkb', 'competencia': uc}, 'cor': '#c9a77f', 'txt': '#2f3b2f', 'icone': 'ph-calculator',     'label': 'IRPJ / CSLL',             'sub': 'Apuração fiscal trimestral'},
   {'endpoint': 'endividamento',                'params': {'empresa': 'mkb', 'competencia': uc}, 'cor': '#9bb39a', 'txt': '#2f3b2f', 'icone': 'ph-bank',           'label': 'Endividamento Tributário','sub': 'Saldo devedor × Receita Bruta'},
   {'endpoint': 'endividamento_bancario',       'params': {'empresa': 'gnileb'},           'cor': '#3f5147', 'txt': '#ffffff', 'icone': 'ph-bank',           'label': 'Endividamento Bancário',  'sub': 'Empréstimos · contratado, pago e saldo'},
