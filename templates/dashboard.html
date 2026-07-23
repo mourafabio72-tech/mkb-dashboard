@@ -132,7 +132,7 @@
     {% set vp   = variacao_pct(vult, vant) %}
     <div class="min-kpi {% if lid == 'EBITDA' %}min-kpi-hl{% endif %}">
       <span class="min-kpi-label">{{ lbl }}</span>
-      <span class="min-kpi-value {% if danger and v < 0 %}text-danger{% endif %}">{{ fmt_brl(v) }}</span>
+      <span class="min-kpi-value {% if danger and v < 0 %}text-danger{% endif %}">{{ v | mi }}</span>
       <span class="min-kpi-sub">{{ pct_rob(v, rob) }} da ROB</span>
       {% if vp[0] is not none %}
         <span class="min-kpi-var var-{{ vp[2] }}">
@@ -152,20 +152,28 @@
   <div class="min-kpi-row">
     <div class="min-kpi">
       <span class="min-kpi-label">Desembolso Mensal</span>
-      <span class="min-kpi-value">{{ fmt_brl(resumo_endividamento.desembolso_total) }}</span>
-      <span class="min-kpi-sub">Trib: {{ fmt_brl(resumo_endividamento.desembolso_tributario) }} · Banc: {{ fmt_brl(resumo_endividamento.desembolso_bancario) }}</span>
+      <span class="min-kpi-value">{{ resumo_endividamento.desembolso_total | mi }}</span>
+      <span class="min-kpi-sub">Trib: {{ resumo_endividamento.desembolso_tributario | mi }} · Banc: {{ resumo_endividamento.desembolso_bancario | mi }}</span>
     </div>
     <div class="min-kpi">
       <span class="min-kpi-label">Dívida Tributária</span>
-      <span class="min-kpi-value">{{ fmt_brl(resumo_endividamento.divida_tributaria) }}</span>
+      <span class="min-kpi-value">{{ resumo_endividamento.divida_tributaria | mi }}</span>
+      {% set vt = resumo_endividamento.var_tributaria %}
+      {% if vt[0] is not none %}
+        <span class="min-kpi-var {{ 'var-pos' if vt[2] == 'neg' else 'var-neg' }}">{{ '↓' if vt[2] == 'neg' else '↑' }} {{ vt[1].lstrip('-') }} vs mês ant.</span>
+      {% endif %}
     </div>
     <div class="min-kpi">
       <span class="min-kpi-label">Dívida Bancária</span>
-      <span class="min-kpi-value">{{ fmt_brl(resumo_endividamento.divida_bancaria) }}</span>
+      <span class="min-kpi-value">{{ resumo_endividamento.divida_bancaria | mi }}</span>
+      {% set vb = resumo_endividamento.var_bancaria %}
+      {% if vb[0] is not none %}
+        <span class="min-kpi-var {{ 'var-pos' if vb[2] == 'neg' else 'var-neg' }}">{{ '↓' if vb[2] == 'neg' else '↑' }} {{ vb[1].lstrip('-') }} vs mês ant.</span>
+      {% endif %}
     </div>
     <div class="min-kpi min-kpi-hl">
       <span class="min-kpi-label">Dívida Total / ROB</span>
-      <span class="min-kpi-value">{{ fmt_brl(resumo_endividamento.divida_total) }}</span>
+      <span class="min-kpi-value">{{ resumo_endividamento.divida_total | mi }}</span>
       <span class="min-kpi-sub">
         {% if resumo_endividamento.pct_divida_rob is not none %}
           {{ "%.1f"|format(resumo_endividamento.pct_divida_rob) }}% da ROB (YTD)
@@ -173,6 +181,10 @@
           —
         {% endif %}
       </span>
+      {% set vtot = resumo_endividamento.var_total %}
+      {% if vtot[0] is not none %}
+        <span class="min-kpi-var {{ 'var-pos' if vtot[2] == 'neg' else 'var-neg' }}">{{ '↓' if vtot[2] == 'neg' else '↑' }} {{ vtot[1].lstrip('-') }} vs mês ant.</span>
+      {% endif %}
     </div>
     <div class="min-kpi min-kpi-hl">
       <span class="min-kpi-label">% Desembolso / ROB</span>
@@ -219,10 +231,7 @@
 <div class="min-grid-2">
   <div class="min-chart-card">
     <span class="min-chart-title">Receita Bruta por Segmento</span>
-    <div class="pizza-flex">
-      <div class="grafico-wrap-pizza"><canvas id="chartPizza"></canvas></div>
-      <div id="legendaPizza" class="legenda-html"></div>
-    </div>
+    <div class="grafico-wrap"><canvas id="chartPizza"></canvas></div>
   </div>
   <div class="min-chart-card">
     <span class="min-chart-title">Receita Bruta Mensal</span>
@@ -267,20 +276,28 @@ const despesa  = {{ grafico_despesa | safe }};
 const endividamentoValor = {{ grafico_endividamento_valor | safe }};
 const endividamentoPct   = {{ grafico_endividamento_pct | safe }};
 
-const CORES = ['#6366f1','#10b981','#f59e0b','#ec4899','#8b5cf6','#14b8a6','#f97316'];
-const AZUL  = '#6366f1';
-const VERDE = '#10b981';
-
 /* Detecta tema para cores do Chart.js */
 function isDark() { return document.documentElement.getAttribute('data-theme') !== 'light'; }
-const MUTED  = isDark() ? '#6b6b9a' : '#7e8a73';
-const TXT    = isDark() ? '#e2e8f0' : '#2f3b2f';
-const CARD_BG = isDark() ? '#1a1a35' : '#f8f2e8';
-const GRID_C  = isDark() ? '#1e1e3a' : '#dccdb6';
-const LABEL_C = isDark() ? '#a78bfa' : '#6e7f63';
+const L = !isDark();
 
-const COR_CUSTO_INI = '#dc2626';  const COR_CUSTO_FIM = '#fca5a5';
-const COR_DESP_INI  = '#4f46e5';  const COR_DESP_FIM  = '#c4b5fd';
+/* Sistema de cor: base sage + semântica fixa (verde=positivo, terracota=negativo).
+   Mesma medida = mesma cor em todo o painel. */
+const MUTED   = L ? '#7e8a73' : '#6b6b9a';
+const TXT     = L ? '#2f3b2f' : '#e2e8f0';
+const CARD_BG = L ? '#f8f2e8' : '#1a1a35';
+const GRID_C  = L ? '#dccdb6' : '#1e1e3a';
+const LABEL_C = L ? '#6e7f63' : '#a78bfa';
+
+const C_RECEITA = L ? '#6e7f63' : '#8b9df0';   // medida-base (receita / volume)
+const C_POS     = L ? '#4d8a3f' : '#34d399';   // resultado positivo
+const C_NEG     = L ? '#b25b4c' : '#e2655d';   // resultado negativo
+const C_MARGEM  = L ? '#b0813f' : '#fbbf24';   // linha de margem %
+const C_DIVIDA  = L ? '#b0813f' : '#0ea5e9';   // desembolso / endividamento
+
+const COR_CUSTO_INI = L ? '#b25b4c' : '#dc2626';  const COR_CUSTO_FIM = L ? '#e2c4bc' : '#fca5a5';
+const COR_DESP_INI  = L ? '#b0813f' : '#4f46e5';  const COR_DESP_FIM  = L ? '#e8d6ac' : '#c4b5fd';
+
+const CORES = [C_RECEITA];  // segmento agora é barra de hue único (não mais rosca arco-íris)
 
 function mil(v) { return Math.round(v / 1000); }
 
@@ -300,57 +317,39 @@ Chart.defaults.plugins.datalabels.display = false;
 const gridLine = { color: GRID_C, lineWidth: 1 };
 const noGrid   = { display: false };
 
-/* Pizza */
-new Chart(document.getElementById('chartPizza'), {
-  type: 'doughnut',
-  data: {
-    labels: segmentos.map(s => s.label),
-    datasets: [{
-      data: segmentos.map(s => mil(s.valor)),
-      backgroundColor: CORES, borderWidth: 2,
-      borderColor: isDark() ? '#12121f' : '#ffffff', hoverOffset: 6,
-    }]
-  },
-  options: {
-    cutout: '55%', layout: { padding: 4 },
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: ctx => {
-            const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
-            const pct   = Math.round((ctx.parsed / total) * 100);
-            return ` ${ctx.label}: R$ ${ctx.parsed.toLocaleString('pt-BR')}K — ${pct}%`;
-          }
+/* Receita por segmento — barras horizontais ORDENADAS (troca a rosca; 0% filtrado) */
+(function segmentoBarras() {
+  const segOrd = segmentos
+    .map(s => ({ label: s.label, valor: mil(s.valor) }))
+    .filter(s => s.valor > 0)
+    .sort((a, b) => b.valor - a.valor);
+  const total = segOrd.reduce((a, s) => a + s.valor, 0) || 1;
+  new Chart(document.getElementById('chartPizza'), {
+    type: 'bar',
+    data: {
+      labels: segOrd.map(s => s.label),
+      datasets: [{ data: segOrd.map(s => s.valor), backgroundColor: C_RECEITA, borderRadius: 3 }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      layout: { padding: { right: 48 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          label: c => ` R$ ${c.parsed.x.toLocaleString('pt-BR')}K — ${Math.round(c.parsed.x / total * 100)}%`
+        } },
+        datalabels: {
+          display: true, anchor: 'end', align: 'end',
+          formatter: v => `${Math.round(v / total * 100)}%`,
+          color: LABEL_C, font: { weight: '700', size: 10 },
         }
       },
-      datalabels: {
-        display: ctx => {
-          const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
-          return ctx.dataset.data[ctx.dataIndex] / total * 100 >= 4;
-        },
-        formatter: (value, ctx) => {
-          const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
-          return Math.round(value / total * 100) + '%';
-        },
-        color: '#ffffff', font: { weight: 'bold', size: 10 },
-        textShadowBlur: 4, textShadowColor: 'rgba(0,0,0,0.4)',
+      scales: {
+        x: { display: false },
+        y: { grid: noGrid, ticks: { font: { size: 10 }, color: MUTED } }
       }
     }
-  }
-});
-
-(function montarLegendaPizza() {
-  const total = segmentos.reduce((a, s) => a + mil(s.valor), 0);
-  const html = segmentos.map((s, i) => {
-    const pct = total ? Math.round((mil(s.valor) / total) * 100) : 0;
-    return `
-      <div class="legenda-item">
-        <span class="legenda-swatch" style="background:${CORES[i % CORES.length]}"></span>
-        <span class="legenda-texto">${s.label} (${pct}%)</span>
-      </div>`;
-  }).join('');
-  document.getElementById('legendaPizza').innerHTML = html;
+  });
 })();
 
 /* ROB mensal */
@@ -359,7 +358,7 @@ new Chart(document.getElementById('chartRob'), {
   data: {
     labels: serie.labels,
     datasets: [{ label: 'ROB (R$ mil)', data: serie.rob.map(mil),
-                 backgroundColor: AZUL, borderRadius: 4, borderSkipped: false }]
+                 backgroundColor: C_RECEITA, borderRadius: 4, borderSkipped: false }]
   },
   options: {
     responsive: true, maintainAspectRatio: false,
@@ -385,11 +384,11 @@ function graficoDuplo(canvasId, label, dados, margens, corBarra, labelLinha = 'M
       labels: serie.labels,
       datasets: [
         { type: 'bar', label: label + ' (R$ mil)', data: dados.map(mil),
-          backgroundColor: dados.map(v => v >= 0 ? corBarra : '#fca5a5'),
+          backgroundColor: dados.map(v => v >= 0 ? corBarra : C_NEG),
           borderRadius: 4, yAxisID: 'y' },
         { type: 'line', label: labelLinha, data: margens,
-          borderColor: '#fbbf24', backgroundColor: 'transparent',
-          pointBackgroundColor: '#fbbf24', pointRadius: 3,
+          borderColor: C_MARGEM, backgroundColor: 'transparent',
+          pointBackgroundColor: C_MARGEM, pointRadius: 3,
           borderWidth: 2, yAxisID: 'y2', tension: 0.3 }
       ]
     },
@@ -408,15 +407,15 @@ function graficoDuplo(canvasId, label, dados, margens, corBarra, labelLinha = 'M
         x: { grid: noGrid },
         y: { grid: gridLine, ticks: { callback: v => `${v.toLocaleString('pt-BR')}K` } },
         y2: { position: 'right', grid: { display: false },
-              ticks: { callback: v => `${v}%`, color: '#fbbf24' } }
+              ticks: { callback: v => `${v}%`, color: C_MARGEM } }
       }
     }
   });
 }
 
-graficoDuplo('chartLB', 'Lucro Bruto', serie.lb, serie.margem_lb, VERDE);
-graficoDuplo('chartEbitda', 'EBITDA', serie.ebitda, serie.margem_ebitda, '#8b5cf6');
-graficoDuplo('chartEndividamentoMensal', 'Parcelas Pagas', endividamentoValor, endividamentoPct, '#0ea5e9', '% s/ ROB acum.');
+graficoDuplo('chartLB', 'Lucro Bruto', serie.lb, serie.margem_lb, C_POS);
+graficoDuplo('chartEbitda', 'EBITDA', serie.ebitda, serie.margem_ebitda, C_POS);
+graficoDuplo('chartEndividamentoMensal', 'Parcelas Pagas', endividamentoValor, endividamentoPct, C_DIVIDA, '% s/ ROB acum.');
 
 function graficoRanking(canvasId, dados, corInicio, corFim) {
   const n    = dados.length;

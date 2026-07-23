@@ -72,6 +72,17 @@ def filtro_brl(valor):
         return "—"
 
 
+@app.template_filter("mi")
+def filtro_mi(valor):
+    """Compacto em milhões pt-BR: 34725503 -> '34,7 mi'; negativo -> '(2,3 mi)'."""
+    try:
+        v = float(valor)
+    except Exception:
+        return "—"
+    s = f"{abs(v) / 1_000_000:.1f}".replace(".", ",")
+    return f"({s} mi)" if v < 0 else f"{s} mi"
+
+
 @app.template_filter("pct")
 def filtro_pct(valor, rob=None):
     try:
@@ -676,6 +687,20 @@ def index():
     ultimo_rob = ult_serie.get("rob_mes", 0) or 0
     pct_desembolso_rob = (desembolso_total_geral / ultimo_rob * 100) if ultimo_rob else None
 
+    # Variação da dívida vs mês anterior (trib / banc / total)
+    _var_none = (None, "—", "")
+    var_divida_trib = var_divida_banc = var_divida_tot = _var_none
+    if len(serie_endividamento_mensal) >= 2:
+        _c1 = serie_endividamento_mensal[-1]["competencia"]
+        _c0 = serie_endividamento_mensal[-2]["competencia"]
+        _tb1 = divida_trib_por_mes.get(_c1, divida_tributaria)
+        _tb0 = divida_trib_por_mes.get(_c0, divida_tributaria)
+        _bn1 = _DIVIDA_BANC_HIST.get(_c1, divida_bancaria)
+        _bn0 = _DIVIDA_BANC_HIST.get(_c0, divida_bancaria)
+        var_divida_trib = variacao_pct(_tb1, _tb0)
+        var_divida_banc = variacao_pct(_bn1, _bn0)
+        var_divida_tot = variacao_pct(_tb1 + _bn1, _tb0 + _bn0)
+
     resumo_endividamento = {
         "divida_tributaria": divida_tributaria,
         "divida_bancaria": divida_bancaria,
@@ -686,6 +711,9 @@ def index():
         "rob_consolidado_ytd": rob_consolidado_ytd,
         "pct_divida_rob": pct_divida_rob,
         "pct_desembolso_rob": pct_desembolso_rob,
+        "var_tributaria": var_divida_trib,
+        "var_bancaria": var_divida_banc,
+        "var_total": var_divida_tot,
     }
 
     grafico_endividamento_valor = [round(l["valor_pago"]) for l in serie_endividamento_mensal]
