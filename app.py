@@ -74,13 +74,18 @@ def filtro_brl(valor):
 
 @app.template_filter("mi")
 def filtro_mi(valor):
-    """Compacto em milhões pt-BR: 34725503 -> '34,7 mi'; negativo -> '(2,3 mi)'."""
+    """Compacto pt-BR adaptativo: >=1mi -> '34,7 mi'; senão -> '104 mil'.
+    Negativo entre parênteses. Ex.: -230000 -> '(230 mil)'."""
     try:
         v = float(valor)
     except Exception:
         return "—"
-    s = f"{abs(v) / 1_000_000:.1f}".replace(".", ",")
-    return f"({s} mi)" if v < 0 else f"{s} mi"
+    a = abs(v)
+    if a >= 1_000_000:
+        s = f"{a / 1_000_000:.1f}".replace(".", ",") + " mi"
+    else:
+        s = f"{a / 1_000:,.0f}".replace(",", ".") + " mil"
+    return f"({s})" if v < 0 else s
 
 
 @app.template_filter("pct")
