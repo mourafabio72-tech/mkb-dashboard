@@ -2717,6 +2717,7 @@ def endividamento(empresa, competencia):
     # saldo "como estava" em cada competência da janela (carrega o último
     # valor conhecido para meses sem lançamento -- a dívida não desaparece).
     saldo_por_conta_comp: dict[tuple, float] = {}
+    por_conta: dict[str, dict] = {}
     if contas_envolvidas:
         placeholders = ",".join("?" * len(contas_envolvidas))
         rows = conn.execute(
@@ -2728,7 +2729,6 @@ def endividamento(empresa, competencia):
             """,
             (empresa_id, *contas_envolvidas)
         ).fetchall()
-        por_conta: dict[str, dict] = {}
         for r in rows:
             por_conta.setdefault(r["conta_cod"], {})[r["competencia"]] = r["saldo_atual"]
         for conta, comps_vals in por_conta.items():
@@ -2795,10 +2795,18 @@ def endividamento(empresa, competencia):
         saldo_anterior = saldo_conta_ant * peso
         total_a_pagar_razao = valores.get(competencia, 0.0)
 
-        # Usar snapshot só quando a competência solicitada coincide com o
-        # snapshot; em meses posteriores, o razão é mais atual.
+        # Prioridade: razão (quando existe) > snapshot.
+        # Se o razão não tem dados para as contas deste parcelamento
+        # (conta não aparece em por_conta), o saldo_razao será 0 por falta
+        # de dados, não por dívida zerada — nesse caso, usa o snapshot.
         snap = p.get("saldo_contabilidade_snapshot")
-        total_a_pagar = snap if (snap and offset_meses == 0) else total_a_pagar_razao
+        has_razao = p["conta_cp"] in por_conta or (p["conta_lp"] and p["conta_lp"] in por_conta)
+        if offset_meses == 0 and snap:
+            total_a_pagar = snap
+        elif has_razao:
+            total_a_pagar = total_a_pagar_razao
+        else:
+            total_a_pagar = snap or 0.0
 
         linhas.append({
             "tributo": p["tributo"], "processo": p["processo"],
