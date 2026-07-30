@@ -3269,12 +3269,15 @@ def endividamento_bancario(empresa):
         })
 
     # Valor para quitação: saldo das contas de empréstimo bancário
+    _CONTAS_JUROS = {"2.1.1.01.07.002", "2.2.3.01.06.002"}
     _CONTAS_QUITACAO = ("2.1.1.01.07.001", "2.1.1.01.07.002",
                         "2.2.3.01.06.001", "2.2.3.01.06.002")
     valor_quitacao = 0.0
     for cq in _CONTAS_QUITACAO:
-        sq = _saldo_conta(cq)
+        sq, fq = _saldo_conta(cq, com_fonte=True)
         if sq is not None:
+            if cq in _CONTAS_JUROS and sq > 0 and fq == "balancete":
+                sq = -sq
             valor_quitacao += sq
 
     conn.close()
