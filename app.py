@@ -3233,6 +3233,12 @@ def endividamento_bancario(empresa):
             "tem_dados": tem_razao or bool(parcelas),
             "fonte": "Razão" if tem_razao else ("Cronograma do contrato" if parcelas else None),
             "detalhe": detalhe,
+            "diag_contas": {
+                "cp_principal": {"conta": e["conta_cp_principal"], "saldo": s_cp_p},
+                "cp_juros": {"conta": e["conta_cp_juros"], "saldo": s_cp_j},
+                "lp_principal": {"conta": e["conta_lp_principal"], "saldo": s_lp_p},
+                "lp_juros": {"conta": e["conta_lp_juros"], "saldo": s_lp_j},
+            },
         })
 
     # Valor para quitação: saldo das contas de empréstimo bancário
