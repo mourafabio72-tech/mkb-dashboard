@@ -129,14 +129,14 @@
       <tr>
         <td>{{ tipo | replace('_', ' ') | upper }}</td>
         <td style="font-family:monospace">{{ info.conta or '—' }}</td>
-        <td class="num">{{ info.saldo | round(2) if info.saldo is not none else '—' }}</td>
+        <td class="num">{{ "{:,.2f}".format(info.saldo) if info.saldo is not none else '—' }}</td>
         <td>
           {% if info.conta is none %}
             <span class="text-muted">não configurada</span>
           {% elif info.saldo is not none %}
-            <span style="color:green">OK</span>
+            <span style="color:green">{{ info.fonte or 'OK' }}</span>
           {% else %}
-            <span style="color:red;font-weight:bold">SEM DADOS no razão</span>
+            <span style="color:red;font-weight:bold">SEM DADOS</span>
           {% endif %}
         </td>
       </tr>

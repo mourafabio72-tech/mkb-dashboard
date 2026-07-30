@@ -255,6 +255,13 @@ def _resumo_endividamento_bancario(empresa_id: int) -> dict:
         ).fetchone()
         if r:
             return r["saldo_atual"]
+        rb = conn.execute(
+            "SELECT saldo_atual FROM balancete WHERE empresa_id=? AND conta_cod=? "
+            "ORDER BY competencia DESC LIMIT 1",
+            (empresa_id, conta)
+        ).fetchone()
+        if rb:
+            return abs(rb["saldo_atual"])
         r2 = conn.execute(
             "SELECT SUM(credito) as tc, SUM(debito) as td "
             "FROM razao WHERE empresa_id=? AND conta_cod=?",
@@ -3131,25 +3138,34 @@ def endividamento_bancario(empresa):
         (emp_id,)
     ).fetchall()
 
-    def _saldo_conta(conta):
-        """Último saldo_atual do razão; se não houver, SUM(crédito-débito)."""
+    def _saldo_conta(conta, com_fonte=False):
+        """Saldo da conta: razão saldo_atual > balancete > SUM(crédito-débito)."""
         if not conta:
-            return None
+            return (None, None) if com_fonte else None
         r = conn.execute(
             "SELECT saldo_atual FROM razao WHERE empresa_id=? AND conta_cod=? "
             "AND saldo_atual IS NOT NULL ORDER BY competencia DESC, data_lanc DESC, id DESC LIMIT 1",
             (emp_id, conta)
         ).fetchone()
         if r:
-            return r["saldo_atual"]
+            return (r["saldo_atual"], "razão") if com_fonte else r["saldo_atual"]
+        rb = conn.execute(
+            "SELECT saldo_atual FROM balancete WHERE empresa_id=? AND conta_cod=? "
+            "ORDER BY competencia DESC LIMIT 1",
+            (emp_id, conta)
+        ).fetchone()
+        if rb:
+            v = abs(rb["saldo_atual"])
+            return (v, "balancete") if com_fonte else v
         r2 = conn.execute(
             "SELECT SUM(credito) as tc, SUM(debito) as td "
             "FROM razao WHERE empresa_id=? AND conta_cod=?",
             (emp_id, conta)
         ).fetchone()
         if r2 and (r2["tc"] or r2["td"]):
-            return (r2["tc"] or 0) - (r2["td"] or 0)
-        return None
+            v = (r2["tc"] or 0) - (r2["td"] or 0)
+            return (v, "movimentos") if com_fonte else v
+        return (None, None) if com_fonte else None
 
     ref_competencia = _ref_competencia_razao(conn, emp_id)
 
@@ -3160,10 +3176,10 @@ def endividamento_bancario(empresa):
             (e["id"],)
         ).fetchall()
 
-        s_cp_p = _saldo_conta(e["conta_cp_principal"])
-        s_cp_j = _saldo_conta(e["conta_cp_juros"])
-        s_lp_p = _saldo_conta(e["conta_lp_principal"])
-        s_lp_j = _saldo_conta(e["conta_lp_juros"])
+        s_cp_p, f_cp_p = _saldo_conta(e["conta_cp_principal"], com_fonte=True)
+        s_cp_j, f_cp_j = _saldo_conta(e["conta_cp_juros"], com_fonte=True)
+        s_lp_p, f_lp_p = _saldo_conta(e["conta_lp_principal"], com_fonte=True)
+        s_lp_j, f_lp_j = _saldo_conta(e["conta_lp_juros"], com_fonte=True)
 
         tem_razao = any(v is not None for v in (s_cp_p, s_cp_j, s_lp_p, s_lp_j))
 
@@ -3234,10 +3250,10 @@ def endividamento_bancario(empresa):
             "fonte": "Razão" if tem_razao else ("Cronograma do contrato" if parcelas else None),
             "detalhe": detalhe,
             "diag_contas": {
-                "cp_principal": {"conta": e["conta_cp_principal"], "saldo": s_cp_p},
-                "cp_juros": {"conta": e["conta_cp_juros"], "saldo": s_cp_j},
-                "lp_principal": {"conta": e["conta_lp_principal"], "saldo": s_lp_p},
-                "lp_juros": {"conta": e["conta_lp_juros"], "saldo": s_lp_j},
+                "cp_principal": {"conta": e["conta_cp_principal"], "saldo": s_cp_p, "fonte": f_cp_p},
+                "cp_juros": {"conta": e["conta_cp_juros"], "saldo": s_cp_j, "fonte": f_cp_j},
+                "lp_principal": {"conta": e["conta_lp_principal"], "saldo": s_lp_p, "fonte": f_lp_p},
+                "lp_juros": {"conta": e["conta_lp_juros"], "saldo": s_lp_j, "fonte": f_lp_j},
             },
         })
 
