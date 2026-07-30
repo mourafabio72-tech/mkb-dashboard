@@ -67,6 +67,15 @@ def criar_schema(conn: sqlite3.Connection) -> None:
     if cols_parcel and "saldo_contabilidade_snapshot" not in cols_parcel:
         conn.execute("ALTER TABLE parcelamentos ADD COLUMN saldo_contabilidade_snapshot REAL")
 
+    # Migração: valor_parcela_fixa em emprestimos_bancarios
+    cols_eb = {row[1] for row in conn.execute("PRAGMA table_info(emprestimos_bancarios)").fetchall()}
+    if cols_eb and "valor_parcela_fixa" not in cols_eb:
+        conn.execute("ALTER TABLE emprestimos_bancarios ADD COLUMN valor_parcela_fixa REAL")
+        conn.execute(
+            "UPDATE emprestimos_bancarios SET valor_parcela_fixa=46753.70 "
+            "WHERE conta_cp_principal='2.1.1.01.07.001'"
+        )
+
     # Migração: criar tabela endividamento_conta_map se não existe
     tables = {r[0] for r in conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table'"
