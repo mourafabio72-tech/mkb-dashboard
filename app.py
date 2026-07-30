@@ -2800,7 +2800,9 @@ def endividamento(empresa, competencia):
         # (conta não aparece em por_conta), o saldo_razao será 0 por falta
         # de dados, não por dívida zerada — nesse caso, usa o snapshot.
         snap = p.get("saldo_contabilidade_snapshot")
-        has_razao = p["conta_cp"] in por_conta or (p["conta_lp"] and p["conta_lp"] in por_conta)
+        cp_ok = p["conta_cp"] in por_conta
+        lp_ok = p["conta_lp"] in por_conta if p["conta_lp"] else True
+        has_razao = cp_ok and lp_ok
         if offset_meses == 0 and snap:
             total_a_pagar = snap
         elif has_razao:
