@@ -2795,10 +2795,10 @@ def endividamento(empresa, competencia):
         saldo_anterior = saldo_conta_ant * peso
         total_a_pagar_razao = valores.get(competencia, 0.0)
 
-        # Usar saldo_contabilidade_snapshot quando disponível (mais confiável
-        # que o razão, que pode não ter todas as contas LP importadas)
+        # Usar snapshot só quando a competência solicitada coincide com o
+        # snapshot; em meses posteriores, o razão é mais atual.
         snap = p.get("saldo_contabilidade_snapshot")
-        total_a_pagar = snap if snap else total_a_pagar_razao
+        total_a_pagar = snap if (snap and offset_meses == 0) else total_a_pagar_razao
 
         linhas.append({
             "tributo": p["tributo"], "processo": p["processo"],
