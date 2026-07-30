@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Vincular Contas — Endividamento{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🔗 De/Para — Endividamento Tributário</h1>
+  <p class="subtitle">
+    Vincule as contas do <strong>razão contábil</strong> a cada parcelamento.
+    Quando configurado, o saldo a pagar é calculado direto do razão (atualizado
+    automaticamente ao importar novos meses).
+    <br>
+    <a href="{{ url_for('endividamento', empresa=empresa, competencia='2026-06') }}">← Voltar ao Endividamento</a>
+  </p>
+</div>
+
+{# ── Form: vincular conta ─────────────────────────────────────────────────── #}
+<div class="section-card" style="margin-bottom:20px;">
+  <h2>➕ Vincular conta do razão</h2>
+  <form method="POST" action="{{ url_for('endividamento_conta_map_add', empresa=empresa) }}" class="form-ingest">
+    <div class="form-row">
+      <label>Parcelamento</label>
+      <select name="tributo" class="input-sm" style="width:380px" required>
+        <option value="">— selecione —</option>
+        {% for p in parcelamentos %}
+          <option value="{{ p.tributo }}">{{ p.tributo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Conta do razão</label>
+      <input type="text" name="conta_razao" id="campo-conta" class="input-sm" style="width:240px"
+             list="contas-list" placeholder="2.1.3.05.01.003" required>
+      <datalist id="contas-list">
+        {% for c in contas_razao %}
+          <option value="{{ c }}">
+        {% endfor %}
+      </datalist>
+    </div>
+    <div class="form-row">
+      <label>Tipo</label>
+      <select name="tipo" class="input-sm" style="width:120px" required>
+        <option value="cp">CP (curto prazo)</option>
+        <option value="lp">LP (longo prazo)</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Vincular</button>
+  </form>
+</div>
+
+{# ── Tabela: parcelamentos e suas contas ──────────────────────────────────── #}
+<div class="section-card">
+  <h2>📒 Parcelamentos e contas vinculadas</h2>
+  <p class="ingest-desc">
+    A coluna <strong>Planilha</strong> mostra as contas CP/LP importadas da planilha de vinculação.
+    A coluna <strong>Razão (de/para)</strong> mostra as contas mapeadas manualmente — quando
+    preenchida, o saldo a pagar usa estas contas em vez das da planilha.
+  </p>
+
+  <table class="table-simple">
+    <thead>
+      <tr>
+        <th>Parcelamento</th>
+        <th>Planilha CP</th>
+        <th>Planilha LP</th>
+        <th>Razão (de/para)</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in parcelamentos %}
+      {% set mapa = map_por_tributo.get(p.tributo, []) %}
+      <tr>
+        <td><strong>{{ p.tributo }}</strong></td>
+        <td style="font-family:monospace;font-size:12px">{{ p.conta_cp or '—' }}</td>
+        <td style="font-family:monospace;font-size:12px">{{ p.conta_lp or '—' }}</td>
+        <td>
+          {% if mapa %}
+            {% for m in mapa %}
+              <span style="font-family:monospace;font-size:12px;display:inline-block;background:rgba(107,142,35,.12);padding:2px 8px;border-radius:4px;margin:2px 4px 2px 0">
+                {{ m.conta_razao }} <span class="text-muted">({{ m.tipo | upper }})</span>
+              </span>
+            {% endfor %}
+          {% else %}
+            <span class="text-muted">— usa planilha —</span>
+          {% endif %}
+        </td>
+        <td style="text-align:right;white-space:nowrap">
+          {% for m in mapa %}
+            <form method="POST" action="{{ url_for('endividamento_conta_map_del', empresa=empresa) }}"
+                  style="display:inline"
+                  onsubmit="return confirm('Remover {{ m.conta_razao }} de {{ p.tributo }}?');">
+              <input type="hidden" name="tributo" value="{{ p.tributo }}">
+              <input type="hidden" name="conta_razao" value="{{ m.conta_razao }}">
+              <button type="submit" class="btn-sm"
+                      style="background:rgba(178,91,76,.12);color:var(--danger);border:1px solid var(--border);border-radius:5px;cursor:pointer;padding:2px 7px;font-size:10px;font-weight:700;margin:1px">
+                ✕ {{ m.conta_razao }}
+              </button>
+            </form>
+          {% endfor %}
+          <button type="button" class="btn-sm"
+                  onclick="vincular('{{ p.tributo }}')"
+                  style="background:rgba(139,92,246,.12);color:var(--accent);border:1px solid var(--border);border-radius:5px;cursor:pointer;padding:2px 7px;font-size:10px;font-weight:700;margin:1px">
+            + Vincular
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if contas_razao %}
+<div class="section-card" style="margin-top:20px;">
+  <h2>📋 Contas disponíveis no razão (2.1.3.x / 2.2.4.x)</h2>
+  <p class="ingest-desc">Contas de passivo que existem no razão importado. Use como referência para preencher o de/para acima.</p>
+  <div style="columns:3;font-family:monospace;font-size:12px;line-height:1.8">
+    {% for c in contas_razao %}
+      <div>{{ c }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<script>
+function vincular(tributo) {
+  var sel = document.querySelector('select[name="tributo"]');
+  sel.value = tributo;
+  document.getElementById('campo-conta').focus();
+  sel.scrollIntoView({behavior:'smooth', block:'center'});
+}
+</script>
+{% endblock %}

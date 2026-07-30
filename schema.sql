@@ -108,6 +108,21 @@ CREATE TABLE IF NOT EXISTS parcelamentos (
 
 CREATE INDEX IF NOT EXISTS idx_parcel_emp_comp ON parcelamentos (empresa_id, competencia_ref);
 
+-- ─── DE-PARA ENDIVIDAMENTO: vincula contas do razão a cada parcelamento ────
+-- Resolve o problema de as contas importadas na planilha de vinculação
+-- (conta_cp/conta_lp) não corresponderem aos códigos exatos do razão.
+-- Quando este mapeamento existe, a rota /endividamento usa estas contas
+-- para buscar saldos no razão; quando não existe, mantém o fallback para
+-- as contas da planilha ou para o snapshot.
+CREATE TABLE IF NOT EXISTS endividamento_conta_map (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    empresa_id  INTEGER NOT NULL,
+    tributo     TEXT NOT NULL,       -- nome do parcelamento (ex.: "COFINS - NÃO PREVIDENCIARIO")
+    conta_razao TEXT NOT NULL,       -- código da conta no razão (ex.: "2.1.3.05.01.003")
+    tipo        TEXT NOT NULL DEFAULT 'cp',  -- 'cp' ou 'lp'
+    UNIQUE (empresa_id, tributo, conta_razao)
+);
+
 -- ─── ENDIVIDAMENTO BANCÁRIO (cadastro manual, não é importação mensal) ──────
 -- Diferente de `parcelamentos` (tributário, snapshot por upload de CSV),
 -- aqui o cadastro é único por contrato e raramente muda. Saldo devedor e

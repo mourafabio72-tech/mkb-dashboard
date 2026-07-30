@@ -133,9 +133,10 @@
 <div class="info-box" style="margin-top:20px;">
   Parcelas, datas e processo vêm do snapshot da planilha de vinculação importado para
   <strong>{{ mes_label_atual }}</strong>. "Saldo a Pagar" é o saldo devedor da contabilidade
-  de cada parcelamento.
+  de cada parcelamento{% if tem_conta_map %} (via mapeamento de contas){% endif %}.
   {% if session.usuario_logado and session.usuario_logado.role == 'admin' %}
   Importar em <a href="{{ url_for('ingest') }}">Importar Dados</a>.
+  | <a href="{{ url_for('endividamento_conta_map', empresa=empresa) }}">Vincular Contas (De/Para)</a>
   {% endif %}
 </div>
 {% endblock %}

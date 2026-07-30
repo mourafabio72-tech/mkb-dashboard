@@ -67,6 +67,22 @@ def criar_schema(conn: sqlite3.Connection) -> None:
     if cols_parcel and "saldo_contabilidade_snapshot" not in cols_parcel:
         conn.execute("ALTER TABLE parcelamentos ADD COLUMN saldo_contabilidade_snapshot REAL")
 
+    # Migração: criar tabela endividamento_conta_map se não existe
+    tables = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()}
+    if "endividamento_conta_map" not in tables:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS endividamento_conta_map (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                empresa_id  INTEGER NOT NULL,
+                tributo     TEXT NOT NULL,
+                conta_razao TEXT NOT NULL,
+                tipo        TEXT NOT NULL DEFAULT 'cp',
+                UNIQUE (empresa_id, tributo, conta_razao)
+            )
+        """)
+
     conn.commit()
 
     # Seed do 1º admin a partir do DASHBOARD_USERS antigo (só se `usuarios`

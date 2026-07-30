@@ -2637,20 +2637,43 @@ def endividamento(empresa, competencia):
             row["faltam"] = row["faltam"] - ajuste
         parcelamentos.append(row)
 
+    # De/para de contas: mapeamento explícito tributo → contas do razão
+    conta_map_rows = conn.execute(
+        """SELECT tributo, conta_razao, tipo
+           FROM endividamento_conta_map WHERE empresa_id=?""",
+        (empresa_id,)
+    ).fetchall()
+    conta_map: dict[str, dict[str, list[str]]] = {}
+    for r in conta_map_rows:
+        conta_map.setdefault(r["tributo"], {}).setdefault(r["tipo"], []).append(r["conta_razao"])
+
+    # Para cada parcelamento, resolver contas efetivas (de/para > planilha)
+    for p in parcelamentos:
+        mp = conta_map.get(p["tributo"])
+        if mp:
+            p["_contas_cp"] = mp.get("cp", [])
+            p["_contas_lp"] = mp.get("lp", [])
+            p["_usa_map"] = True
+        else:
+            p["_contas_cp"] = [p["conta_cp"]] if p["conta_cp"] else []
+            p["_contas_lp"] = [p["conta_lp"]] if p["conta_lp"] else []
+            p["_usa_map"] = False
+
     # Peso de rateio: 2+ parcelamentos podem compartilhar a mesma conta_cp/lp
     # (ex.: "TRANSAÇÃO - DEMAIS DÉBITOS" e "TRANSAÇÃO - DÉBITOS
     # PREVIDENCIÁRIOS" usam a mesma conta) -- o saldo REAL da conta (vindo do
     # razão) precisa ser dividido entre eles, não duplicado em cada um. Usa o
     # "Saldo contabilidade" do snapshot como peso (confirmado: a soma dos
     # snapshots de quem compartilha a conta bate com o saldo combinado real).
+    # Quando o de/para está ativo e cada tributo tem contas exclusivas, peso=1.
     grupos_conta: dict[tuple, list] = {}
     for p in parcelamentos:
-        chave = (p["conta_cp"], p["conta_lp"])
+        chave = (tuple(p["_contas_cp"]), tuple(p["_contas_lp"]))
         grupos_conta.setdefault(chave, []).append(p["tributo"])
 
     peso_por_tributo: dict[str, float] = {}
     for p in parcelamentos:
-        chave = (p["conta_cp"], p["conta_lp"])
+        chave = (tuple(p["_contas_cp"]), tuple(p["_contas_lp"]))
         membros = grupos_conta[chave]
         if len(membros) == 1:
             peso_por_tributo[p["tributo"]] = 1.0
@@ -2666,9 +2689,8 @@ def endividamento(empresa, competencia):
 
     contas_envolvidas = set()
     for p in parcelamentos:
-        contas_envolvidas.add(p["conta_cp"])
-        if p["conta_lp"]:
-            contas_envolvidas.add(p["conta_lp"])
+        contas_envolvidas.update(p["_contas_cp"])
+        contas_envolvidas.update(p["_contas_lp"])
 
     comps_razao = []
     if contas_envolvidas:
@@ -2741,11 +2763,9 @@ def endividamento(empresa, competencia):
                 saldo_por_conta_comp[(conta, comp)] = ultimo
 
     # Valor PAGO em cada mês: soma do DÉBITO lançado na conta CP naquele mês
-    # (um pagamento reduz o passivo = débito; transferências LP->CP e juros
-    # acrescidos aparecem como CRÉDITO na conta CP, então não entram aqui --
-    # só a conta CP é somada, a LP só recebe/cede saldo internamente, nunca
-    # representa desembolso de caixa real).
-    contas_cp_unicas = {p["conta_cp"] for p in parcelamentos}
+    contas_cp_unicas: set[str] = set()
+    for p in parcelamentos:
+        contas_cp_unicas.update(p["_contas_cp"])
     pago_por_conta_comp: dict[tuple, float] = {}
     if contas_cp_unicas:
         placeholders_cp = ",".join("?" * len(contas_cp_unicas))
@@ -2765,50 +2785,54 @@ def endividamento(empresa, competencia):
     def _saldo(conta, comp):
         return saldo_por_conta_comp.get((conta, comp)) or 0.0
 
+    def _saldo_multi(contas, comp):
+        return sum(_saldo(c, comp) for c in contas)
+
     def _pago(conta, comp):
         return pago_por_conta_comp.get((conta, comp)) or 0.0
+
+    def _pago_multi(contas, comp):
+        return sum(_pago(c, comp) for c in contas)
 
     linhas = []
     totais_por_mes = {c: 0.0 for c in janela}
     totais_pagos_por_mes = {c: 0.0 for c in janela}
     for p in parcelamentos:
         peso = peso_por_tributo[p["tributo"]]
+        contas_cp = p["_contas_cp"]
+        contas_lp = p["_contas_lp"]
         valores, pagos = {}, {}
         for c in janela:
-            saldo_conta = _saldo(p["conta_cp"], c) + (_saldo(p["conta_lp"], c) if p["conta_lp"] else 0.0)
+            saldo_conta = _saldo_multi(contas_cp, c) + _saldo_multi(contas_lp, c)
             total = saldo_conta * peso
             valores[c] = total
             totais_por_mes[c] += total
 
-            pago_mes = _pago(p["conta_cp"], c) * peso
+            pago_mes = _pago_multi(contas_cp, c) * peso
             pagos[c] = pago_mes
             totais_pagos_por_mes[c] += pago_mes
 
-        # Saldo ANTERIOR = saldo devedor (dívida) no mês imediatamente antes
-        # da referência -- não é soma de pagamentos, é o mesmo saldo da
-        # tabela 1, só "puxado" para o mês anterior (pode não estar na
-        # janela exibida, ex.: referência = janeiro).
         saldo_conta_ant = (
-            _saldo(p["conta_cp"], mes_referencia_anterior)
-            + (_saldo(p["conta_lp"], mes_referencia_anterior) if p["conta_lp"] else 0.0)
+            _saldo_multi(contas_cp, mes_referencia_anterior)
+            + _saldo_multi(contas_lp, mes_referencia_anterior)
         )
         saldo_anterior = saldo_conta_ant * peso
         total_a_pagar_razao = valores.get(competencia, 0.0)
 
-        # Prioridade: razão (quando existe) > snapshot.
-        # Se o razão não tem dados para as contas deste parcelamento
-        # (conta não aparece em por_conta), o saldo_razao será 0 por falta
-        # de dados, não por dívida zerada — nesse caso, usa o snapshot.
+        # Prioridade: de/para (sempre usa razão) > razão direto > snapshot.
         snap = p.get("saldo_contabilidade_snapshot")
-        cp_ok = p["conta_cp"] in por_conta
-        lp_ok = p["conta_lp"] in por_conta if p["conta_lp"] else True
-        has_razao = cp_ok and lp_ok
-        if offset_meses == 0 and snap:
-            total_a_pagar = snap
-        elif has_razao:
-            total_a_pagar = total_a_pagar_razao
+        if p["_usa_map"]:
+            total_a_pagar = total_a_pagar_razao or snap or 0.0
         else:
-            total_a_pagar = snap or 0.0
+            cp_ok = all(c in por_conta for c in contas_cp) if contas_cp else False
+            lp_ok = all(c in por_conta for c in contas_lp) if contas_lp else True
+            has_razao = cp_ok and lp_ok
+            if offset_meses == 0 and snap:
+                total_a_pagar = snap
+            elif has_razao:
+                total_a_pagar = total_a_pagar_razao
+            else:
+                total_a_pagar = snap or 0.0
 
         linhas.append({
             "tributo": p["tributo"], "processo": p["processo"],
@@ -2862,7 +2886,104 @@ def endividamento(empresa, competencia):
         mes_label_anterior=_mes_label(mes_referencia_anterior),
         total_saldo_anterior=total_saldo_anterior,
         total_a_pagar_geral=total_a_pagar_geral,
+        tem_conta_map=bool(conta_map),
     )
+
+
+# --- ROTAS: DE-PARA ENDIVIDAMENTO TRIBUTÁRIO ---------------------------------
+
+@app.route("/endividamento-conta-map/<empresa>", methods=["GET"])
+@login_required
+@admin_required
+def endividamento_conta_map(empresa):
+    if empresa not in EMPRESAS:
+        flash("Empresa não encontrada.", "warning")
+        return redirect(url_for("index"))
+    empresa_id = EMPRESAS[empresa]["id"]
+    conn = get_conn()
+    criar_schema(conn)
+
+    parcelamentos = conn.execute(
+        """SELECT DISTINCT tributo, conta_cp, conta_lp
+           FROM parcelamentos WHERE empresa_id=?
+           ORDER BY tributo""",
+        (empresa_id,)
+    ).fetchall()
+
+    mapeamentos = conn.execute(
+        """SELECT tributo, conta_razao, tipo
+           FROM endividamento_conta_map WHERE empresa_id=?
+           ORDER BY tributo, tipo, conta_razao""",
+        (empresa_id,)
+    ).fetchall()
+    map_por_tributo: dict[str, list] = {}
+    for m in mapeamentos:
+        map_por_tributo.setdefault(m["tributo"], []).append(dict(m))
+
+    contas_razao = conn.execute(
+        """SELECT DISTINCT conta_cod FROM razao
+           WHERE empresa_id=? AND (conta_cod LIKE '2.1.3%' OR conta_cod LIKE '2.2.4%')
+           ORDER BY conta_cod""",
+        (empresa_id,)
+    ).fetchall()
+
+    conn.close()
+    return render_template(
+        "endividamento_conta_map.html",
+        empresa=empresa,
+        parcelamentos=parcelamentos,
+        map_por_tributo=map_por_tributo,
+        contas_razao=[r["conta_cod"] for r in contas_razao],
+    )
+
+
+@app.route("/endividamento-conta-map/<empresa>/add", methods=["POST"])
+@login_required
+@admin_required
+def endividamento_conta_map_add(empresa):
+    if empresa not in EMPRESAS:
+        flash("Empresa não encontrada.", "warning")
+        return redirect(url_for("index"))
+    empresa_id = EMPRESAS[empresa]["id"]
+    tributo = (request.form.get("tributo") or "").strip()
+    conta = (request.form.get("conta_razao") or "").strip()
+    tipo = (request.form.get("tipo") or "cp").strip()
+    if not tributo or not conta:
+        flash("Informe o parcelamento e a conta do razão.", "warning")
+        return redirect(url_for("endividamento_conta_map", empresa=empresa))
+    conn = get_conn()
+    criar_schema(conn)
+    conn.execute(
+        """INSERT INTO endividamento_conta_map (empresa_id, tributo, conta_razao, tipo)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT (empresa_id, tributo, conta_razao) DO UPDATE SET tipo = excluded.tipo""",
+        (empresa_id, tributo, conta, tipo)
+    )
+    conn.commit()
+    conn.close()
+    flash(f"Conta {conta} ({tipo.upper()}) vinculada a {tributo}.", "success")
+    return redirect(url_for("endividamento_conta_map", empresa=empresa))
+
+
+@app.route("/endividamento-conta-map/<empresa>/excluir", methods=["POST"])
+@login_required
+@admin_required
+def endividamento_conta_map_del(empresa):
+    if empresa not in EMPRESAS:
+        flash("Empresa não encontrada.", "warning")
+        return redirect(url_for("index"))
+    empresa_id = EMPRESAS[empresa]["id"]
+    tributo = (request.form.get("tributo") or "").strip()
+    conta = (request.form.get("conta_razao") or "").strip()
+    conn = get_conn()
+    conn.execute(
+        "DELETE FROM endividamento_conta_map WHERE empresa_id=? AND tributo=? AND conta_razao=?",
+        (empresa_id, tributo, conta)
+    )
+    conn.commit()
+    conn.close()
+    flash(f"Conta {conta} desvinculada de {tributo}.", "success")
+    return redirect(url_for("endividamento_conta_map", empresa=empresa))
 
 
 # --- ROTAS: ENDIVIDAMENTO BANCÁRIO -------------------------------------------
