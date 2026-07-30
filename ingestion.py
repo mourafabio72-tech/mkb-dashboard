@@ -76,6 +76,16 @@ def criar_schema(conn: sqlite3.Connection) -> None:
             "WHERE conta_cp_principal='2.1.1.01.07.001'"
         )
 
+    # Fix: aliases truncados GMB → razão social correta
+    conn.execute(
+        "INSERT OR REPLACE INTO nome_aliases (nome_aproximado, nome_canonical) VALUES (?, ?)",
+        ("GMB ADMINI", "GMB ADMINISTRADORA")
+    )
+    conn.execute(
+        "INSERT OR REPLACE INTO nome_aliases (nome_aproximado, nome_canonical) VALUES (?, ?)",
+        ("GMB ADMINISTR", "GMB ADMINISTRADORA")
+    )
+
     # Migração: criar tabela endividamento_conta_map se não existe
     tables = {r[0] for r in conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table'"
