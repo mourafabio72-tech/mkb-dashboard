@@ -2626,16 +2626,6 @@ def endividamento(empresa, competencia):
         anteriores = [c for c in competencias_snap if c <= competencia]
         comp_snapshot = anteriores[-1] if anteriores else competencias_snap[0]
 
-    # Offset de meses entre o snapshot base e a competência solicitada
-    # (para auto-ajustar parcela_paga e faltam em meses futuros)
-    def _diff_meses(comp_a, comp_b):
-        ya, ma = int(comp_a[:4]), int(comp_a[5:7])
-        yb, mb = int(comp_b[:4]), int(comp_b[5:7])
-        return (ya - yb) * 12 + (ma - mb)
-
-    offset_meses = _diff_meses(competencia_original, comp_snapshot)
-    # comp_snapshot = competência do snapshot de parcelamentos (metadados)
-    # competencia_original = competência solicitada na URL (janela, saldos, ROB)
     competencia = competencia_original
 
     parcelamentos_raw = conn.execute(
@@ -2649,16 +2639,7 @@ def endividamento(empresa, competencia):
         (empresa_id, comp_snapshot)
     ).fetchall()
 
-    # Auto-ajustar parcelas: se a competência solicitada é posterior ao
-    # snapshot, incrementa parcela_paga e decrementa faltam por cada mês
-    parcelamentos = []
-    for p in parcelamentos_raw:
-        row = dict(p)
-        if offset_meses > 0 and row["parcela_paga"] is not None and row["faltam"] is not None:
-            ajuste = min(offset_meses, row["faltam"])
-            row["parcela_paga"] = row["parcela_paga"] + ajuste
-            row["faltam"] = row["faltam"] - ajuste
-        parcelamentos.append(row)
+    parcelamentos = [dict(p) for p in parcelamentos_raw]
 
     # De/para de contas: mapeamento explícito tributo → contas do razão
     conta_map_rows = conn.execute(
@@ -2761,61 +2742,42 @@ def endividamento(empresa, competencia):
     # Busca todos os saldo_atual relevantes de uma vez e monta, por conta, o
     # saldo "como estava" em cada competência da janela (carrega o último
     # valor conhecido para meses sem lançamento -- a dívida não desaparece).
-    saldo_por_conta_comp: dict[tuple, float] = {}
-    por_conta: dict[str, dict] = {}
+    # Movimentos do razão: débitos e créditos por conta × competência.
+    # Débito no passivo = pagamento (reduz dívida).
+    # Crédito no passivo = juros/encargos (aumenta dívida).
+    mov_por_conta_comp: dict[tuple, dict] = {}
     if contas_envolvidas:
         placeholders = ",".join("?" * len(contas_envolvidas))
-        rows = conn.execute(
+        rows_mov = conn.execute(
             f"""
-            SELECT conta_cod, competencia, saldo_atual
+            SELECT conta_cod, competencia,
+                   SUM(debito) as total_debito, SUM(credito) as total_credito
             FROM razao WHERE empresa_id=? AND conta_cod IN ({placeholders})
-              AND saldo_atual IS NOT NULL
-            ORDER BY conta_cod, competencia, data_lanc, id
+            GROUP BY conta_cod, competencia
             """,
             (empresa_id, *contas_envolvidas)
         ).fetchall()
-        for r in rows:
-            por_conta.setdefault(r["conta_cod"], {})[r["competencia"]] = r["saldo_atual"]
-        for conta, comps_vals in por_conta.items():
-            comps_ordenadas = sorted(comps_vals.keys())
-            idx, ultimo = 0, None
-            for comp in janela:
-                while idx < len(comps_ordenadas) and comps_ordenadas[idx] <= comp:
-                    ultimo = comps_vals[comps_ordenadas[idx]]
-                    idx += 1
-                saldo_por_conta_comp[(conta, comp)] = ultimo
-
-    # Valor PAGO em cada mês: soma do DÉBITO lançado na conta CP naquele mês
-    contas_cp_unicas: set[str] = set()
-    for p in parcelamentos:
-        contas_cp_unicas.update(p["_contas_cp"])
-    pago_por_conta_comp: dict[tuple, float] = {}
-    if contas_cp_unicas:
-        placeholders_cp = ",".join("?" * len(contas_cp_unicas))
-        rows_pg = conn.execute(
-            f"""
-            SELECT conta_cod, competencia, SUM(debito) as total_debito
-            FROM razao WHERE empresa_id=? AND conta_cod IN ({placeholders_cp})
-            GROUP BY conta_cod, competencia
-            """,
-            (empresa_id, *contas_cp_unicas)
-        ).fetchall()
-        for r in rows_pg:
-            pago_por_conta_comp[(r["conta_cod"], r["competencia"])] = r["total_debito"] or 0.0
+        for r in rows_mov:
+            mov_por_conta_comp[(r["conta_cod"], r["competencia"])] = {
+                "debito": r["total_debito"] or 0.0,
+                "credito": r["total_credito"] or 0.0,
+            }
 
     conn.close()
 
-    def _saldo(conta, comp):
-        return saldo_por_conta_comp.get((conta, comp)) or 0.0
-
-    def _saldo_multi(contas, comp):
-        return sum(_saldo(c, comp) for c in contas)
-
-    def _pago(conta, comp):
-        return pago_por_conta_comp.get((conta, comp)) or 0.0
+    def _mov(conta, comp):
+        return mov_por_conta_comp.get((conta, comp), {"debito": 0.0, "credito": 0.0})
 
     def _pago_multi(contas, comp):
-        return sum(_pago(c, comp) for c in contas)
+        return sum(_mov(c, comp)["debito"] for c in contas)
+
+    def _meses_com_pagamento(contas, desde_comp):
+        """Conta quantos meses distintos após desde_comp tiveram débitos."""
+        meses = set()
+        for (conta, comp), m in mov_por_conta_comp.items():
+            if conta in contas and comp > desde_comp and m["debito"] > 0:
+                meses.add(comp)
+        return len(meses)
 
     linhas = []
     totais_por_mes = {c: 0.0 for c in janela}
@@ -2824,43 +2786,51 @@ def endividamento(empresa, competencia):
         peso = peso_por_tributo[p["tributo"]]
         contas_cp = p["_contas_cp"]
         contas_lp = p["_contas_lp"]
-        valores, pagos = {}, {}
-        for c in janela:
-            saldo_conta = _saldo_multi(contas_cp, c) + _saldo_multi(contas_lp, c)
-            total = saldo_conta * peso
-            valores[c] = total
-            totais_por_mes[c] += total
+        todas_contas = contas_cp + contas_lp
+        snap = p.get("saldo_contabilidade_snapshot") or 0.0
 
+        # Saldo evoluído: snapshot + movimentos líquidos acumulados
+        # Para cada mês na janela, calcula o saldo acumulado desde o snapshot
+        valores, pagos = {}, {}
+        delta_acum = 0.0
+        for c in janela:
+            # Pagamento (débito CP) do mês
             pago_mes = _pago_multi(contas_cp, c) * peso
             pagos[c] = pago_mes
             totais_pagos_por_mes[c] += pago_mes
 
-        saldo_conta_ant = (
-            _saldo_multi(contas_cp, mes_referencia_anterior)
-            + _saldo_multi(contas_lp, mes_referencia_anterior)
-        )
-        saldo_anterior = saldo_conta_ant * peso
-        total_a_pagar_razao = valores.get(competencia, 0.0)
-
-        # Prioridade: de/para (sempre usa razão) > razão direto > snapshot.
-        snap = p.get("saldo_contabilidade_snapshot")
-        if p["_usa_map"]:
-            total_a_pagar = total_a_pagar_razao or snap or 0.0
-        else:
-            cp_ok = all(c in por_conta for c in contas_cp) if contas_cp else False
-            lp_ok = all(c in por_conta for c in contas_lp) if contas_lp else True
-            has_razao = cp_ok and lp_ok
-            if offset_meses == 0 and snap:
-                total_a_pagar = snap
-            elif has_razao:
-                total_a_pagar = total_a_pagar_razao
+            if c <= comp_snapshot:
+                # Mês dentro do período do snapshot: usa snapshot no mês exato,
+                # aplica movimentos inversos para meses anteriores ao snapshot
+                valores[c] = snap * peso if c == comp_snapshot else 0.0
             else:
-                total_a_pagar = snap or 0.0
+                # Mês posterior ao snapshot: acumula movimentos líquidos
+                for conta in todas_contas:
+                    m = _mov(conta, c)
+                    delta_acum += (m["credito"] - m["debito"])
+                saldo_evoluido = (snap + delta_acum) * peso
+                valores[c] = saldo_evoluido
+
+            totais_por_mes[c] += valores[c]
+
+        # Para meses anteriores ao snapshot na janela, usar saldo_atual
+        # do razão se disponível (carry-forward do antigo), senão deixar 0
+        # (a tabela de pagos já mostra os pagamentos individuais)
+
+        total_a_pagar = valores.get(competencia, snap * peso)
+        saldo_anterior = valores.get(mes_referencia_anterior, snap * peso)
+
+        # Parcelas pagas: snapshot + meses com débitos reais após o snapshot
+        parcelas_pagas_extras = _meses_com_pagamento(set(contas_cp), comp_snapshot)
+        parcela_paga_real = (p["parcela_paga"] or 0) + parcelas_pagas_extras
+        faltam_real = max(0, (p["qtd_parcelas"] or 0) - parcela_paga_real)
 
         linhas.append({
             "tributo": p["tributo"], "processo": p["processo"],
-            "qtd_parcelas": p["qtd_parcelas"], "parcela_paga": p["parcela_paga"],
-            "faltam": p["faltam"], "dt_inicio": p["dt_inicio"], "dt_termino": p["dt_termino"],
+            "qtd_parcelas": p["qtd_parcelas"],
+            "parcela_paga": parcela_paga_real,
+            "faltam": faltam_real,
+            "dt_inicio": p["dt_inicio"], "dt_termino": p["dt_termino"],
             "desembolso_mensal": p["desembolso_mensal"], "valor_principal": p["valor_principal"],
             "saldo_fiscal": p["saldo_fiscal"], "valores": valores, "pagos": pagos,
             "saldo_anterior": saldo_anterior, "total_a_pagar": total_a_pagar,
