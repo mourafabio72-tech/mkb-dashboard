@@ -261,7 +261,7 @@ def _resumo_endividamento_bancario(empresa_id: int) -> dict:
             (empresa_id, conta)
         ).fetchone()
         if rb:
-            return abs(rb["saldo_atual"])
+            return rb["saldo_atual"]
         r2 = conn.execute(
             "SELECT SUM(credito) as tc, SUM(debito) as td "
             "FROM razao WHERE empresa_id=? AND conta_cod=?",
