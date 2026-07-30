@@ -2789,36 +2789,28 @@ def endividamento(empresa, competencia):
         todas_contas = contas_cp + contas_lp
         snap = p.get("saldo_contabilidade_snapshot") or 0.0
 
-        # Saldo evoluído: snapshot + movimentos líquidos acumulados
-        # Para cada mês na janela, calcula o saldo acumulado desde o snapshot
+        # Saldo evoluído: snapshot + movimentos líquidos acumulados.
+        # snap já é per-parcelamento; peso só se aplica ao delta do razão
+        # (contas podem ser compartilhadas entre parcelamentos).
         valores, pagos = {}, {}
         delta_acum = 0.0
         for c in janela:
-            # Pagamento (débito CP) do mês
             pago_mes = _pago_multi(contas_cp, c) * peso
             pagos[c] = pago_mes
             totais_pagos_por_mes[c] += pago_mes
 
             if c <= comp_snapshot:
-                # Mês dentro do período do snapshot: usa snapshot no mês exato,
-                # aplica movimentos inversos para meses anteriores ao snapshot
-                valores[c] = snap * peso if c == comp_snapshot else 0.0
+                valores[c] = snap if c == comp_snapshot else 0.0
             else:
-                # Mês posterior ao snapshot: acumula movimentos líquidos
                 for conta in todas_contas:
                     m = _mov(conta, c)
                     delta_acum += (m["credito"] - m["debito"])
-                saldo_evoluido = (snap + delta_acum) * peso
-                valores[c] = saldo_evoluido
+                valores[c] = snap + delta_acum * peso
 
             totais_por_mes[c] += valores[c]
 
-        # Para meses anteriores ao snapshot na janela, usar saldo_atual
-        # do razão se disponível (carry-forward do antigo), senão deixar 0
-        # (a tabela de pagos já mostra os pagamentos individuais)
-
-        total_a_pagar = valores.get(competencia, snap * peso)
-        saldo_anterior = valores.get(mes_referencia_anterior, snap * peso)
+        total_a_pagar = valores.get(competencia, snap)
+        saldo_anterior = valores.get(mes_referencia_anterior, snap)
 
         # Parcelas pagas: snapshot + meses com débitos reais após o snapshot
         parcelas_pagas_extras = _meses_com_pagamento(set(contas_cp), comp_snapshot)
