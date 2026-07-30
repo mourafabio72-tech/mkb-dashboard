@@ -292,17 +292,28 @@ def _resumo_endividamento_bancario(empresa_id: int) -> dict:
             s_lp_j = -s_lp_j
         tem_razao = any(v is not None for v in (s_cp_p, s_cp_j, s_lp_p, s_lp_j))
 
+        try:
+            vpf = e["valor_parcela_fixa"]
+        except (IndexError, KeyError):
+            vpf = None
+
         if tem_razao:
-            saldo = (s_cp_p or 0) + (s_cp_j or 0) + (s_lp_p or 0) + (s_lp_j or 0)
-            futuras = [p for p in parcelas if p["competencia"] > ref_competencia]
-            parcela = futuras[0]["valor_parcela"] if futuras else (parcelas[-1]["valor_parcela"] if parcelas else 0.0)
+            saldo = (s_cp_p or 0) + (s_lp_p or 0)
+            if vpf:
+                parcela = vpf
+            elif parcelas:
+                futuras = [p for p in parcelas if p["competencia"] > ref_competencia]
+                parcela = futuras[0]["valor_parcela"] if futuras else (parcelas[-1]["valor_parcela"] if parcelas else 0.0)
+            else:
+                parcela = e["valor_contratado"] / e["qtd_parcelas"] if e["qtd_parcelas"] else 0.0
         elif parcelas:
             pagas = [p for p in parcelas if p["competencia"] <= ref_competencia]
             futuras = [p for p in parcelas if p["competencia"] > ref_competencia]
             saldo = pagas[-1]["saldo_devedor"] if pagas else e["valor_contratado"]
-            parcela = futuras[0]["valor_parcela"] if futuras else (pagas[-1]["valor_parcela"] if pagas else 0.0)
+            parcela = vpf or (futuras[0]["valor_parcela"] if futuras else (pagas[-1]["valor_parcela"] if pagas else 0.0))
         else:
-            saldo, parcela = 0.0, 0.0
+            saldo = 0.0
+            parcela = vpf or 0.0
 
         saldo_total += saldo or 0.0
         parcela_total += parcela or 0.0
@@ -378,28 +389,44 @@ def _pagamentos_mensais_tributario(empresa_id: int, competencias: list) -> dict:
 
 
 def _pagamentos_mensais_bancario(empresa_id: int, competencias: list) -> dict:
-    """Valor da parcela (cronograma) por mês, do Endividamento Bancário de uma empresa."""
+    """Valor pago por mês: cronograma quando disponível, senão débitos reais no razão."""
     resultado = {c: 0.0 for c in competencias}
     conn = get_conn()
     criar_schema(conn)
-    emprestimo_ids = [r[0] for r in conn.execute(
-        "SELECT id FROM emprestimos_bancarios WHERE empresa_id=?", (empresa_id,)
-    ).fetchall()]
-    if not emprestimo_ids:
+    emprestimos = conn.execute(
+        "SELECT * FROM emprestimos_bancarios WHERE empresa_id=?", (empresa_id,)
+    ).fetchall()
+    if not emprestimos:
         conn.close()
         return resultado
 
+    emprestimo_ids = [e["id"] for e in emprestimos]
     placeholders = ",".join("?" * len(emprestimo_ids))
     rows = conn.execute(
         f"SELECT competencia, SUM(valor_parcela) as total FROM emprestimos_parcelas "
         f"WHERE emprestimo_id IN ({placeholders}) GROUP BY competencia",
         emprestimo_ids
     ).fetchall()
-    conn.close()
 
-    for r in rows:
-        if r["competencia"] in resultado:
-            resultado[r["competencia"]] += r["total"] or 0.0
+    tem_cronograma = len(rows) > 0
+    if tem_cronograma:
+        for r in rows:
+            if r["competencia"] in resultado:
+                resultado[r["competencia"]] += r["total"] or 0.0
+    else:
+        contas_cp = [e["conta_cp_principal"] for e in emprestimos if e["conta_cp_principal"]]
+        if contas_cp:
+            ph = ",".join("?" * len(contas_cp))
+            debitos = conn.execute(
+                f"SELECT competencia, SUM(debito) as td FROM razao "
+                f"WHERE empresa_id=? AND conta_cod IN ({ph}) GROUP BY competencia",
+                (empresa_id, *contas_cp)
+            ).fetchall()
+            for r in debitos:
+                if r["competencia"] in resultado:
+                    resultado[r["competencia"]] += r["td"] or 0.0
+
+    conn.close()
     return resultado
 
 
