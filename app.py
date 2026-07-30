@@ -2611,7 +2611,9 @@ def endividamento(empresa, competencia):
         return (ya - yb) * 12 + (ma - mb)
 
     offset_meses = _diff_meses(competencia_original, comp_snapshot)
-    competencia = comp_snapshot
+    # comp_snapshot = competência do snapshot de parcelamentos (metadados)
+    # competencia_original = competência solicitada na URL (janela, saldos, ROB)
+    competencia = competencia_original
 
     parcelamentos_raw = conn.execute(
         """
@@ -2621,7 +2623,7 @@ def endividamento(empresa, competencia):
         FROM parcelamentos WHERE empresa_id=? AND competencia_ref=?
         ORDER BY tributo
         """,
-        (empresa_id, competencia)
+        (empresa_id, comp_snapshot)
     ).fetchall()
 
     # Auto-ajustar parcelas: se a competência solicitada é posterior ao
