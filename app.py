@@ -3203,7 +3203,11 @@ def endividamento_bancario(empresa):
                 (emp_id, e["conta_cp_principal"])
             ).fetchone()
             total_pago = (total_pago["td"] or 0) if total_pago else 0
-            valor_parcela_atual = e.get("valor_parcela_fixa") or (
+            try:
+                vpf = e["valor_parcela_fixa"]
+            except (IndexError, KeyError):
+                vpf = None
+            valor_parcela_atual = vpf or (
                 e["valor_contratado"] / e["qtd_parcelas"] if e["qtd_parcelas"] else None
             )
             if parcelas:
