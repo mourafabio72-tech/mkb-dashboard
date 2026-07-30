@@ -249,12 +249,19 @@ def _resumo_endividamento_bancario(empresa_id: int) -> dict:
         if not conta:
             return None
         r = conn.execute(
+            "SELECT saldo_atual FROM razao WHERE empresa_id=? AND conta_cod=? "
+            "AND saldo_atual IS NOT NULL ORDER BY competencia DESC, data_lanc DESC, id DESC LIMIT 1",
+            (empresa_id, conta)
+        ).fetchone()
+        if r:
+            return r["saldo_atual"]
+        r2 = conn.execute(
             "SELECT SUM(credito) as tc, SUM(debito) as td "
             "FROM razao WHERE empresa_id=? AND conta_cod=?",
             (empresa_id, conta)
         ).fetchone()
-        if r and (r["tc"] or r["td"]):
-            return (r["tc"] or 0) - (r["td"] or 0)
+        if r2 and (r2["tc"] or r2["td"]):
+            return (r2["tc"] or 0) - (r2["td"] or 0)
         return None
 
     ref_competencia = _ref_competencia_razao(conn, empresa_id)
@@ -3125,16 +3132,23 @@ def endividamento_bancario(empresa):
     ).fetchall()
 
     def _saldo_conta(conta):
-        """Saldo = SUM(crédito) - SUM(débito). Para passivo, resultado positivo = dívida."""
+        """Último saldo_atual do razão; se não houver, SUM(crédito-débito)."""
         if not conta:
             return None
         r = conn.execute(
+            "SELECT saldo_atual FROM razao WHERE empresa_id=? AND conta_cod=? "
+            "AND saldo_atual IS NOT NULL ORDER BY competencia DESC, data_lanc DESC, id DESC LIMIT 1",
+            (emp_id, conta)
+        ).fetchone()
+        if r:
+            return r["saldo_atual"]
+        r2 = conn.execute(
             "SELECT SUM(credito) as tc, SUM(debito) as td "
             "FROM razao WHERE empresa_id=? AND conta_cod=?",
             (emp_id, conta)
         ).fetchone()
-        if r and (r["tc"] or r["td"]):
-            return (r["tc"] or 0) - (r["td"] or 0)
+        if r2 and (r2["tc"] or r2["td"]):
+            return (r2["tc"] or 0) - (r2["td"] or 0)
         return None
 
     ref_competencia = _ref_competencia_razao(conn, emp_id)
