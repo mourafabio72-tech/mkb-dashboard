@@ -1806,9 +1806,11 @@ def aliases_sugerir_ia():
             if not colocado:
                 agrupados[n] = {n}
         conn_pre = get_conn()
+        canonicos_prefixo = set()
         for canon, membros in agrupados.items():
             if len(membros) < 2:
                 continue
+            canonicos_prefixo.add(canon)
             for m in membros:
                 if m != canon:
                     conn_pre.execute(
@@ -1822,6 +1824,10 @@ def aliases_sugerir_ia():
             alias_nomes_atualizado = {r[0] for r in get_conn().execute("SELECT nome_aproximado FROM nome_aliases").fetchall()}
             nomes_lista = [n for n in nomes_lista if n not in alias_nomes_atualizado]
             nomes_aprox -= alias_nomes_atualizado
+            for c in canonicos_prefixo:
+                if c not in nomes_aprox:
+                    nomes_lista.append(c)
+                    nomes_aprox.add(c)
 
     if not nomes_aprox:
         return jsonify({"sugestoes": [], "auto_salvos": prefixo_aliases})
