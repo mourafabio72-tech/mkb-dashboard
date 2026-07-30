@@ -243,8 +243,6 @@ def _resumo_endividamento_bancario(empresa_id: int) -> dict:
     ).fetchall()
     if not emprestimos:
         conn.close()
-        if empresa_id == EMPRESAS["gnileb"]["id"]:
-            return {"saldo_a_pagar": 1916902.00, "valor_parcela_atual": 46753.70}
         return {"saldo_a_pagar": 0.0, "valor_parcela_atual": 0.0}
 
     def _saldo_atual(conta):
@@ -289,11 +287,6 @@ def _resumo_endividamento_bancario(empresa_id: int) -> dict:
         parcela_total += parcela or 0.0
 
     conn.close()
-
-    # Valores fixos Gnileb (contrato CEF) — até Razão ter contas corretas
-    if empresa_id == EMPRESAS["gnileb"]["id"]:
-        saldo_total = 1916902.00
-        parcela_total = 46753.70
 
     return {"saldo_a_pagar": saldo_total, "valor_parcela_atual": parcela_total}
 
@@ -3162,7 +3155,8 @@ def endividamento_bancario(empresa):
         if tem_razao:
             # Razão disponível -- fonte oficial (ver Endividamento Tributário)
             saldo_a_pagar = (s_cp_p or 0) + (s_cp_j or 0) + (s_lp_p or 0) + (s_lp_j or 0)
-            total_pago    = e["valor_contratado"] - saldo_a_pagar
+            base = e["valor_total_com_juros"] or e["valor_contratado"]
+            total_pago    = base - saldo_a_pagar
             if parcelas:
                 parcelas_pagas = sum(1 for p in parcelas if p["competencia"] <= ref_competencia)
                 valor_parcela_atual = next(
@@ -3236,43 +3230,13 @@ def endividamento_bancario(empresa):
 
     conn.close()
 
-    total_contratado      = sum(l["valor_contratado"] for l in linhas)
+    total_contratado      = sum(l["valor_total_com_juros"] or l["valor_contratado"] for l in linhas)
     total_pago_geral       = sum(l["total_pago"] or 0 for l in linhas if l["tem_dados"])
     total_saldo_geral      = sum(l["saldo_a_pagar"] or 0 for l in linhas if l["tem_dados"])
     parcelas_a_pagar_total = sum(l["parcelas_a_pagar"] or 0 for l in linhas if l["tem_dados"])
 
-    # Gnileb: valores fixos do contrato CEF (contabilidade até mai/2026)
-    if empresa_valida == "gnileb":
-        total_contratado       = 2082508.00
-        total_pago_geral       = 165606.00
-        total_saldo_geral      = 1916902.00
-        valor_parcela_fixa     = 46753.70
-        if not linhas:
-            linhas.append({
-                "id": None, "banco": "CEF", "descricao": "Empréstimo Bancário",
-                "valor_contratado": total_contratado,
-                "valor_total_com_juros": None,
-                "qtd_parcelas": 48,
-                "parcelas_pagas": 7, "parcelas_a_pagar": 41,
-                "saldo_a_pagar": total_saldo_geral,
-                "total_pago": total_pago_geral,
-                "valor_parcela_atual": valor_parcela_fixa,
-                "tem_dados": True,
-                "fonte": "Contabilidade (até mai/2026)",
-                "detalhe": [],
-            })
-        else:
-            for l in linhas:
-                l["valor_contratado"]    = total_contratado
-                l["total_pago"]          = total_pago_geral
-                l["saldo_a_pagar"]       = total_saldo_geral
-                l["valor_parcela_atual"] = valor_parcela_fixa
-                l["tem_dados"]           = True
-
-    # Valor original e quitação só se aplicam à Gnileb (contrato CEF)
-    v_original = 1500000.00 if empresa_valida == "gnileb" else None
-    if empresa_valida == "gnileb":
-        valor_quitacao = 1447888.05
+    # Valor original: valor_contratado do primeiro empréstimo (se houver)
+    v_original = linhas[0]["valor_contratado"] if linhas else None
 
     return render_template(
         "endividamento_bancario.html",
@@ -3282,7 +3246,7 @@ def endividamento_bancario(empresa):
         total_contratado=total_contratado,
         total_pago_geral=total_pago_geral,
         total_saldo_geral=total_saldo_geral,
-        valor_quitacao=valor_quitacao if empresa_valida == "gnileb" else None,
+        valor_quitacao=valor_quitacao if valor_quitacao else None,
         algum_sem_dados=any(not l["tem_dados"] for l in linhas),
     )
 
