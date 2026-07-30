@@ -2576,12 +2576,35 @@ def endividamento(empresa, competencia):
     conn = get_conn()
 
     # Competências com snapshot de vinculação já enviado
-    competencias_disp = [
+    competencias_snap = [
         r[0] for r in conn.execute(
             "SELECT DISTINCT competencia_ref FROM parcelamentos WHERE empresa_id=? ORDER BY competencia_ref",
             (empresa_id,)
         ).fetchall()
     ]
+
+    # Estender até o mês atual ou último mês com razão (o que for maior),
+    # para permitir navegar meses sem snapshot (saldo vem do razão via de/para)
+    from datetime import date
+    hoje = date.today()
+    mes_atual = f"{hoje.year}-{hoje.month:02d}"
+    ultimo_razao = conn.execute(
+        "SELECT MAX(competencia) FROM razao WHERE empresa_id=?", (empresa_id,)
+    ).fetchone()[0]
+    teto = max(mes_atual, ultimo_razao or "")
+
+    competencias_disp = list(competencias_snap)
+    if competencias_snap and teto > competencias_snap[-1]:
+        y, m = int(competencias_snap[-1][:4]), int(competencias_snap[-1][5:7])
+        while True:
+            m += 1
+            if m > 12:
+                m = 1
+                y += 1
+            comp = f"{y}-{m:02d}"
+            if comp > teto:
+                break
+            competencias_disp.append(comp)
 
     if not competencias_disp:
         conn.close()
@@ -2599,9 +2622,9 @@ def endividamento(empresa, competencia):
     # (ou o mais antigo disponível, se a URL pedir algo anterior a todos)
     competencia_original = competencia
     comp_snapshot = competencia
-    if competencia not in competencias_disp:
-        anteriores = [c for c in competencias_disp if c <= competencia]
-        comp_snapshot = anteriores[-1] if anteriores else competencias_disp[0]
+    if competencia not in competencias_snap:
+        anteriores = [c for c in competencias_snap if c <= competencia]
+        comp_snapshot = anteriores[-1] if anteriores else competencias_snap[0]
 
     # Offset de meses entre o snapshot base e a competência solicitada
     # (para auto-ajustar parcela_paga e faltam em meses futuros)
