@@ -2950,6 +2950,30 @@ def endividamento_conta_map(empresa):
         (empresa_id,)
     ).fetchall()
 
+    # Diagnóstico: para cada conta mapeada, verificar se tem saldo_atual
+    todas_contas_map = set()
+    for mp in map_por_tributo.values():
+        for m in mp:
+            todas_contas_map.add(m["conta_razao"])
+    diag: dict[str, dict] = {}
+    for conta in todas_contas_map:
+        info = conn.execute(
+            """SELECT COUNT(*) as total,
+                      SUM(CASE WHEN saldo_atual IS NOT NULL THEN 1 ELSE 0 END) as com_saldo,
+                      MAX(competencia) as ultima_comp,
+                      (SELECT saldo_atual FROM razao
+                       WHERE empresa_id=? AND conta_cod=? AND saldo_atual IS NOT NULL
+                       ORDER BY competencia DESC, data_lanc DESC, id DESC LIMIT 1) as ultimo_saldo
+               FROM razao WHERE empresa_id=? AND conta_cod=?""",
+            (empresa_id, conta, empresa_id, conta)
+        ).fetchone()
+        diag[conta] = {
+            "total": info["total"],
+            "com_saldo": info["com_saldo"],
+            "ultima_comp": info["ultima_comp"],
+            "ultimo_saldo": info["ultimo_saldo"],
+        }
+
     conn.close()
     return render_template(
         "endividamento_conta_map.html",
@@ -2957,6 +2981,7 @@ def endividamento_conta_map(empresa):
         parcelamentos=parcelamentos,
         map_por_tributo=map_por_tributo,
         contas_razao=[r["conta_cod"] for r in contas_razao],
+        diag=diag,
     )
 
 

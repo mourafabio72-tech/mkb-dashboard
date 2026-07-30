@@ -63,6 +63,7 @@
         <th>Planilha CP</th>
         <th>Planilha LP</th>
         <th>Razão (de/para)</th>
+        <th>Diagnóstico</th>
         <th></th>
       </tr>
     </thead>
@@ -82,6 +83,24 @@
             {% endfor %}
           {% else %}
             <span class="text-muted">— usa planilha —</span>
+          {% endif %}
+        </td>
+        <td style="font-size:11px">
+          {% if mapa %}
+            {% for m in mapa %}
+              {% set d = diag.get(m.conta_razao, {}) %}
+              <div style="margin:2px 0">
+                <span style="font-family:monospace">{{ m.conta_razao }}</span>:
+                {{ d.get('total', 0) }} lanç,
+                {% if d.get('com_saldo', 0) > 0 %}
+                  <span style="color:green">{{ d.get('com_saldo', 0) }} com saldo</span>,
+                  último={{ d.get('ultimo_saldo', '?') | round(2) if d.get('ultimo_saldo') is not none else '?' }}
+                  ({{ d.get('ultima_comp', '?') }})
+                {% else %}
+                  <span style="color:red;font-weight:bold">SEM saldo_atual</span>
+                {% endif %}
+              </div>
+            {% endfor %}
           {% endif %}
         </td>
         <td style="text-align:right;white-space:nowrap">
