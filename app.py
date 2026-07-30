@@ -245,15 +245,17 @@ def _resumo_endividamento_bancario(empresa_id: int) -> dict:
         conn.close()
         return {"saldo_a_pagar": 0.0, "valor_parcela_atual": 0.0}
 
-    def _saldo_atual(conta):
+    def _saldo_conta(conta):
         if not conta:
             return None
         r = conn.execute(
-            "SELECT saldo_atual FROM razao WHERE empresa_id=? AND conta_cod=? "
-            "AND saldo_atual IS NOT NULL ORDER BY competencia DESC, data_lanc DESC, id DESC LIMIT 1",
+            "SELECT SUM(credito) as tc, SUM(debito) as td "
+            "FROM razao WHERE empresa_id=? AND conta_cod=?",
             (empresa_id, conta)
         ).fetchone()
-        return r["saldo_atual"] if r else None
+        if r and (r["tc"] or r["td"]):
+            return (r["tc"] or 0) - (r["td"] or 0)
+        return None
 
     ref_competencia = _ref_competencia_razao(conn, empresa_id)
 
@@ -265,10 +267,10 @@ def _resumo_endividamento_bancario(empresa_id: int) -> dict:
             (e["id"],)
         ).fetchall()
 
-        s_cp_p = _saldo_atual(e["conta_cp_principal"])
-        s_cp_j = _saldo_atual(e["conta_cp_juros"])
-        s_lp_p = _saldo_atual(e["conta_lp_principal"])
-        s_lp_j = _saldo_atual(e["conta_lp_juros"])
+        s_cp_p = _saldo_conta(e["conta_cp_principal"])
+        s_cp_j = _saldo_conta(e["conta_cp_juros"])
+        s_lp_p = _saldo_conta(e["conta_lp_principal"])
+        s_lp_j = _saldo_conta(e["conta_lp_juros"])
         tem_razao = any(v is not None for v in (s_cp_p, s_cp_j, s_lp_p, s_lp_j))
 
         if tem_razao:
@@ -3122,15 +3124,18 @@ def endividamento_bancario(empresa):
         (emp_id,)
     ).fetchall()
 
-    def _saldo_atual(conta):
+    def _saldo_conta(conta):
+        """Saldo = SUM(crédito) - SUM(débito). Para passivo, resultado positivo = dívida."""
         if not conta:
             return None
         r = conn.execute(
-            "SELECT saldo_atual FROM razao WHERE empresa_id=? AND conta_cod=? "
-            "AND saldo_atual IS NOT NULL ORDER BY competencia DESC, data_lanc DESC, id DESC LIMIT 1",
+            "SELECT SUM(credito) as tc, SUM(debito) as td "
+            "FROM razao WHERE empresa_id=? AND conta_cod=?",
             (emp_id, conta)
         ).fetchone()
-        return r["saldo_atual"] if r else None
+        if r and (r["tc"] or r["td"]):
+            return (r["tc"] or 0) - (r["td"] or 0)
+        return None
 
     ref_competencia = _ref_competencia_razao(conn, emp_id)
 
@@ -3141,14 +3146,11 @@ def endividamento_bancario(empresa):
             (e["id"],)
         ).fetchall()
 
-        s_cp_p = _saldo_atual(e["conta_cp_principal"])
-        s_cp_j = _saldo_atual(e["conta_cp_juros"])
-        s_lp_p = _saldo_atual(e["conta_lp_principal"])
-        s_lp_j = _saldo_atual(e["conta_lp_juros"])
+        s_cp_p = _saldo_conta(e["conta_cp_principal"])
+        s_cp_j = _saldo_conta(e["conta_cp_juros"])
+        s_lp_p = _saldo_conta(e["conta_lp_principal"])
+        s_lp_j = _saldo_conta(e["conta_lp_juros"])
 
-        # Saldo a pagar (líquido) = soma das contas de principal (saldo
-        # positivo = passivo em aberto) + contas de juros a apropriar (saldo
-        # já negativo, contra-conta -- soma reduz o bruto ao líquido).
         tem_razao = any(v is not None for v in (s_cp_p, s_cp_j, s_lp_p, s_lp_j))
 
         detalhe = []
@@ -3224,7 +3226,7 @@ def endividamento_bancario(empresa):
                         "2.2.3.01.06.001", "2.2.3.01.06.002")
     valor_quitacao = 0.0
     for cq in _CONTAS_QUITACAO:
-        sq = _saldo_atual(cq)
+        sq = _saldo_conta(cq)
         if sq is not None:
             valor_quitacao += sq
 
