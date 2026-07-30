@@ -3240,18 +3240,11 @@ def endividamento_bancario(empresa):
             if parcelas:
                 parcelas_pagas = sum(1 for p in parcelas if p["competencia"] <= ref_competencia)
             else:
-                dp = e["data_primeira_parcela"] or ""
-                if len(dp) >= 7:
-                    ay, am = int(dp[:4]), int(dp[5:7])
-                    hoje = datetime.now()
-                    rm = hoje.month - 1
-                    ry = hoje.year
-                    if rm < 1:
-                        rm = 12
-                        ry -= 1
-                    parcelas_pagas = max(0, min((ry - ay) * 12 + (rm - am), e["qtd_parcelas"]))
-                else:
-                    parcelas_pagas = 0
+                r_parc = conn.execute(
+                    "SELECT COUNT(*) as cnt FROM razao WHERE empresa_id=? AND conta_cod=? AND debito > 0",
+                    (emp_id, e["conta_cp_principal"])
+                ).fetchone()
+                parcelas_pagas = r_parc["cnt"] if r_parc else 0
             parcelas_a_pagar  = e["qtd_parcelas"] - parcelas_pagas
         elif parcelas:
             # Sem Razão ainda -- usa o cronograma de amortização do contrato
