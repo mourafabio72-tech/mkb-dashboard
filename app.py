@@ -7,14 +7,15 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, abort
 from werkzeug.security import generate_password_hash
 
 from config import (
     SECRET_KEY, PORT, DEBUG, EMPRESAS, OPENAI_API_KEY,
     ZOARIA_COOKIE_DOMAIN, ZOARIA_COOKIE_NAME, HUB_URL,
 )
-from auth import login_required, admin_required, verificar_credenciais, rate_limit_login
+from auth import (login_required, admin_required, verificar_credenciais,
+                  rate_limit_login, empresas_permitidas)
 from ingestion import get_conn, criar_schema, seed_empresas, importar, ler_template_dre, salvar_lancamentos
 from importar_mes import importar_mes_completo
 from razao_parser import importar_razao
@@ -102,10 +103,55 @@ def filtro_pct(valor, rob=None):
 
 @app.context_processor
 def inject_globals():
+    # Os seletores de empresa nos templates iteram EMPRESAS: filtramos pelas
+    # empresas que o usuário pode ver (o enforcement real é no before_request).
+    perm = empresas_permitidas()
+    emp = EMPRESAS if perm is None else {k: v for k, v in EMPRESAS.items() if k in perm}
     return {
         "now": datetime.now().strftime("%d/%m/%Y %H:%M"),
-        "EMPRESAS": EMPRESAS,
+        "EMPRESAS": emp,
     }
+
+
+# --- ISOLAMENTO POR EMPRESA (multi-empresa via hub) --------------------------
+# Telas que renderizam TODAS as empresas lado a lado (comparativo interno).
+_ENDPOINTS_COMPARATIVOS = {"index", "dre_resumida"}
+# Rotas single-empresa que leem ?empresa com default fixo "mkb": se o cliente
+# não especificar, forçamos a empresa dele (senão veria o default).
+_ENDPOINTS_EMPRESA_QUERY = {"balanco", "validacao", "api_dre",
+                            "api_lancamentos", "api_lancamentos_razao"}
+
+
+@app.before_request
+def _guard_empresa():
+    """Garante que um usuário restrito a certas empresas (cliente vindo do hub)
+    só acesse dados dessas empresas — em qualquer rota, inclusive trocando a URL.
+    Admin e usuários internos (que veem todas) passam sem alteração."""
+    ep = request.endpoint
+    if not ep or ep == "static" or ep in ("login", "logout"):
+        return
+    perm = empresas_permitidas()
+    if perm is None:
+        return  # admin / interno: sem restrição
+    if not perm:
+        return ("Seu usuário não tem nenhuma empresa liberada no hub. "
+                "Solicite acesso a um administrador em zoaria.com.br.", 403)
+
+    # Empresa pedida explicitamente (no path ou na query) precisa estar liberada.
+    chave = (request.view_args or {}).get("empresa") or request.args.get("empresa")
+    if chave and chave in EMPRESAS and chave not in perm:
+        abort(403)
+
+    if set(perm) >= set(EMPRESAS.keys()):
+        return  # vê todas: comporta-se como interno
+
+    alvo = sorted(perm)[0]
+    # Telas comparativas → manda para a visão single da empresa do cliente.
+    if ep in _ENDPOINTS_COMPARATIVOS:
+        return redirect(url_for("balanco", empresa=alvo))
+    # Rota single sem empresa explícita → força a empresa do cliente.
+    if ep in _ENDPOINTS_EMPRESA_QUERY and not chave:
+        return redirect(url_for(ep, **{**(request.view_args or {}), "empresa": alvo}))
 
 
 # --- HELPERS -----------------------------------------------------------------
@@ -722,14 +768,15 @@ def index():
         pct_parcela = (valor_pago / rob_mes * 100) if rob_mes else None
         serie_endividamento_mensal.append({
             "competencia": c, "valor_pago": valor_pago,
+            "valor_pago_trib": valor_pago_trib, "valor_pago_banc": valor_pago_banc,
             "divida_acumulada": divida_mes, "rob_mes": rob_mes,
             "pct_divida": pct_divida, "pct_parcela": pct_parcela,
         })
 
     ult_serie = serie_endividamento_mensal[-1] if serie_endividamento_mensal else {}
     desembolso_total_geral = ult_serie.get("valor_pago", 0)
-    desembolso_bancario = end_banc_mkb["valor_parcela_atual"] + end_banc_gnileb["valor_parcela_atual"]
-    desembolso_tributario = desembolso_total_geral - desembolso_bancario
+    desembolso_tributario = ult_serie.get("valor_pago_trib", 0)
+    desembolso_bancario = ult_serie.get("valor_pago_banc", 0)
     ultimo_rob = ult_serie.get("rob_mes", 0) or 0
     pct_desembolso_rob = (desembolso_total_geral / ultimo_rob * 100) if ultimo_rob else None
 
