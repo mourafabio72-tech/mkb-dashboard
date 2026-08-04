@@ -951,3 +951,51 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
   .min-kpi-row { grid-template-columns: 1fr; }
   .min-header  { flex-direction: column; align-items: flex-start; }
 }
+
+/* ── IMPRESSÃO / EXPORTAR PDF ────────────────────────────────────────────── */
+.btn-print {
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 8px;
+  background: rgba(139,92,246,.12); border: 1px solid var(--border);
+  cursor: pointer; color: var(--muted); font-size: 17px;
+  transition: all .2s; margin-left: 4px; flex-shrink: 0;
+}
+.btn-print:hover { border-color: var(--accent); color: var(--primary); background: rgba(139,92,246,.2); }
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 12mm 10mm;
+  }
+  body { background: #fff !important; color: #222 !important; font-size: 11px; }
+  .navbar, .footer, .theme-toggle, .btn-print,
+  .nav-user, .flash-box, .mes-selector .btn-mes:not(.btn-mes-ativo),
+  .btn, .btn-sm, .btn-primary, .btn-secondary,
+  .hub-list, .hub-grid, .info-box,
+  .empty-state a { display: none !important; }
+  .container { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+  .page-header { margin-bottom: 8px; }
+  .page-header h1 { font-size: 18px; margin-bottom: 2px; }
+  .page-header .subtitle { font-size: 10px; }
+  .kpi-grid { gap: 8px; }
+  .kpi-card { padding: 10px 14px; break-inside: avoid; }
+  .kpi-label { font-size: 9px; }
+  .kpi-value { font-size: 18px; }
+  .kpi-sub { font-size: 8px; }
+  .kpi-highlight { border: 2px solid #6e7f63; }
+  .section-card { padding: 10px 14px; margin-top: 12px; break-inside: avoid; box-shadow: none; border: 1px solid #ccc; }
+  .section-card h2 { font-size: 13px; margin-bottom: 6px; }
+  .table-simple { font-size: 10px; }
+  .table-simple th { padding: 4px 6px; font-size: 9px; }
+  .table-simple td { padding: 3px 6px; }
+  .text-muted { color: #888 !important; }
+  .mes-selector { margin-bottom: 6px; }
+  .mes-selector .btn-mes-ativo { background: #6e7f63; color: #fff; padding: 2px 10px; font-size: 10px; border-radius: 4px; }
+  * { color-adjust: exact; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* Cabeçalho de impressão */
+  .print-header { display: block !important; text-align: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #2f3b2f; }
+  .print-header img { height: 28px; }
+  .print-header .print-title { font-size: 10px; color: #666; margin-top: 2px; }
+  /* Gráficos canvas (Chart.js) */
+  canvas { max-width: 100% !important; max-height: 280px !important; }
+}

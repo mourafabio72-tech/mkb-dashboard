@@ -178,6 +178,9 @@
   <button class="theme-toggle" id="themeToggle" title="Alternar tema claro/escuro">
     <i class="ph-bold ph-sun"></i>
   </button>
+  <button class="btn-print" onclick="window.print()" title="Exportar PDF / Imprimir">
+    <i class="ph-bold ph-printer"></i>
+  </button>
 
   {% if session.usuario_logado %}
   <div class="nav-user">
@@ -186,6 +189,11 @@
   </div>
   {% endif %}
 </nav>
+
+<div class="print-header" style="display:none;">
+  <img src="{{ url_for('static', filename='bps4-logo.png') }}" alt="BPS4">
+  <div class="print-title">MKB Dashboard · Grupo Markbuilding · {{ now }}</div>
+</div>
 
 <main class="container">
   {% with messages = get_flashed_messages(with_categories=true) %}
