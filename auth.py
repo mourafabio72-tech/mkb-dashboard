@@ -29,7 +29,7 @@ from urllib.parse import quote
 from flask import session, redirect, url_for, request, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from config import DASHBOARD_USERS_RAW, HUB_URL, MODULO_HUB
+from config import DASHBOARD_USERS_RAW, HUB_URL, MODULO_HUB, EMPRESAS
 
 _MAX_ATTEMPTS = 5
 _BLOCK_SECONDS = 300
@@ -115,6 +115,22 @@ def usuario_logado() -> dict | None:
 def is_admin() -> bool:
     u = usuario_logado()
     return bool(u and u.get("role") == "admin")
+
+
+def empresas_permitidas():
+    """Conjunto de CHAVES de empresa que o usuário pode ver (ex.: {'mkb'}).
+
+    Retorna None quando não há restrição (admin, ou sessão local/interna que não
+    veio do hub). A restrição chega no cookie SSO do hub em `empresas` (siglas
+    MAIÚSCULAS, ex.: 'MKB'), que aqui mapeamos para as chaves de EMPRESAS."""
+    u = usuario_logado()
+    if not u or u.get("role") == "admin":
+        return None
+    if u.get("origem") != "hub" or "empresas" not in u:
+        return None  # login local/interno: sem restrição por empresa
+    siglas = {str(s).upper() for s in (u.get("empresas") or [])}
+    return {chave for chave, e in EMPRESAS.items()
+            if str(e.get("sigla", chave)).upper() in siglas}
 
 
 # ─── DECORATORS ──────────────────────────────────────────────────────────────
