@@ -140,13 +140,20 @@ async function montarPDF() {
 
       if (!main) continue;
 
-      // Remove elementos interativos e gráficos
+      // Remove elementos interativos, gráficos e cards de gráfico vazios
       main.querySelectorAll(
         '.hub-list, .hub-grid, .mes-selector, .toggle-dre-tipo, .dre-actions, ' +
-        '.notes-box, canvas, script, .flash-box, .info-box, .grafico-wrap, ' +
-        '.grafico-wrap-top10, .min-period-bar, .min-header-right, ' +
+        '.notes-box, script, .flash-box, .info-box, ' +
+        '.min-period-bar, .min-header-right, ' +
         '.navbar, .footer, .print-header'
       ).forEach(el => el.remove());
+
+      // Remove cards que contêm gráficos (canvas) — ficam vazios sem o JS
+      main.querySelectorAll('.min-chart-card, .grafico-wrap, .grafico-wrap-top10').forEach(el => el.remove());
+      // Remove grids que ficaram vazios após remoção dos chart-cards
+      main.querySelectorAll('.min-grid-2').forEach(el => {
+        if (!el.children.length) el.remove();
+      });
 
       // Remove botões soltos
       main.querySelectorAll('a.btn, button.btn, a.btn-sm, button.btn-sm, a.min-btn-ghost, a.min-btn-solid').forEach(el => el.remove());
