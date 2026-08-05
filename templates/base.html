@@ -178,9 +178,12 @@
   <button class="theme-toggle" id="themeToggle" title="Alternar tema claro/escuro">
     <i class="ph-bold ph-sun"></i>
   </button>
-  <button class="btn-print" onclick="window.print()" title="Exportar PDF / Imprimir">
+  <button class="btn-print" onclick="window.print()" title="Exportar esta página">
     <i class="ph-bold ph-printer"></i>
   </button>
+  <a href="{{ url_for('pdf_completo') }}" class="btn-print" title="Exportar tudo em PDF único" style="text-decoration:none">
+    <i class="ph-bold ph-file-pdf"></i>
+  </a>
 
   {% if session.usuario_logado %}
   <div class="nav-user">

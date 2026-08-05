@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Relatório Completo — MKB Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260804">
+  <style>
+    body { background: #fff; color: #222; font-size: 12px; margin: 0; padding: 0; }
+
+    /* Barra de progresso (tela) */
+    .pdf-loading {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: #f8f2e8; gap: 16px;
+    }
+    .pdf-loading h2 { font-size: 18px; color: #2f3b2f; margin: 0; }
+    .pdf-loading .progress-bar {
+      width: 320px; height: 6px; border-radius: 4px;
+      background: #dccdb6; overflow: hidden;
+    }
+    .pdf-loading .progress-fill {
+      height: 100%; width: 0%; background: #6e7f63;
+      transition: width .3s;
+    }
+    .pdf-loading .status { font-size: 13px; color: #7e8a73; }
+
+    /* Container para conteúdo montado */
+    .pdf-container { display: none; }
+
+    /* Cada seção */
+    .pdf-section {
+      page-break-before: always;
+      padding: 0;
+    }
+    .pdf-section:first-child { page-break-before: auto; }
+    .pdf-section-title {
+      font-size: 16px; font-weight: 800; color: #2f3b2f;
+      border-bottom: 2px solid #6e7f63; padding-bottom: 6px;
+      margin-bottom: 12px;
+    }
+
+    /* Cabeçalho de impressão em cada página */
+    .pdf-page-header {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 12px; padding-bottom: 8px;
+      border-bottom: 2px solid #2f3b2f;
+    }
+    .pdf-page-header img { height: 28px; }
+    .pdf-page-header span { font-size: 10px; color: #666; }
+
+    /* Esconde na tela, mostra na impressão */
+    @media screen {
+      .pdf-page-header { display: none; }
+    }
+
+    @media print {
+      @page { size: A4 landscape; margin: 12mm 10mm; }
+      .pdf-loading { display: none !important; }
+      .pdf-container { display: block !important; }
+      .pdf-page-header { display: flex !important; }
+      .navbar, .footer, .theme-toggle, .btn-print, .nav-user,
+      .flash-box, .hub-list, .hub-grid, .info-box,
+      .btn, .btn-sm, .btn-primary, .btn-secondary,
+      .mes-selector, .toggle-dre-tipo, .dre-actions,
+      .notes-box, .empty-state a, .page-header .subtitle + div,
+      canvas { display: none !important; }
+      .container { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+      .card-full, .section-card { box-shadow: none; border: 1px solid #ccc; }
+      .table-dre, .table-simple { font-size: 10px; }
+      .table-scroll { overflow: visible !important; }
+      * { color-adjust: exact; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+
+    /* Botões da tela */
+    .pdf-actions {
+      position: fixed; bottom: 24px; right: 24px; z-index: 10000;
+      display: flex; gap: 8px;
+    }
+    .pdf-actions button {
+      padding: 10px 20px; border-radius: 8px; border: none;
+      font-size: 14px; font-weight: 700; cursor: pointer;
+    }
+    .btn-imprimir { background: #6e7f63; color: #fff; }
+    .btn-imprimir:hover { background: #55684d; }
+    .btn-voltar { background: #dccdb6; color: #2f3b2f; }
+    .btn-voltar:hover { background: #c9a77f; }
+  </style>
+</head>
+<body>
+
+<div class="pdf-loading" id="loading">
+  <h2>Montando relatório completo...</h2>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="status" id="statusText">Carregando seções...</div>
+</div>
+
+<div class="pdf-container" id="pdfContainer"></div>
+
+<div class="pdf-actions" id="actions" style="display:none">
+  <button class="btn-voltar" onclick="history.back()">← Voltar</button>
+  <button class="btn-imprimir" onclick="window.print()">Exportar PDF / Imprimir</button>
+</div>
+
+<script>
+const URLS = {{ urls | tojson }};
+const LOGO = "{{ url_for('static', filename='bps4-logo.png') }}";
+const COMP = "{{ competencia or '' }}";
+
+async function montarPDF() {
+  const container = document.getElementById('pdfContainer');
+  const fill = document.getElementById('progressFill');
+  const status = document.getElementById('statusText');
+  const total = URLS.length;
+
+  for (let i = 0; i < total; i++) {
+    const item = URLS[i];
+    status.textContent = `Carregando: ${item.label} (${i + 1}/${total})`;
+    fill.style.width = `${((i + 1) / total) * 100}%`;
+
+    try {
+      const resp = await fetch(item.url, {credentials: 'same-origin'});
+      const html = await resp.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const main = doc.querySelector('main.container') || doc.querySelector('main') || doc.querySelector('.container');
+
+      if (!main) continue;
+
+      // Remove elementos interativos
+      main.querySelectorAll('.hub-list, .hub-grid, .mes-selector, .toggle-dre-tipo, .dre-actions, .notes-box, canvas, script, .flash-box, .btn, .btn-sm, .info-box').forEach(el => el.remove());
+
+      const section = document.createElement('div');
+      section.className = 'pdf-section';
+
+      // Cabeçalho por página (só aparece na impressão)
+      section.innerHTML = `
+        <div class="pdf-page-header">
+          <img src="${LOGO}" alt="BPS4">
+          <span>MKB Dashboard · Grupo Markbuilding · ${item.label} · ${COMP}</span>
+        </div>
+      `;
+
+      // Título da seção
+      const title = document.createElement('div');
+      title.className = 'pdf-section-title';
+      title.textContent = item.label;
+      section.appendChild(title);
+
+      // Conteúdo
+      const content = document.createElement('div');
+      content.innerHTML = main.innerHTML;
+      section.appendChild(content);
+
+      container.appendChild(section);
+    } catch (e) {
+      console.warn(`Erro ao carregar ${item.label}:`, e);
+    }
+  }
+
+  // Pronto
+  document.getElementById('loading').style.display = 'none';
+  container.style.display = 'block';
+  document.getElementById('actions').style.display = 'flex';
+}
+
+montarPDF();
+</script>
+</body>
+</html>

@@ -836,6 +836,26 @@ def index():
     )
 
 
+# --- ROTA: PDF COMPLETO (todas as telas em um único documento) ---------------
+
+@app.route("/pdf-completo")
+@login_required
+def pdf_completo():
+    competencias = _competencias_disponiveis()
+    ultima = competencias[-1] if competencias else None
+    urls = []
+    if ultima:
+        urls = [
+            {"label": "Dashboard — Início", "url": url_for("index")},
+            {"label": "DRE Gerencial", "url": url_for("dre_resumida", competencia=ultima)},
+            {"label": "Balanço Patrimonial", "url": url_for("balanco", competencia=ultima)},
+            {"label": "IRPJ / CSLL", "url": url_for("irpj", empresa="mkb", competencia=ultima)},
+            {"label": "Endividamento Tributário", "url": url_for("endividamento", empresa="mkb", competencia=ultima)},
+            {"label": "Endividamento Bancário", "url": url_for("endividamento_bancario", empresa="gnileb")},
+        ]
+    return render_template("pdf_completo.html", urls=urls, competencia=ultima)
+
+
 # --- ROTA: BALANÇO PATRIMONIAL (a partir do balancete) -----------------------
 
 @app.route("/balanco")
