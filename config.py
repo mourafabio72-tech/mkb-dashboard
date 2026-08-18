@@ -138,10 +138,10 @@ def _ler_openai_key() -> str:
 OPENAI_API_KEY = _ler_openai_key()
 
 # ─── AUTENTICAÇÃO ─────────────────────────────────────────────────────────────
-# DASHBOARD_USERS = "usuario1:senha1,usuario2:senha2"
-# Em produção defina como variável de ambiente no Render (nunca comite senhas).
-# Localmente o valor abaixo serve de fallback para desenvolvimento.
-DASHBOARD_USERS_RAW = os.environ.get(
-    "DASHBOARD_USERS",
-    "admin:admin123"          # ← troque antes de fazer deploy em produção!
-)
+# DASHBOARD_USERS = "usuario1:senha1,usuario2:senha2" (nunca comitar senha).
+# Sem valor padrão, de propósito: este env var é SEED do 1º admin (ver
+# `auth.bootstrap_usuarios`), e ele só roda com a tabela `usuarios` vazia. Um
+# literal aqui significaria que banco novo + variável esquecida nasce com senha
+# conhecida e formulário de login público na frente. Sem a variável o seed não
+# roda, ninguém entra pelo login local, e o destravamento é `criar_usuario.py`.
+DASHBOARD_USERS_RAW = os.environ.get("DASHBOARD_USERS", "").strip()

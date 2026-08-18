@@ -66,7 +66,16 @@ def bootstrap_usuarios(conn) -> None:
     Idempotente -- não faz nada se já existir qualquer usuário cadastrado.
     """
     existe = conn.execute("SELECT 1 FROM usuarios LIMIT 1").fetchone()
-    if existe or not DASHBOARD_USERS_RAW:
+    if existe:
+        return
+    if not DASHBOARD_USERS_RAW:
+        # Fail-closed: sem a variável nenhum admin é semeado, e o app sobe sem
+        # entrada pelo login local. É de propósito -- o contrário seria nascer
+        # com senha conhecida. Sem este aviso viraria mistério no primeiro boot.
+        print("[auth] AVISO: tabela `usuarios` vazia e DASHBOARD_USERS não "
+              "definida. Nenhum admin foi criado e o login local não aceita "
+              "ninguém. Defina a variável ou rode `criar_usuario.py`.",
+              flush=True)
         return
 
     for par in DASHBOARD_USERS_RAW.split(","):
