@@ -80,7 +80,7 @@ def _ajustes_gravados(conn, empresa_id: int, comp_ini: str, competencia: str):
         SELECT conta_cod, competencia, SUM(valor)
         FROM razao
         WHERE empresa_id = ? AND competencia >= ? AND competencia <= ?
-          AND documento = 'AJUSTE-SALDO'
+          AND documento IN ('AJUSTE-SALDO', 'REVERSAO-AJUSTE')
         GROUP BY conta_cod, competencia
         """,
         (empresa_id, comp_ini, competencia)
@@ -365,28 +365,103 @@ def ajustes_por_competencia(empresa_id: int) -> list:
     ).fetchone()
     rows = conn.execute(
         """
-        SELECT competencia, COUNT(*), SUM(valor)
+        SELECT competencia,
+               SUM(CASE WHEN documento = 'AJUSTE-SALDO' THEN 1 ELSE 0 END),
+               SUM(CASE WHEN documento = 'REVERSAO-AJUSTE' THEN 1 ELSE 0 END),
+               SUM(valor)
         FROM razao
-        WHERE empresa_id = ? AND documento = 'AJUSTE-SALDO'
+        WHERE empresa_id = ? AND documento IN ('AJUSTE-SALDO', 'REVERSAO-AJUSTE')
         GROUP BY competencia
         ORDER BY competencia
         """,
         (empresa_id,)
     ).fetchall() if tem else []
     conn.close()
-    return [{"competencia": c, "qtd": q, "valor": round(v or 0.0, 2)} for c, q, v in rows]
+    # Competência cujo líquido zerou (ajuste + estorno) já não pesa em nada --
+    # fica fora do painel de alerta, mas o histórico continua no razão.
+    return [
+        {"competencia": c, "qtd": q, "qtd_rev": qr, "valor": round(v or 0.0, 2)}
+        for c, q, qr, v in rows if abs(round(v or 0.0, 2)) >= 0.01
+    ]
 
 
 def remover_todos_ajustes(empresa_id: int) -> int:
     """Zera TODO AJUSTE-SALDO da empresa, em qualquer competência."""
     conn = get_conn()
     n = conn.execute(
-        "DELETE FROM razao WHERE empresa_id=? AND documento='AJUSTE-SALDO'",
+        "DELETE FROM razao WHERE empresa_id=? "
+        "AND documento IN ('AJUSTE-SALDO', 'REVERSAO-AJUSTE')",
         (empresa_id,)
     ).rowcount
     conn.commit()
     conn.close()
     return n
+
+
+def reverter_ajustes_saldo(empresa_id: int, destino: str = None) -> dict:
+    """Estorna os AJUSTE-SALDO em aberto lançando o contrário (documento
+    REVERSAO-AJUSTE). Ao contrário de remover, PRESERVA a trilha: o ajuste e o
+    estorno ficam os dois visíveis no extrato da conta.
+
+    destino=None  → estorna cada ajuste NA PRÓPRIA competência dele. O acumulado
+                    e o mês ficam ambos corretos. É o certo na contabilidade.
+    destino='YYYY-MM' → concentra todos os estornos nessa competência. O
+                    acumulado fecha, mas o mês de origem fica sobrando e o mês
+                    de destino fica faltando -- o mesmo vício do ajuste
+                    automático que originou o problema. Só use com essa
+                    consequência clara."""
+    import calendar
+
+    conn = get_conn()
+    tem = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='razao'"
+    ).fetchone()
+    if not tem:
+        conn.close()
+        return {"revertidos": 0, "valor": 0.0}
+
+    # saldo em aberto por (competência, conta): ajuste - estorno já feito
+    rows = conn.execute(
+        """
+        SELECT competencia, conta_cod, SUM(valor)
+        FROM razao
+        WHERE empresa_id = ? AND documento IN ('AJUSTE-SALDO', 'REVERSAO-AJUSTE')
+        GROUP BY competencia, conta_cod
+        HAVING ABS(SUM(valor)) >= 0.01
+        """,
+        (empresa_id,)
+    ).fetchall()
+
+    # Concentrando num só mês, soma por conta antes de gravar -- senão dois
+    # ajustes da mesma conta em meses diferentes colidiriam na chave única.
+    alvos: dict = {}
+    for comp, cod, val in rows:
+        comp_dest = destino or comp
+        chave = (comp_dest, cod)
+        alvos[chave] = round(alvos.get(chave, 0.0) + (val or 0.0), 2)
+
+    n = 0
+    total = 0.0
+    for (comp_dest, cod), val in alvos.items():
+        if abs(val) < 0.01:
+            continue
+        ano, mes = comp_dest.split("-")
+        ultimo = calendar.monthrange(int(ano), int(mes))[1]
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO razao
+                (empresa_id, competencia, data_lanc, conta_cod, documento,
+                 historico, debito, credito, valor, saldo_atual)
+            VALUES (?, ?, ?, ?, 'REVERSAO-AJUSTE',
+                    'Reversão do ajuste de saldo', 0, 0, ?, NULL)
+            """,
+            (empresa_id, comp_dest, f"{comp_dest}-{ultimo:02d}", cod, round(-val, 2))
+        )
+        n += 1
+        total = round(total + val, 2)
+    conn.commit()
+    conn.close()
+    return {"revertidos": n, "valor": total}
 
 
 def propor_ajustes_saldo(empresa_id: int, competencia: str) -> list:
@@ -443,8 +518,10 @@ def ajustes_aplicados(empresa_id: int, competencia: str) -> list:
         SELECT r.conta_cod, COALESCE(c.descricao, ''), SUM(r.valor)
         FROM razao r
         LEFT JOIN contas c ON c.cod = r.conta_cod AND c.empresa_id = r.empresa_id
-        WHERE r.empresa_id = ? AND r.competencia = ? AND r.documento = 'AJUSTE-SALDO'
+        WHERE r.empresa_id = ? AND r.competencia = ?
+          AND r.documento IN ('AJUSTE-SALDO', 'REVERSAO-AJUSTE')
         GROUP BY r.conta_cod
+        HAVING ABS(SUM(r.valor)) >= 0.01
         ORDER BY ABS(SUM(r.valor)) DESC
         """,
         (empresa_id, competencia)
@@ -468,9 +545,10 @@ def aplicar_ajustes_saldo(empresa_id: int, competencia: str,
     props = {p["conta_cod"]: p["ajuste"] for p in propor_ajustes_saldo(empresa_id, competencia)}
 
     conn = get_conn()
-    # remove os ajustes de contas que não estão aprovadas nesta rodada
+    # remove ajuste E estorno da competência: esta rodada redefine tudo
     conn.execute(
-        "DELETE FROM razao WHERE empresa_id=? AND competencia=? AND documento='AJUSTE-SALDO'",
+        "DELETE FROM razao WHERE empresa_id=? AND competencia=? "
+        "AND documento IN ('AJUSTE-SALDO', 'REVERSAO-AJUSTE')",
         (empresa_id, competencia)
     )
 
@@ -506,12 +584,13 @@ def remover_ajustes_saldo(empresa_id: int, competencia: str,
     if conta:
         n = conn.execute(
             "DELETE FROM razao WHERE empresa_id=? AND competencia=? "
-            "AND documento='AJUSTE-SALDO' AND conta_cod=?",
+            "AND documento IN ('AJUSTE-SALDO', 'REVERSAO-AJUSTE') AND conta_cod=?",
             (empresa_id, competencia, conta)
         ).rowcount
     else:
         n = conn.execute(
-            "DELETE FROM razao WHERE empresa_id=? AND competencia=? AND documento='AJUSTE-SALDO'",
+            "DELETE FROM razao WHERE empresa_id=? AND competencia=? "
+            "AND documento IN ('AJUSTE-SALDO', 'REVERSAO-AJUSTE')",
             (empresa_id, competencia)
         ).rowcount
     conn.commit()

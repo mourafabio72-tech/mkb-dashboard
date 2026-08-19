@@ -118,16 +118,41 @@
     </tbody>
   </table>
   {% if session.usuario_logado and session.usuario_logado.role == 'admin' %}
-  <form method="POST" action="{{ url_for('ajustes_remover') }}"
-        onsubmit="return confirm('Remover TODOS os ajustes de saldo de {{ empresa|upper }}, em TODAS as competências? A DRE volta a mostrar só o razão importado.');">
-    <input type="hidden" name="empresa" value="{{ empresa }}">
-    <input type="hidden" name="competencia" value="{{ competencia }}">
-    <input type="hidden" name="escopo" value="tudo">
-    <button type="submit" class="btn-sm"
-            style="background:rgba(178,91,76,.12);color:var(--danger);border:1px solid var(--border);border-radius:5px;cursor:pointer;padding:6px 12px;font-size:11px;font-weight:700">
-      ✕ Remover todos os ajustes de {{ empresa|upper }} (todas as competências)
-    </button>
-  </form>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <form method="POST" action="{{ url_for('ajustes_reverter') }}"
+          onsubmit="return confirm('Estornar cada ajuste na própria competência de origem? O histórico continua no extrato.');">
+      <input type="hidden" name="empresa" value="{{ empresa }}">
+      <input type="hidden" name="competencia" value="{{ competencia }}">
+      <button type="submit" class="btn-sm"
+              style="background:rgba(110,127,99,.18);color:var(--accent);border:1px solid var(--border);border-radius:5px;cursor:pointer;padding:6px 12px;font-size:11px;font-weight:700">
+        ↩ Estornar no mês de origem <span style="font-weight:400">(recomendado)</span>
+      </button>
+    </form>
+    <form method="POST" action="{{ url_for('ajustes_reverter') }}"
+          onsubmit="return confirm('Concentrar TODOS os estornos em {{ mes_label(competencia) }}? O acumulado do ano fecha, mas o mês de origem fica sobrando e {{ mes_label(competencia) }} fica faltando esse valor.');">
+      <input type="hidden" name="empresa" value="{{ empresa }}">
+      <input type="hidden" name="competencia" value="{{ competencia }}">
+      <input type="hidden" name="destino" value="{{ competencia }}">
+      <button type="submit" class="btn-sm"
+              style="background:transparent;color:var(--text-muted, #8a8378);border:1px solid var(--border);border-radius:5px;cursor:pointer;padding:6px 12px;font-size:11px;font-weight:700">
+        ↩ Estornar tudo em {{ mes_label(competencia) }}
+      </button>
+    </form>
+    <form method="POST" action="{{ url_for('ajustes_remover') }}"
+          onsubmit="return confirm('Remover TODOS os ajustes de saldo de {{ empresa|upper }}, em TODAS as competências? Apaga o histórico, sem deixar estorno.');">
+      <input type="hidden" name="empresa" value="{{ empresa }}">
+      <input type="hidden" name="competencia" value="{{ competencia }}">
+      <input type="hidden" name="escopo" value="tudo">
+      <button type="submit" class="btn-sm"
+              style="background:rgba(178,91,76,.12);color:var(--danger);border:1px solid var(--border);border-radius:5px;cursor:pointer;padding:6px 12px;font-size:11px;font-weight:700">
+        ✕ Apagar todos (sem estorno)
+      </button>
+    </form>
+  </div>
+  <p class="text-muted" style="font-size:10px;margin:8px 0 0">
+    Estornar lança o contrário e mantém as duas linhas no extrato da conta. Apagar
+    remove o lançamento e não deixa rastro.
+  </p>
   {% endif %}
 </div>
 {% endif %}

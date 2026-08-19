@@ -35,7 +35,7 @@ from dre_engine import (
     contas_nao_classificadas, grupos_disponiveis, invalidar_prefixos, GRUPO_LABELS,
     conciliar_balancete, propor_ajustes_saldo, ajustes_aplicados,
     aplicar_ajustes_saldo, remover_ajustes_saldo,
-    ajustes_por_competencia, remover_todos_ajustes,
+    ajustes_por_competencia, remover_todos_ajustes, reverter_ajustes_saldo,
 )
 from balancete_parser import importar_balancete
 
@@ -2211,6 +2211,41 @@ def ajustes_aplicar():
             f"Nenhum ajuste aprovado em {emp['sigla']} — {_mes_label(competencia)}. "
             f"As divergências seguem abertas.",
             "warning"
+        )
+    return redirect(url_for("validacao", empresa=empresa_chave, competencia=competencia))
+
+
+@app.route("/ajustes/reverter", methods=["POST"])
+@login_required
+@admin_required
+def ajustes_reverter():
+    """Estorna os ajustes em aberto lançando o contrário, sem apagar o
+    histórico. `destino` vazio = estorna no próprio mês do ajuste (correto);
+    `destino` preenchido = concentra tudo naquela competência."""
+    empresa_chave = request.form.get("empresa", "")
+    competencia   = request.form.get("competencia", "")
+    destino       = request.form.get("destino") or None
+    emp = EMPRESAS.get(empresa_chave)
+    if not emp:
+        flash("Empresa inválida.", "danger")
+        return redirect(url_for("validacao"))
+
+    res = reverter_ajustes_saldo(emp["id"], destino)
+    if not res["revertidos"]:
+        flash("Não havia ajuste em aberto para reverter.", "warning")
+    elif destino:
+        flash(
+            f"{res['revertidos']} estorno(s) lançado(s) em {_mes_label(destino)} "
+            f"({fmt_brl(-res['valor'])}). O acumulado do ano fecha, mas o mês de "
+            f"origem fica sobrando e {_mes_label(destino)} fica faltando esse valor.",
+            "warning"
+        )
+    else:
+        flash(
+            f"{res['revertidos']} ajuste(s) estornado(s) na própria competência de "
+            f"origem. Acumulado e mês voltam os dois ao razão puro; o histórico do "
+            f"ajuste continua visível no extrato.",
+            "success"
         )
     return redirect(url_for("validacao", empresa=empresa_chave, competencia=competencia))
 

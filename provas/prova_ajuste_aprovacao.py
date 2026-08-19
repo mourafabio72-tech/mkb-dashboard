@@ -30,7 +30,7 @@ from ingestion import get_conn, criar_schema, seed_empresas    # noqa: E402
 from dre_engine import (                                       # noqa: E402
     conciliar_balancete, propor_ajustes_saldo, ajustes_aplicados,
     aplicar_ajustes_saldo, remover_ajustes_saldo,
-    ajustes_por_competencia, remover_todos_ajustes,
+    ajustes_por_competencia, remover_todos_ajustes, reverter_ajustes_saldo,
 )
 
 CONTA   = "4.1.1.01.02.015"
@@ -161,6 +161,58 @@ check("ainda propõe o ajuste", p8 is not None)
 check("último mês conferido = 2026-03", p8 and p8["ultima_ok"] == "2026-03", f"({p8 and p8['ultima_ok']})")
 check("primeiro mês divergente conferido = 2026-07", p8 and p8["origem"] == COMP)
 check("marca o gap (não finge saber o mês exato)", p8 and p8["origem_gap"])
+
+def acum(comp_ate="2026-12"):
+    """Movimento acumulado da conta no razão (ajustes e estornos inclusos)."""
+    conn = get_conn()
+    v = conn.execute(
+        "SELECT SUM(valor) FROM razao WHERE empresa_id=? AND conta_cod=? AND competencia<=?",
+        (EMP, CONTA, comp_ate)
+    ).fetchone()[0] or 0.0
+    conn.close()
+    return round(v, 2)
+
+def mes(comp):
+    conn = get_conn()
+    v = conn.execute(
+        "SELECT SUM(valor) FROM razao WHERE empresa_id=? AND conta_cod=? AND competencia=?",
+        (EMP, CONTA, comp)
+    ).fetchone()[0] or 0.0
+    conn.close()
+    return round(v, 2)
+
+print("\n=== 9. estorno no mês de origem: acumulado E mês voltam ao razão puro ===")
+montar_base()
+aplicar_ajustes_saldo(EMP, "2026-03", [CONTA])
+check("março ficou com o ajuste", abs(mes("2026-03") - (-3213468.57 + 408.0)) < 0.01)
+res = reverter_ajustes_saldo(EMP)                     # destino=None
+check("estornou 1 lançamento", res["revertidos"] == 1, f"({res})")
+check("março voltou ao razão puro", abs(mes("2026-03") - (-3213468.57)) < 0.01, f"({mes('2026-03')})")
+check("julho intacto", abs(mes(COMP) - MOV_JUL) < 0.01, f"({mes(COMP)})")
+check("sai do painel de alerta (líquido zero)", not ajustes_por_competencia(EMP))
+conn = get_conn()
+n_hist = conn.execute(
+    "SELECT COUNT(*) FROM razao WHERE empresa_id=? AND documento IN"
+    " ('AJUSTE-SALDO','REVERSAO-AJUSTE')", (EMP,)).fetchone()[0]
+conn.close()
+check("histórico preservado: ajuste + estorno no extrato", n_hist == 2, f"({n_hist})")
+
+print("\n=== 10. concentrar o estorno noutro mês fecha o ano e erra os meses ===")
+montar_base()
+aplicar_ajustes_saldo(EMP, "2026-03", [CONTA])
+a_antes = acum()
+res = reverter_ajustes_saldo(EMP, destino=COMP)
+check("acumulado do ano volta ao razão puro",
+      abs(acum() - (a_antes - 408.0)) < 0.01, f"({acum()})")
+check("março CONTINUA com o ajuste sobrando",
+      abs(mes("2026-03") - (-3213468.57 + 408.0)) < 0.01, f"({mes('2026-03')})")
+check("julho fica faltando o mesmo valor",
+      abs(mes(COMP) - (MOV_JUL - 408.0)) < 0.01, f"({mes(COMP)})")
+
+print("\n=== 11. estorno é idempotente ===")
+n1 = reverter_ajustes_saldo(EMP, destino=COMP)["revertidos"]
+check("reverter de novo não duplica", n1 == 0 and abs(mes(COMP) - (MOV_JUL - 408.0)) < 0.01,
+      f"({n1}, {mes(COMP)})")
 
 print("\n" + ("TODAS AS PROVAS PASSARAM" if ok else "HOUVE FALHA"))
 sys.exit(0 if ok else 1)
