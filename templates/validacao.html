@@ -157,6 +157,53 @@
 </div>
 {% endif %}
 
+{# ── Lançamento retroativo: o balancete de um mês envelheceu ─────────────── #}
+{% if retroativos %}
+<div class="card-full" style="border-left:3px solid var(--danger);margin-bottom:16px">
+  <h2 style="font-size:15px;margin:0 0 4px">⏱ Lançamento retroativo detectado</h2>
+  <p class="text-muted" style="font-size:11px;margin:0 0 12px">
+    O saldo anterior do balancete não bate com o saldo final do mês anterior. Entrou
+    lançamento com <strong>data para trás</strong> depois que aquele balancete foi emitido —
+    ou seja, o razão daquele mês, importado na mesma época, <strong>está velho</strong>.
+    Aqui não se ajusta conta: <strong>regere razão e balancete de
+    {% for m in retro_meses %}{{ mes_label(m) }}{% if not loop.last %}, {% endif %}{% endfor %}
+    no Protheus e reimporte</strong>.
+  </p>
+  <table class="table-det">
+    <thead>
+      <tr>
+        <th>Mês a reimportar</th>
+        <th>Conta</th>
+        <th class="num">Saldo no balancete do mês</th>
+        <th class="num">Saldo anterior no mês seguinte</th>
+        <th class="num">Entrou depois</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in retroativos %}
+      <tr>
+        <td><strong>{{ mes_label(r.competencia) }}</strong>
+            <span class="text-muted" style="font-size:10px">· visto em {{ mes_label(r.comp_revela) }}</span></td>
+        <td>
+          <span class="conta-cod">{{ r.conta_cod }}</span>
+          <span class="conta-desc">{{ r.descricao or '—' }}</span>
+          {% if not r.resultado %}<span class="text-muted" style="font-size:10px">· patrimonial</span>{% endif %}
+        </td>
+        <td class="num">{{ fmt_brl(r.saldo_fim) }}</td>
+        <td class="num">{{ fmt_brl(r.saldo_ant) }}</td>
+        <td class="num text-danger" style="font-weight:700">{{ fmt_brl(r.delta) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="text-muted" style="font-size:10px;margin:10px 0 0">
+    Na tela de Importação: <strong>Excluir razão</strong> do mês apontado, reimportar o razão
+    regerado e, em seguida, o balancete regerado do mesmo mês. Só a exclusão limpa lançamento
+    que deixou de existir no Protheus — reimportar por cima não apaga nada.
+  </p>
+</div>
+{% endif %}
+
 {# ── Ajustes de saldo: proposta → aprovação do usuário ───────────────────── #}
 {% if session.usuario_logado and session.usuario_logado.role == 'admin' and (propostas or aplicados) %}
 <div class="card-full" style="margin-bottom:16px">

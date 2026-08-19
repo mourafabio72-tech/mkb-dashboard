@@ -102,6 +102,7 @@ def parse_balancete(caminho: Path, empresa_id: int) -> list[dict]:
                 return idx
         return default
     i_conta = _col("conta", default=0)
+    i_ant   = _col("saldo anterior", "saldo ant", default=2)
     i_desc  = _col("descric", default=1)
     i_mov   = _col("mov", default=5)
     i_saldo = _col("saldo atual", "saldo final", default=6)
@@ -118,6 +119,7 @@ def parse_balancete(caminho: Path, empresa_id: int) -> list[dict]:
             continue
         descricao   = str((row[i_desc] if len(row) > i_desc else "") or "").strip()
         mov_periodo = _parse_signed_text(row[i_mov]) if len(row) > i_mov else 0.0
+        saldo_ant   = _parse_signed_text(row[i_ant]) if len(row) > i_ant else 0.0
         saldo_atual = _saldo_assinado(
             row[i_saldo] if len(row) > i_saldo else None,
             row[i_sign] if len(row) > i_sign else None,
@@ -128,6 +130,7 @@ def parse_balancete(caminho: Path, empresa_id: int) -> list[dict]:
             "descricao":   descricao,
             "saldo_atual": round(saldo_atual, 2),
             "mov_periodo": round(mov_periodo, 2),
+            "saldo_ant":   round(saldo_ant, 2),
         })
 
     wb.close()
@@ -149,9 +152,10 @@ def salvar_balancete(conn: sqlite3.Connection, registros: list[dict],
     conn.executemany(
         """
         INSERT INTO balancete
-            (empresa_id, competencia, conta_cod, descricao, saldo_atual, mov_periodo)
+            (empresa_id, competencia, conta_cod, descricao, saldo_atual, mov_periodo, saldo_ant)
         VALUES
-            (:empresa_id, :competencia, :conta_cod, :descricao, :saldo_atual, :mov_periodo)
+            (:empresa_id, :competencia, :conta_cod, :descricao, :saldo_atual, :mov_periodo,
+             :saldo_ant)
         """,
         registros,
     )

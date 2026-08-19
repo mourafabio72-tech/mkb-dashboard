@@ -464,6 +464,96 @@ def reverter_ajustes_saldo(empresa_id: int, destino: str = None) -> dict:
     return {"revertidos": n, "valor": total}
 
 
+def detectar_retroativos(empresa_id: int, tol: float = 0.01) -> list:
+    """Flagra LANÇAMENTO RETROATIVO comparando balancetes de meses seguidos.
+
+    O Protheus imprime, em cada balancete, o "Saldo anterior" da conta. Se esse
+    saldo anterior NÃO bate com o saldo final do balancete do mês anterior que
+    está importado, então entrou lançamento com data para trás DEPOIS que aquele
+    balancete foi emitido -- e o razão daquele mês, importado na mesma época,
+    também ficou velho.
+
+    Foi exatamente isso que produziu o falso "ajuste de saldo" de 408 em
+    jul/2026 (estorno "PAT 052026" lançado em 01/06, posterior ao balancete de
+    junho). Detectado, o conserto é regerar razão + balancete do mês apontado --
+    e não remendar a conta.
+
+    Só compara meses CONSECUTIVOS: com um mês faltando no meio a diferença é
+    esperada e não diz nada. Balancete importado antes da coluna `saldo_ant`
+    existir fica de fora (saldo_ant nulo).
+
+    Filtra para o que esta tela trata: conta ANALÍTICA (folha) de RESULTADO
+    (3.x/4.x). Sintética só repete o filho, e conta patrimonial não tem razão
+    velho a consertar aqui -- o Balanço é montado direto do balancete."""
+    conn = get_conn()
+    tem = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='balancete'"
+    ).fetchone()
+    if not tem:
+        conn.close()
+        return []
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(balancete)").fetchall()}
+    if "saldo_ant" not in cols:
+        conn.close()
+        return []
+    rows = conn.execute(
+        """
+        SELECT competencia, conta_cod, descricao, saldo_atual, saldo_ant
+        FROM balancete WHERE empresa_id = ?
+        """,
+        (empresa_id,)
+    ).fetchall()
+    conn.close()
+
+    fim: dict = {}
+    ant: dict = {}
+    desc: dict = {}
+    for comp, cod, dsc, saldo, s_ant in rows:
+        fim[(comp, cod)] = round(saldo or 0.0, 2)
+        if s_ant is not None:
+            ant[(comp, cod)] = round(s_ant, 2)
+        if dsc:
+            desc[cod] = dsc
+
+    # Só folha: nenhuma outra conta do balancete pendura abaixo desta.
+    todas = {cod for _, cod in fim}
+    def _folha(c: str) -> bool:
+        return not any(o != c and o.startswith(c + ".") for o in todas)
+
+    comps = sorted({c for c, _ in fim})
+    achados = []
+    for i in range(1, len(comps)):
+        atual, anterior = comps[i], comps[i - 1]
+        if _meses_entre(anterior, atual) != 1:
+            continue    # mês faltando no meio: nada a concluir
+        for (comp, cod), s_ant in ant.items():
+            if comp != atual:
+                continue
+            if not (cod.startswith("3.") or cod.startswith("4.")):
+                continue
+            if not _folha(cod):
+                continue
+            s_fim = fim.get((anterior, cod))
+            if s_fim is None:
+                continue
+            delta = round(s_ant - s_fim, 2)
+            if abs(delta) < tol:
+                continue
+            achados.append({
+                "competencia":  anterior,     # o mês cujo balancete/razão envelheceu
+                "comp_revela":  atual,        # o mês que denuncia
+                "conta_cod":    cod,
+                "descricao":    desc.get(cod, ""),
+                "saldo_fim":    s_fim,
+                "saldo_ant":    s_ant,
+                "delta":        delta,
+                "grupo_label":  GRUPO_LABELS.get(classificar_conta(cod), ""),
+                "resultado":    True,
+            })
+    achados.sort(key=lambda x: (x["competencia"], -abs(x["delta"])))
+    return achados
+
+
 def propor_ajustes_saldo(empresa_id: int, competencia: str) -> list:
     """Calcula (sem gravar nada) o ajuste que faria cada conta divergente bater
     com o balancete. Devolve a lista para o usuário APROVAR conta a conta.

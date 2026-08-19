@@ -31,6 +31,7 @@ from dre_engine import (                                       # noqa: E402
     conciliar_balancete, propor_ajustes_saldo, ajustes_aplicados,
     aplicar_ajustes_saldo, remover_ajustes_saldo,
     ajustes_por_competencia, remover_todos_ajustes, reverter_ajustes_saldo,
+    detectar_retroativos,
 )
 
 CONTA   = "4.1.1.01.02.015"
@@ -213,6 +214,43 @@ print("\n=== 11. estorno é idempotente ===")
 n1 = reverter_ajustes_saldo(EMP, destino=COMP)["revertidos"]
 check("reverter de novo não duplica", n1 == 0 and abs(mes(COMP) - (MOV_JUL - 408.0)) < 0.01,
       f"({n1}, {mes(COMP)})")
+
+print("\n=== 12. detecta lançamento retroativo pelo saldo anterior ===")
+# Balancete de jan fecha em 1.000; o de fev abre em 1.050 sem movimento que
+# explique: entraram 50 com data de janeiro DEPOIS que jan foi emitido.
+conn = get_conn()
+conn.execute("DELETE FROM balancete WHERE empresa_id=?", (EMP,))
+conn.executemany(
+    "INSERT INTO balancete (empresa_id, competencia, conta_cod, descricao,"
+    " saldo_atual, mov_periodo, saldo_ant) VALUES (?,?,?,?,?,?,?)",
+    [
+        (EMP, "2026-01", CONTA, "AUX", -1000.0, -1000.0,    0.0),
+        (EMP, "2026-02", CONTA, "AUX", -2050.0, -1000.0, -1050.0),   # <- salto de 50
+        (EMP, "2026-03", CONTA, "AUX", -3050.0, -1000.0, -2050.0),   # <- encadeia certo
+        # conta sintética com o mesmo salto: não pode duplicar o achado
+        (EMP, "2026-01", "4.1.1.01.02", "SINT", -1000.0, -1000.0,    0.0),
+        (EMP, "2026-02", "4.1.1.01.02", "SINT", -2050.0, -1000.0, -1050.0),
+        # conta patrimonial: fora do escopo desta tela
+        (EMP, "2026-01", "1.1.1.01.01", "CAIXA", 500.0, 500.0,   0.0),
+        (EMP, "2026-02", "1.1.1.01.01", "CAIXA", 900.0, 300.0, 600.0),
+    ],
+)
+conn.commit(); conn.close()
+ach = detectar_retroativos(EMP)
+check("achou exatamente 1 retroativo", len(ach) == 1, f"({[(a['conta_cod'], a['delta']) for a in ach]})")
+a = ach[0] if ach else {}
+check("aponta o mês a reimportar (jan, não fev)", a.get("competencia") == "2026-01", f"({a.get('competencia')})")
+check("aponta o mês que denunciou (fev)", a.get("comp_revela") == "2026-02")
+check("delta = -50,00", abs(a.get("delta", 0) + 50.0) < 0.01, f"({a.get('delta')})")
+check("ignora conta sintética", all(x["conta_cod"] != "4.1.1.01.02" for x in ach))
+check("ignora conta patrimonial", all(not x["conta_cod"].startswith("1.") for x in ach))
+
+print("\n=== 13. mês faltando no meio não vira falso positivo ===")
+conn = get_conn()
+conn.execute("DELETE FROM balancete WHERE empresa_id=? AND competencia='2026-02'", (EMP,))
+conn.commit(); conn.close()
+check("sem fev, jan→mar não é comparado", not detectar_retroativos(EMP),
+      f"({detectar_retroativos(EMP)})")
 
 print("\n" + ("TODAS AS PROVAS PASSARAM" if ok else "HOUVE FALHA"))
 sys.exit(0 if ok else 1)

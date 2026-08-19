@@ -36,6 +36,7 @@ from dre_engine import (
     conciliar_balancete, propor_ajustes_saldo, ajustes_aplicados,
     aplicar_ajustes_saldo, remover_ajustes_saldo,
     ajustes_por_competencia, remover_todos_ajustes, reverter_ajustes_saldo,
+    detectar_retroativos,
 )
 from balancete_parser import importar_balancete
 
@@ -2166,6 +2167,9 @@ def validacao():
     # somando no acumulado do ano e não aparece na competência da tela.
     aj_comps = ajustes_por_competencia(emp_id)
     aj_outras = [a for a in aj_comps if a["competencia"] != competencia]
+    # Lançamento retroativo: balancete de um mês que envelheceu porque entrou
+    # lançamento com data para trás depois que ele foi emitido.
+    retroativos = detectar_retroativos(emp_id) if competencia else []
 
     return render_template(
         "validacao.html",
@@ -2181,6 +2185,8 @@ def validacao():
         aj_comps=aj_comps,
         aj_outras=aj_outras,
         tot_outras=round(sum(a["valor"] for a in aj_outras), 2),
+        retroativos=retroativos,
+        retro_meses=sorted({r["competencia"] for r in retroativos}),
         fmt_brl=fmt_brl,
     )
 

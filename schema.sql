@@ -216,6 +216,12 @@ CREATE TABLE IF NOT EXISTS balancete (
     descricao    TEXT,
     saldo_atual  REAL NOT NULL,   -- assinado: C = +, D = -
     mov_periodo  REAL,
+    saldo_ant    REAL,            -- coluna "Saldo anterior" do Protheus. Guardada
+                                  -- para flagrar LANÇAMENTO RETROATIVO: quando o
+                                  -- saldo anterior de um mês não bate com o saldo
+                                  -- final do mês anterior, entrou lançamento com
+                                  -- data para trás depois que aquele balancete foi
+                                  -- emitido -- e o razão importado ficou velho.
     UNIQUE (empresa_id, competencia, conta_cod)
 );
 CREATE INDEX IF NOT EXISTS idx_balancete_emp_comp ON balancete (empresa_id, competencia);
