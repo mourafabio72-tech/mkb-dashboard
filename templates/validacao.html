@@ -88,8 +88,47 @@
     <strong>Atenção:</strong> o zero acima é parcialmente artificial. Há
     <strong>{{ fmt_brl(tot_aplicado) }}</strong> em lançamentos AJUSTE-SALDO aprovados nesta
     competência. Sem eles, a diferença crua seria <strong>{{ fmt_brl(bruto.tot_diff) }}</strong>
-    em {{ bruto.qtd_diff }} conta(s).
+    em {{ bruto.qtd_diff }} linha(s) da DRE — diferenças por conta podem ser bem
+    maiores e se anularem entre si no total.
   </p>
+</div>
+{% endif %}
+
+{% if aj_outras %}
+<div class="card-full" style="border-left:3px solid var(--danger);margin-bottom:14px">
+  <p style="margin:0 0 8px;font-size:12px">
+    <strong>Ajuste em outra competência.</strong> Existe AJUSTE-SALDO aprovado fora de
+    {{ mes_label(competencia) }}, somando <strong>{{ fmt_brl(tot_outras) }}</strong>. Como a DRE
+    é acumulada, esse valor <em>continua pesando</em> em todos os meses seguintes, inclusive neste.
+  </p>
+  <table class="table-det" style="margin-bottom:8px">
+    <thead><tr><th>Competência</th><th class="num">Ajustes</th><th class="num">Valor</th><th></th></tr></thead>
+    <tbody>
+      {% for a in aj_outras %}
+      <tr>
+        <td>{{ mes_label(a.competencia) }}</td>
+        <td class="num">{{ a.qtd }}</td>
+        <td class="num text-danger" style="font-weight:700">{{ fmt_brl(a.valor) }}</td>
+        <td class="num">
+          <a href="{{ url_for('validacao', empresa=empresa, competencia=a.competencia) }}"
+             style="font-size:11px">abrir</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if session.usuario_logado and session.usuario_logado.role == 'admin' %}
+  <form method="POST" action="{{ url_for('ajustes_remover') }}"
+        onsubmit="return confirm('Remover TODOS os ajustes de saldo de {{ empresa|upper }}, em TODAS as competências? A DRE volta a mostrar só o razão importado.');">
+    <input type="hidden" name="empresa" value="{{ empresa }}">
+    <input type="hidden" name="competencia" value="{{ competencia }}">
+    <input type="hidden" name="escopo" value="tudo">
+    <button type="submit" class="btn-sm"
+            style="background:rgba(178,91,76,.12);color:var(--danger);border:1px solid var(--border);border-radius:5px;cursor:pointer;padding:6px 12px;font-size:11px;font-weight:700">
+      ✕ Remover todos os ajustes de {{ empresa|upper }} (todas as competências)
+    </button>
+  </form>
+  {% endif %}
 </div>
 {% endif %}
 
@@ -135,10 +174,15 @@
           <td class="num {% if p.aplicado %}text-muted{% else %}text-danger{% endif %}"
               style="font-weight:700">{{ fmt_brl(p.ajuste) }}</td>
           <td style="font-size:11px">
-            {% if p.origem_outro_mes %}
+            {% if p.origem_gap %}
+              <span class="badge-ct2">entre {{ mes_label(p.ultima_ok) }} e {{ mes_label(p.origem) }}</span>
+              <span class="text-muted" style="font-size:10px">(faltam balancetes no meio)</span>
+            {% elif p.origem_outro_mes %}
               <span class="badge-ct2">nasceu em {{ mes_label(p.origem) }}</span>
+            {% elif p.origem and p.ultima_ok %}
+              <span class="text-muted">nasceu neste mês (bateu até {{ mes_label(p.ultima_ok) }})</span>
             {% elif p.origem %}
-              <span class="text-muted">deste mês</span>
+              <span class="text-muted">sem balancete anterior para localizar</span>
             {% else %}
               <span class="text-muted">sem balancete anterior</span>
             {% endif %}

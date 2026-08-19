@@ -35,6 +35,7 @@ from dre_engine import (
     contas_nao_classificadas, grupos_disponiveis, invalidar_prefixos, GRUPO_LABELS,
     conciliar_balancete, propor_ajustes_saldo, ajustes_aplicados,
     aplicar_ajustes_saldo, remover_ajustes_saldo,
+    ajustes_por_competencia, remover_todos_ajustes,
 )
 from balancete_parser import importar_balancete
 
@@ -2161,6 +2162,10 @@ def validacao():
     propostas  = propor_ajustes_saldo(emp_id, competencia) if competencia else []
     aplicados  = ajustes_aplicados(emp_id, competencia) if competencia else []
     tot_aplicado = round(sum(a["valor"] for a in aplicados), 2)
+    # Ajustes de QUALQUER competência -- ajuste aprovado num mês anterior segue
+    # somando no acumulado do ano e não aparece na competência da tela.
+    aj_comps = ajustes_por_competencia(emp_id)
+    aj_outras = [a for a in aj_comps if a["competencia"] != competencia]
 
     return render_template(
         "validacao.html",
@@ -2173,6 +2178,9 @@ def validacao():
         aplicados=aplicados,
         tot_aplicado=tot_aplicado,
         pendentes=[p for p in propostas if not p["aplicado"]],
+        aj_comps=aj_comps,
+        aj_outras=aj_outras,
+        tot_outras=round(sum(a["valor"] for a in aj_outras), 2),
         fmt_brl=fmt_brl,
     )
 
@@ -2216,8 +2224,23 @@ def ajustes_remover():
     competencia   = request.form.get("competencia", "")
     conta         = request.form.get("conta") or None
     emp = EMPRESAS.get(empresa_chave)
-    if not emp or not competencia:
-        flash("Empresa ou competência inválida.", "danger")
+    if not emp:
+        flash("Empresa inválida.", "danger")
+        return redirect(url_for("validacao"))
+
+    # escopo "tudo": limpa o AJUSTE-SALDO de todas as competências da empresa
+    if request.form.get("escopo") == "tudo":
+        n = remover_todos_ajustes(emp["id"])
+        flash(
+            f"{n} ajuste(s) de saldo removido(s) em {emp['sigla']} — todas as "
+            f"competências. A DRE volta a refletir só o razão importado.",
+            "success"
+        )
+        return redirect(url_for("validacao", empresa=empresa_chave,
+                                competencia=competencia))
+
+    if not competencia:
+        flash("Competência inválida.", "danger")
         return redirect(url_for("validacao"))
     n = remover_ajustes_saldo(emp["id"], competencia, conta)
     alvo = f"da conta {conta}" if conta else "da competência"

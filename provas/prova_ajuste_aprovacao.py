@@ -30,6 +30,7 @@ from ingestion import get_conn, criar_schema, seed_empresas    # noqa: E402
 from dre_engine import (                                       # noqa: E402
     conciliar_balancete, propor_ajustes_saldo, ajustes_aplicados,
     aplicar_ajustes_saldo, remover_ajustes_saldo,
+    ajustes_por_competencia, remover_todos_ajustes,
 )
 
 CONTA   = "4.1.1.01.02.015"
@@ -129,6 +130,37 @@ props = propor_ajustes_saldo(EMP, COMP)
 check("sem o erro de março, nada a propor", not props, f"({len(props)} proposta(s))")
 check("concilia sem nenhum ajuste",
       abs(conciliar_balancete(EMP, COMP)["tot_diff"]) < 0.01 and n_ajustes() == 0)
+
+print("\n=== 7. ajuste de mês anterior não some do radar ===")
+montar_base()
+aplicar_ajustes_saldo(EMP, "2026-03", [CONTA])      # aprovado lá atrás
+check("ajuste gravado em março", n_ajustes("2026-03") == 1)
+comps = ajustes_por_competencia(EMP)
+check("aparece no resumo por competência",
+      any(c["competencia"] == "2026-03" and c["qtd"] == 1 for c in comps),
+      f"({comps})")
+outras = [c for c in comps if c["competencia"] != COMP]
+check("é listado como 'outra competência' quando a tela está em julho", bool(outras))
+check("remover_todos_ajustes limpa tudo",
+      remover_todos_ajustes(EMP) >= 1 and not ajustes_por_competencia(EMP))
+
+print("\n=== 8. origem acusa o gap de balancete ===")
+# março e julho têm balancete; o erro entra em maio, sem balancete de mai/jun
+conn = get_conn()
+conn.execute("DELETE FROM razao WHERE empresa_id=?", (EMP,))
+conn.executemany(
+    "INSERT INTO razao (empresa_id, competencia, data_lanc, conta_cod, documento,"
+    " historico, debito, credito, valor) VALUES (?,?,?,?,?,?,?,?,?)",
+    [(EMP, "2026-03", "2026-03-31", CONTA, "MAR", "acum ok", 0, 0, ACUM_OK),
+     (EMP, "2026-05", "2026-05-31", CONTA, "MAI", "erro",    0, 0, ERRO),
+     (EMP, COMP,      "2026-07-31", CONTA, "JUL", "julho",   0, 0, MOV_JUL)],
+)
+conn.commit(); conn.close()
+p8 = next((x for x in propor_ajustes_saldo(EMP, COMP) if x["conta_cod"] == CONTA), None)
+check("ainda propõe o ajuste", p8 is not None)
+check("último mês conferido = 2026-03", p8 and p8["ultima_ok"] == "2026-03", f"({p8 and p8['ultima_ok']})")
+check("primeiro mês divergente conferido = 2026-07", p8 and p8["origem"] == COMP)
+check("marca o gap (não finge saber o mês exato)", p8 and p8["origem_gap"])
 
 print("\n" + ("TODAS AS PROVAS PASSARAM" if ok else "HOUVE FALHA"))
 sys.exit(0 if ok else 1)

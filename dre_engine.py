@@ -336,14 +336,57 @@ def _origem_por_conta(empresa_id: int, competencia: str, contas: list) -> dict:
         comps = sorted(bal.get(cod, {}))
         acum = 0.0
         origem = None
+        ultima_ok = None
         for comp in sorted(mov.get(cod, {})):
             acum = round(acum + mov[cod][comp], 2)
             if comp in bal.get(cod, {}):
                 if abs(round(bal[cod][comp] - acum, 2)) >= 0.01:
                     origem = comp
                     break
-        out[cod] = origem if comps else None
+                ultima_ok = comp
+        out[cod] = {"comp": origem if comps else None, "ultima_ok": ultima_ok}
     return out
+
+
+def _meses_entre(comp_a: str, comp_b: str) -> int:
+    """Quantos meses separam duas competências 'YYYY-MM'."""
+    ya, ma = int(comp_a[:4]), int(comp_a[5:7])
+    yb, mb = int(comp_b[:4]), int(comp_b[5:7])
+    return (yb - ya) * 12 + (mb - ma)
+
+
+def ajustes_por_competencia(empresa_id: int) -> list:
+    """Todo AJUSTE-SALDO da empresa, agrupado por competência. É o que revela
+    ajuste antigo (ex.: aprovado num mês anterior) que segue pesando no
+    acumulado do ano sem aparecer na competência que está na tela."""
+    conn = get_conn()
+    tem = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='razao'"
+    ).fetchone()
+    rows = conn.execute(
+        """
+        SELECT competencia, COUNT(*), SUM(valor)
+        FROM razao
+        WHERE empresa_id = ? AND documento = 'AJUSTE-SALDO'
+        GROUP BY competencia
+        ORDER BY competencia
+        """,
+        (empresa_id,)
+    ).fetchall() if tem else []
+    conn.close()
+    return [{"competencia": c, "qtd": q, "valor": round(v or 0.0, 2)} for c, q, v in rows]
+
+
+def remover_todos_ajustes(empresa_id: int) -> int:
+    """Zera TODO AJUSTE-SALDO da empresa, em qualquer competência."""
+    conn = get_conn()
+    n = conn.execute(
+        "DELETE FROM razao WHERE empresa_id=? AND documento='AJUSTE-SALDO'",
+        (empresa_id,)
+    ).rowcount
+    conn.commit()
+    conn.close()
+    return n
 
 
 def propor_ajustes_saldo(empresa_id: int, competencia: str) -> list:
@@ -374,8 +417,17 @@ def propor_ajustes_saldo(empresa_id: int, competencia: str) -> list:
 
     origens = _origem_por_conta(empresa_id, competencia, [p["conta_cod"] for p in props])
     for p in props:
-        p["origem"] = origens.get(p["conta_cod"])
+        o = origens.get(p["conta_cod"]) or {}
+        p["origem"]    = o.get("comp")
+        p["ultima_ok"] = o.get("ultima_ok")
         p["origem_outro_mes"] = bool(p["origem"] and p["origem"] != competencia)
+        # Sem balancete em todo mês, a "origem" é só o primeiro mês CONFERIDO em
+        # que já divergia -- o erro pode ter nascido em qualquer mês do intervalo
+        # desde o último que bateu. Marca o gap para a tela não mentir precisão.
+        p["origem_gap"] = bool(
+            p["origem"] and p["ultima_ok"]
+            and _meses_entre(p["ultima_ok"], p["origem"]) > 1
+        )
     props.sort(key=lambda x: -abs(x["ajuste"]))
     return props
 
