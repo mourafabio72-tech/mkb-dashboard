@@ -66,10 +66,43 @@ def grupos_disponiveis() -> list[tuple[str, str]]:
     return [(g, GRUPO_LABELS.get(g, g)) for g in _ORDEM_GRUPOS if g != "NAO_CLASSIFICADO"]
 
 
-def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
+def _ajustes_gravados(conn, empresa_id: int, comp_ini: str, competencia: str):
+    """Lê os lançamentos AJUSTE-SALDO já gravados no razão no intervalo.
+    Retorna (por_conta, por_conta_mes) -- usado para poder conciliar IGNORANDO
+    os ajustes (ver `incluir_ajustes`), sem precisar apagá-los do banco."""
+    tem = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='razao'"
+    ).fetchone()
+    if not tem:
+        return {}, {}
+    rows = conn.execute(
+        """
+        SELECT conta_cod, competencia, SUM(valor)
+        FROM razao
+        WHERE empresa_id = ? AND competencia >= ? AND competencia <= ?
+          AND documento = 'AJUSTE-SALDO'
+        GROUP BY conta_cod, competencia
+        """,
+        (empresa_id, comp_ini, competencia)
+    ).fetchall()
+    por_conta: dict = {}
+    por_conta_mes: dict = {}
+    for cod, comp, val in rows:
+        v = round(val or 0.0, 2)
+        por_conta[cod] = round(por_conta.get(cod, 0.0) + v, 2)
+        por_conta_mes.setdefault(cod, {})[comp] = v
+    return por_conta, por_conta_mes
+
+
+def conciliar_balancete(empresa_id: int, competencia: str,
+                        incluir_ajustes: bool = True) -> dict:
     """Compara a DRE detalhada (movimento acumulado do Razão até a competência)
     contra o saldo do balancete, conta a conta (contas de resultado 3.x/4.x).
-    Retorna as diferenças ordenadas por valor absoluto + totais."""
+    Retorna as diferenças ordenadas por valor absoluto + totais.
+
+    `incluir_ajustes=False` desconta os lançamentos AJUSTE-SALDO já gravados,
+    mostrando a divergência CRUA entre razão e balancete -- é essa a base para
+    propor novos ajustes (senão a proposta nasceria sempre zerada)."""
     ano      = competencia[:4]
     comp_ini = f"{ano}-01"
 
@@ -110,6 +143,20 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
     for cod, comp, val in dre_mes_rows:
         dre_mes[cod][comp] = round(val or 0.0, 2)
 
+    if not incluir_ajustes:
+        aj_conta, aj_conta_mes = _ajustes_gravados(conn, empresa_id, comp_ini, competencia)
+        for cod, v in aj_conta.items():
+            if cod in dre:
+                novo = round(dre[cod] - v, 2)
+                if abs(novo) < 0.005:
+                    dre.pop(cod, None)
+                else:
+                    dre[cod] = novo
+        for cod, meses in aj_conta_mes.items():
+            for comp, v in meses.items():
+                if cod in dre_mes and comp in dre_mes[cod]:
+                    dre_mes[cod][comp] = round(dre_mes[cod][comp] - v, 2)
+
     tem_bal = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='balancete'"
     ).fetchone()
@@ -142,9 +189,10 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
     bal_por_conta = {cod: saldo for cod, _desc, saldo in bal_leaves}
 
     # Comparação por MOVIMENTO do razão. As diferenças reais (ex.: lançamento
-    # retroativo que entra só no saldo) viram lançamentos "AJUSTE-SALDO" na
-    # própria conta ao importar o balancete (ver criar_ajustes_saldo), então o
-    # movimento já inclui o ajuste e a conta passa a bater com o balancete.
+    # retroativo que entra só no saldo) podem virar lançamentos "AJUSTE-SALDO"
+    # na própria conta -- mas SÓ depois de o usuário aprovar conta a conta na
+    # tela de Validação (ver propor_ajustes_saldo / aplicar_ajustes_saldo).
+    # Aprovado o ajuste, o movimento já o inclui e a conta passa a bater.
     g_dre = defaultdict(float)
     contas_dre = defaultdict(dict)   # grupo -> {cod: valor}
     for cod, val in dre.items():
@@ -237,62 +285,186 @@ def conciliar_balancete(empresa_id: int, competencia: str) -> dict:
     }
 
 
-def criar_ajustes_saldo(empresa_id: int, competencia: str) -> dict:
-    """Após importar o balancete, lança 'AJUSTE-SALDO' na PRÓPRIA conta para
-    cada divergência real DRE × balancete (ex.: lançamento retroativo que entra
-    só no saldo). Assim a DRE passa a bater com o balancete naquela conta, o
-    ajuste fica identificável (documento AJUSTE-SALDO) e é reversível.
-    Idempotente: remove os ajustes da competência antes de recriar. As
-    reclassificações (impostos/abatimentos) conciliam no nível de grupo e NÃO
-    geram ajuste (evita dupla contagem)."""
+def _origem_por_conta(empresa_id: int, competencia: str, contas: list) -> dict:
+    """Para cada conta, a PRIMEIRA competência do ano em que a divergência
+    razão × balancete aparece -- ou seja, onde o erro nasceu. Só enxerga meses
+    cujo balancete foi importado; sem balancete anterior, devolve None."""
+    if not contas:
+        return {}
+    ano      = competencia[:4]
+    comp_ini = f"{ano}-01"
+    conn = get_conn()
+    tbl  = _tabela_lancamentos(conn)
+    marks = ",".join("?" * len(contas))
+
+    tem_bal = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='balancete'"
+    ).fetchone()
+    bal_rows = conn.execute(
+        f"""
+        SELECT competencia, conta_cod, saldo_atual
+        FROM balancete
+        WHERE empresa_id = ? AND competencia >= ? AND competencia <= ?
+          AND conta_cod IN ({marks})
+        """,
+        (empresa_id, comp_ini, competencia, *contas)
+    ).fetchall() if tem_bal else []
+
+    mov_rows = conn.execute(
+        f"""
+        SELECT conta_cod, competencia, SUM(valor)
+        FROM {tbl}
+        WHERE empresa_id = ? AND competencia >= ? AND competencia <= ?
+          AND conta_cod IN ({marks})
+        GROUP BY conta_cod, competencia
+        """,
+        (empresa_id, comp_ini, competencia, *contas)
+    ).fetchall()
+    aj_conta, aj_mes = _ajustes_gravados(conn, empresa_id, comp_ini, competencia)
+    conn.close()
+
+    bal: dict = {}
+    for comp, cod, saldo in bal_rows:
+        bal.setdefault(cod, {})[comp] = round(saldo or 0.0, 2)
+    mov: dict = {}
+    for cod, comp, val in mov_rows:
+        v = round(val or 0.0, 2) - aj_mes.get(cod, {}).get(comp, 0.0)
+        mov.setdefault(cod, {})[comp] = round(v, 2)
+
+    out: dict = {}
+    for cod in contas:
+        comps = sorted(bal.get(cod, {}))
+        acum = 0.0
+        origem = None
+        for comp in sorted(mov.get(cod, {})):
+            acum = round(acum + mov[cod][comp], 2)
+            if comp in bal.get(cod, {}):
+                if abs(round(bal[cod][comp] - acum, 2)) >= 0.01:
+                    origem = comp
+                    break
+        out[cod] = origem if comps else None
+    return out
+
+
+def propor_ajustes_saldo(empresa_id: int, competencia: str) -> list:
+    """Calcula (sem gravar nada) o ajuste que faria cada conta divergente bater
+    com o balancete. Devolve a lista para o usuário APROVAR conta a conta.
+    A base é a conciliação CRUA -- os ajustes já gravados são descontados antes,
+    senão a proposta nasceria zerada pelo ajuste anterior."""
+    rec = conciliar_balancete(empresa_id, competencia, incluir_ajustes=False)
+    aplicados = {a["conta_cod"]: a["valor"] for a in ajustes_aplicados(empresa_id, competencia)}
+
+    props = []
+    for linha in rec["linhas"]:
+        for c in linha.get("contas", []):
+            aj = round(c["balancete"] - c["dre"], 2)
+            if abs(aj) < 0.01:
+                continue
+            props.append({
+                "conta_cod":  c["cod"],
+                "descricao":  c["descricao"] or "",
+                "grupo":      linha["grupo"],
+                "grupo_label": linha["grupo_label"],
+                "dre":        c["dre"],
+                "balancete":  c["balancete"],
+                "ajuste":     aj,
+                "aplicado":   c["cod"] in aplicados,
+                "valor_aplicado": aplicados.get(c["cod"], 0.0),
+            })
+
+    origens = _origem_por_conta(empresa_id, competencia, [p["conta_cod"] for p in props])
+    for p in props:
+        p["origem"] = origens.get(p["conta_cod"])
+        p["origem_outro_mes"] = bool(p["origem"] and p["origem"] != competencia)
+    props.sort(key=lambda x: -abs(x["ajuste"]))
+    return props
+
+
+def ajustes_aplicados(empresa_id: int, competencia: str) -> list:
+    """Lançamentos AJUSTE-SALDO já gravados nesta empresa+competência."""
+    conn = get_conn()
+    tem = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='razao'"
+    ).fetchone()
+    rows = conn.execute(
+        """
+        SELECT r.conta_cod, COALESCE(c.descricao, ''), SUM(r.valor)
+        FROM razao r
+        LEFT JOIN contas c ON c.cod = r.conta_cod AND c.empresa_id = r.empresa_id
+        WHERE r.empresa_id = ? AND r.competencia = ? AND r.documento = 'AJUSTE-SALDO'
+        GROUP BY r.conta_cod
+        ORDER BY ABS(SUM(r.valor)) DESC
+        """,
+        (empresa_id, competencia)
+    ).fetchall() if tem else []
+    conn.close()
+    return [
+        {"conta_cod": cod, "descricao": desc, "valor": round(v or 0.0, 2),
+         "grupo_label": GRUPO_LABELS.get(classificar_conta(cod), "")}
+        for cod, desc, v in rows
+    ]
+
+
+def aplicar_ajustes_saldo(empresa_id: int, competencia: str,
+                          contas: list) -> dict:
+    """Grava o AJUSTE-SALDO SÓ das contas aprovadas pelo usuário. O valor é
+    recalculado aqui (nunca vem do formulário) e as contas não aprovadas têm o
+    ajuste removido. Idempotente."""
     import calendar
 
-    # 1) remove ajustes antigos desta competência (recalcula do zero)
+    aprovadas = {c for c in (contas or [])}
+    props = {p["conta_cod"]: p["ajuste"] for p in propor_ajustes_saldo(empresa_id, competencia)}
+
     conn = get_conn()
+    # remove os ajustes de contas que não estão aprovadas nesta rodada
     conn.execute(
         "DELETE FROM razao WHERE empresa_id=? AND competencia=? AND documento='AJUSTE-SALDO'",
         (empresa_id, competencia)
     )
-    conn.commit()
-    conn.close()
-
-    # 2) com os ajustes removidos, a conciliação reflete o movimento puro
-    rec = conciliar_balancete(empresa_id, competencia)
-
-    # 3) ajuste por conta = balancete - movimento, para TODA conta divergente
-    #    (em grupo que não concilia). Inclui "só na DRE" (balancete = 0): nesse
-    #    caso o ajuste = -movimento, removendo da DRE a conta que o balancete
-    #    não tem. Grupos que conciliam (ex.: abatimentos via regrossamento) não
-    #    entram aqui, então não há remoção indevida.
-    ajustes: list[tuple[str, float]] = []
-    for linha in rec["linhas"]:
-        for c in linha.get("contas", []):
-            aj = round(c["balancete"] - c["dre"], 2)
-            if abs(aj) >= 0.01:
-                ajustes.append((c["cod"], aj))
-
-    if not ajustes:
-        return {"ajustes": 0}
 
     ano, mes = competencia.split("-")
     ultimo = calendar.monthrange(int(ano), int(mes))[1]
     data_lanc = f"{competencia}-{ultimo:02d}"
 
-    conn = get_conn()
-    for cod, valor in ajustes:
+    n = 0
+    for cod in aprovadas:
+        valor = props.get(cod)
+        if valor is None or abs(valor) < 0.01:
+            continue
         conn.execute(
             """
             INSERT OR REPLACE INTO razao
                 (empresa_id, competencia, data_lanc, conta_cod, documento,
                  historico, debito, credito, valor, saldo_atual)
             VALUES (?, ?, ?, ?, 'AJUSTE-SALDO',
-                    'Ajuste de saldo (conciliação com balancete)', 0, 0, ?, NULL)
+                    'Ajuste de saldo aprovado (conciliação com balancete)', 0, 0, ?, NULL)
             """,
             (empresa_id, competencia, data_lanc, cod, valor)
         )
+        n += 1
     conn.commit()
     conn.close()
-    return {"ajustes": len(ajustes)}
+    return {"aplicados": n}
+
+
+def remover_ajustes_saldo(empresa_id: int, competencia: str,
+                          conta: str = None) -> int:
+    """Remove o AJUSTE-SALDO de uma conta (ou de toda a competência)."""
+    conn = get_conn()
+    if conta:
+        n = conn.execute(
+            "DELETE FROM razao WHERE empresa_id=? AND competencia=? "
+            "AND documento='AJUSTE-SALDO' AND conta_cod=?",
+            (empresa_id, competencia, conta)
+        ).rowcount
+    else:
+        n = conn.execute(
+            "DELETE FROM razao WHERE empresa_id=? AND competencia=? AND documento='AJUSTE-SALDO'",
+            (empresa_id, competencia)
+        ).rowcount
+    conn.commit()
+    conn.close()
+    return n
 
 
 def contas_nao_classificadas() -> list[dict]:

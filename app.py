@@ -33,7 +33,8 @@ from dre_engine import (
     GRUPOS_AGREGADOS_GER, montar_bridge_ebitda, montar_bridge_resultado_final,
     _tabela_lancamentos,
     contas_nao_classificadas, grupos_disponiveis, invalidar_prefixos, GRUPO_LABELS,
-    conciliar_balancete, criar_ajustes_saldo,
+    conciliar_balancete, propor_ajustes_saldo, ajustes_aplicados,
+    aplicar_ajustes_saldo, remover_ajustes_saldo,
 )
 from balancete_parser import importar_balancete
 
@@ -1431,17 +1432,27 @@ def ingest():
                 if "erro" in res:
                     flash(f"Erro ao importar Balancete: {res['erro']}", "danger")
                 else:
-                    # Gera os ajustes de saldo na própria conta divergente, para
-                    # a DRE bater com o balancete.
+                    # NÃO lança ajuste automático. O balancete novo invalida os
+                    # ajustes anteriores desta competência (a base mudou), então
+                    # eles são removidos e a divergência volta a aparecer aberta
+                    # para o usuário APROVAR conta a conta na tela de Validação.
                     emp_id = EMPRESAS.get(empresa_bal, {}).get("id", 1)
-                    aj = criar_ajustes_saldo(emp_id, competencia)
-                    flash(
+                    n_rem = remover_ajustes_saldo(emp_id, competencia)
+                    props = propor_ajustes_saldo(emp_id, competencia)
+                    msg = (
                         f"Balancete importado: {res['registros']} contas "
                         f"({res['empresa']}) — competência {_mes_label(competencia)}. "
-                        f"{aj['ajustes']} ajuste(s) de saldo lançado(s) na conta divergente. "
-                        f"Confira em Validação DRE × Balancete.",
-                        "success"
                     )
+                    if n_rem:
+                        msg += f"{n_rem} ajuste(s) de saldo anterior(es) removido(s). "
+                    if props:
+                        msg += (
+                            f"{len(props)} conta(s) divergente(s) aguardando sua aprovação "
+                            f"em Validação DRE × Balancete — nada foi lançado sem seu aval."
+                        )
+                    else:
+                        msg += "Nenhuma divergência: a DRE bate com o balancete."
+                    flash(msg, "success")
             except Exception as e:
                 flash(f"Erro ao importar Balancete: {e}", "danger")
             finally:
@@ -2143,7 +2154,13 @@ def validacao():
     else:
         competencia = comps_bal[-1] if comps_bal else (competencias[-1] if competencias else "")
 
-    resultado = conciliar_balancete(EMPRESAS[empresa]["id"], competencia) if competencia else None
+    emp_id = EMPRESAS[empresa]["id"]
+    resultado  = conciliar_balancete(emp_id, competencia) if competencia else None
+    # Divergência CRUA (sem os ajustes já aprovados) + o que está aguardando aval
+    bruto      = conciliar_balancete(emp_id, competencia, incluir_ajustes=False) if competencia else None
+    propostas  = propor_ajustes_saldo(emp_id, competencia) if competencia else []
+    aplicados  = ajustes_aplicados(emp_id, competencia) if competencia else []
+    tot_aplicado = round(sum(a["valor"] for a in aplicados), 2)
 
     return render_template(
         "validacao.html",
@@ -2151,26 +2168,62 @@ def validacao():
         competencia=competencia,
         comps_bal=comps_bal,
         resultado=resultado,
+        bruto=bruto,
+        propostas=propostas,
+        aplicados=aplicados,
+        tot_aplicado=tot_aplicado,
+        pendentes=[p for p in propostas if not p["aplicado"]],
         fmt_brl=fmt_brl,
     )
 
 
-@app.route("/ajustes/recalcular", methods=["POST"])
+@app.route("/ajustes/aplicar", methods=["POST"])
 @login_required
 @admin_required
-def ajustes_recalcular():
-    """Recalcula os lançamentos AJUSTE-SALDO de uma empresa+competência sem
-    precisar reimportar o balancete (aplica a lógica de ajuste mais recente)."""
+def ajustes_aplicar():
+    """Grava o AJUSTE-SALDO apenas das contas que o usuário marcou. O que não
+    for marcado fica (ou volta a ficar) sem ajuste, com a divergência aberta."""
     empresa_chave = request.form.get("empresa", "")
     competencia   = request.form.get("competencia", "")
     emp = EMPRESAS.get(empresa_chave)
     if not emp or not competencia:
         flash("Empresa ou competência inválida.", "danger")
         return redirect(url_for("validacao"))
-    aj = criar_ajustes_saldo(emp["id"], competencia)
+
+    contas = request.form.getlist("conta")
+    res = aplicar_ajustes_saldo(emp["id"], competencia, contas)
+    if res["aplicados"]:
+        flash(
+            f"{res['aplicados']} ajuste(s) aprovado(s) e lançado(s) em "
+            f"{emp['sigla']} — {_mes_label(competencia)}.",
+            "success"
+        )
+    else:
+        flash(
+            f"Nenhum ajuste aprovado em {emp['sigla']} — {_mes_label(competencia)}. "
+            f"As divergências seguem abertas.",
+            "warning"
+        )
+    return redirect(url_for("validacao", empresa=empresa_chave, competencia=competencia))
+
+
+@app.route("/ajustes/remover", methods=["POST"])
+@login_required
+@admin_required
+def ajustes_remover():
+    """Remove o ajuste de uma conta (ou todos os da competência)."""
+    empresa_chave = request.form.get("empresa", "")
+    competencia   = request.form.get("competencia", "")
+    conta         = request.form.get("conta") or None
+    emp = EMPRESAS.get(empresa_chave)
+    if not emp or not competencia:
+        flash("Empresa ou competência inválida.", "danger")
+        return redirect(url_for("validacao"))
+    n = remover_ajustes_saldo(emp["id"], competencia, conta)
+    alvo = f"da conta {conta}" if conta else "da competência"
     flash(
-        f"Ajustes recalculados para {emp['sigla']} — {_mes_label(competencia)}: "
-        f"{aj['ajustes']} lançamento(s) AJUSTE-SALDO.",
+        f"{n} ajuste(s) {alvo} removido(s) em {emp['sigla']} — "
+        f"{_mes_label(competencia)}. A divergência volta a aparecer aberta.",
         "success"
     )
     return redirect(url_for("validacao", empresa=empresa_chave, competencia=competencia))

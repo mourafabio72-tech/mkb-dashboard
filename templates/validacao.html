@@ -33,14 +33,6 @@
       </select>
     </form>
     {% if competencia and session.usuario_logado and session.usuario_logado.role == 'admin' %}
-    <form method="POST" action="{{ url_for('ajustes_recalcular') }}" style="display:inline">
-      <input type="hidden" name="empresa" value="{{ empresa }}">
-      <input type="hidden" name="competencia" value="{{ competencia }}">
-      <button type="submit" class="btn-sm" title="Recalcular os ajustes de saldo com a lógica mais recente"
-              style="background:rgba(110,127,99,.15);color:var(--accent);border:1px solid var(--border);border-radius:5px;cursor:pointer;padding:5px 10px;font-size:11px;font-weight:700">
-        ↻ Recalcular ajustes
-      </button>
-    </form>
     <form method="POST" action="{{ url_for('balancete_excluir') }}" style="display:inline"
           onsubmit="return confirm('Excluir o balancete de {{ empresa|upper }} — {{ mes_label(competencia) }} e seus ajustes de saldo?');">
       <input type="hidden" name="empresa" value="{{ empresa }}">
@@ -83,9 +75,115 @@
     <div class="kpi-value {% if resultado.tot_diff != 0 %}text-danger{% else %}text-success{% endif %}">
       {{ fmt_brl(resultado.tot_diff) }}
     </div>
-    <div class="kpi-sub">{{ resultado.qtd_diff }} conta(s) divergente(s)</div>
+    <div class="kpi-sub">
+      {{ resultado.qtd_diff }} conta(s) divergente(s)
+      {% if tot_aplicado %}· inclui {{ fmt_brl(tot_aplicado) }} de ajuste aprovado{% endif %}
+    </div>
   </div>
 </div>
+
+{% if tot_aplicado %}
+<div class="card-full" style="border-left:3px solid var(--warning, #b8863b);margin-bottom:14px">
+  <p style="margin:0;font-size:12px">
+    <strong>Atenção:</strong> o zero acima é parcialmente artificial. Há
+    <strong>{{ fmt_brl(tot_aplicado) }}</strong> em lançamentos AJUSTE-SALDO aprovados nesta
+    competência. Sem eles, a diferença crua seria <strong>{{ fmt_brl(bruto.tot_diff) }}</strong>
+    em {{ bruto.qtd_diff }} conta(s).
+  </p>
+</div>
+{% endif %}
+
+{# ── Ajustes de saldo: proposta → aprovação do usuário ───────────────────── #}
+{% if session.usuario_logado and session.usuario_logado.role == 'admin' and (propostas or aplicados) %}
+<div class="card-full" style="margin-bottom:16px">
+  <h2 style="font-size:15px;margin:0 0 4px">⚖ Ajustes de saldo</h2>
+  <p class="text-muted" style="font-size:11px;margin:0 0 12px">
+    O ajuste força a conta a bater com o balancete. <strong>Não é lançamento contábil</strong> —
+    é uma muleta do painel. Nada entra no razão sem você marcar. Quando a coluna
+    <em>origem</em> apontar um mês anterior, o certo é reimportar o razão daquele mês em vez
+    de aprovar o ajuste aqui.
+  </p>
+
+  <form method="POST" action="{{ url_for('ajustes_aplicar') }}"
+        onsubmit="return confirm('Aplicar os ajustes marcados? Os NÃO marcados serão removidos.');">
+    <input type="hidden" name="empresa" value="{{ empresa }}">
+    <input type="hidden" name="competencia" value="{{ competencia }}">
+    <table class="table-det">
+      <thead>
+        <tr>
+          <th style="width:34px">✓</th>
+          <th>Conta</th>
+          <th>Linha da DRE</th>
+          <th class="num">Razão (acum.)</th>
+          <th class="num">Balancete</th>
+          <th class="num">Ajuste</th>
+          <th>Origem</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in propostas %}
+        <tr>
+          <td><input type="checkbox" name="conta" value="{{ p.conta_cod }}"
+                     {% if p.aplicado %}checked{% endif %}></td>
+          <td>
+            <span class="conta-cod">{{ p.conta_cod }}</span>
+            <span class="conta-desc">{{ p.descricao or '—' }}</span>
+          </td>
+          <td class="text-muted" style="font-size:11px">{{ p.grupo_label }}</td>
+          <td class="num">{{ fmt_brl(p.dre) }}</td>
+          <td class="num">{{ fmt_brl(p.balancete) }}</td>
+          <td class="num {% if p.aplicado %}text-muted{% else %}text-danger{% endif %}"
+              style="font-weight:700">{{ fmt_brl(p.ajuste) }}</td>
+          <td style="font-size:11px">
+            {% if p.origem_outro_mes %}
+              <span class="badge-ct2">nasceu em {{ mes_label(p.origem) }}</span>
+            {% elif p.origem %}
+              <span class="text-muted">deste mês</span>
+            {% else %}
+              <span class="text-muted">sem balancete anterior</span>
+            {% endif %}
+            {% if p.aplicado %}<span class="badge-ct1">aprovado</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% for a in aplicados %}
+          {% if a.conta_cod not in propostas|map(attribute='conta_cod')|list %}
+          <tr>
+            <td><input type="checkbox" name="conta" value="{{ a.conta_cod }}" disabled></td>
+            <td>
+              <span class="conta-cod">{{ a.conta_cod }}</span>
+              <span class="conta-desc">{{ a.descricao or '—' }}</span>
+            </td>
+            <td class="text-muted" style="font-size:11px">{{ a.grupo_label }}</td>
+            <td class="num">—</td>
+            <td class="num">—</td>
+            <td class="num text-muted" style="font-weight:700">{{ fmt_brl(a.valor) }}</td>
+            <td style="font-size:11px"><span class="badge-ct1">aprovado — sem divergência atual</span></td>
+          </tr>
+          {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button type="submit" class="btn btn-primary" style="font-size:12px;padding:7px 14px">
+        ✓ Aplicar ajustes marcados
+      </button>
+    </div>
+  </form>
+
+  {% if aplicados %}
+  <form method="POST" action="{{ url_for('ajustes_remover') }}" style="margin-top:8px"
+        onsubmit="return confirm('Remover TODOS os ajustes de saldo desta competência?');">
+    <input type="hidden" name="empresa" value="{{ empresa }}">
+    <input type="hidden" name="competencia" value="{{ competencia }}">
+    <button type="submit" class="btn-sm"
+            style="background:rgba(178,91,76,.12);color:var(--danger);border:1px solid var(--border);border-radius:5px;cursor:pointer;padding:6px 12px;font-size:11px;font-weight:700">
+      ✕ Remover todos os ajustes de {{ mes_label(competencia) }}
+    </button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
 
 {# ── Tabela de divergências ──────────────────────────────────────────────── #}
 <div class="card-full">
@@ -192,9 +290,19 @@
   </script>
   {% else %}
   <div style="text-align:center;padding:40px">
+    {% if tot_aplicado %}
+    <div style="font-size:40px;margin-bottom:10px">⚖</div>
+    <h2 style="color:var(--warning, #b8863b);font-size:18px">Bate, mas com ajuste aprovado</h2>
+    <p class="text-muted">
+      Nenhuma conta diverge em {{ mes_label(competencia) }} <strong>depois</strong> dos
+      {{ fmt_brl(tot_aplicado) }} de AJUSTE-SALDO. Sem eles a diferença seria
+      {{ fmt_brl(bruto.tot_diff) }}.
+    </p>
+    {% else %}
     <div style="font-size:40px;margin-bottom:10px">✅</div>
     <h2 style="color:var(--success);font-size:18px">DRE bate com o balancete</h2>
-    <p class="text-muted">Nenhuma conta de resultado diverge em {{ mes_label(competencia) }}.</p>
+    <p class="text-muted">Nenhuma conta de resultado diverge em {{ mes_label(competencia) }}, sem nenhum ajuste.</p>
+    {% endif %}
   </div>
   {% endif %}
 </div>
