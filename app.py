@@ -469,17 +469,42 @@ def _pagamentos_mensais_bancario(empresa_id: int, competencias: list) -> dict:
             if r["competencia"] in resultado:
                 resultado[r["competencia"]] += r["total"] or 0.0
     else:
+        # Sem cronograma: lê os pagamentos do razão. Mas a conta de principal
+        # recebe MAIS do que parcela -- reclassificação de longo para curto
+        # prazo, encargos, ajustes. Somar tudo inflava o mês (jun/2026 dava
+        # 97.581 e jul/2026 dava 140.323 onde a parcela é 46.754).
+        # Com parcela fixa cadastrada, conta só o débito que TEM cara de
+        # parcela (entre 50% e 150% dela): pagar duas parcelas no mês continua
+        # somando duas, e reclassificação ou taxa avulsa fica de fora.
         contas_cp = [e["conta_cp_principal"] for e in emprestimos if e["conta_cp_principal"]]
+        parcela_de: dict = {}
+        for e in emprestimos:
+            if not e["conta_cp_principal"]:
+                continue
+            try:
+                pf = e["valor_parcela_fixa"]
+            except (IndexError, KeyError):
+                pf = None
+            if not pf and e["valor_contratado"] and e["qtd_parcelas"]:
+                pf = None      # média do contrato não serve de filtro: ignora juros
+            if pf:
+                parcela_de[e["conta_cp_principal"]] = float(pf)
+
         if contas_cp:
             ph = ",".join("?" * len(contas_cp))
             debitos = conn.execute(
-                f"SELECT competencia, SUM(debito) as td FROM razao "
-                f"WHERE empresa_id=? AND conta_cod IN ({ph}) GROUP BY competencia",
+                f"SELECT competencia, conta_cod, debito FROM razao "
+                f"WHERE empresa_id=? AND conta_cod IN ({ph}) AND debito > 0",
                 (empresa_id, *contas_cp)
             ).fetchall()
             for r in debitos:
-                if r["competencia"] in resultado:
-                    resultado[r["competencia"]] += r["td"] or 0.0
+                if r["competencia"] not in resultado:
+                    continue
+                pf = parcela_de.get(r["conta_cod"])
+                valor = r["debito"] or 0.0
+                if pf and not (0.5 * pf <= valor <= 1.5 * pf):
+                    continue   # não é parcela: reclassificação, encargo, ajuste
+                resultado[r["competencia"]] += valor
 
     conn.close()
     return resultado

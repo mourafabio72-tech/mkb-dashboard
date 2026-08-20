@@ -107,5 +107,48 @@ check("julho deduz o que foi pago", abs(serie[1][1] - 9750.0) < 0.01, f"({serie[
 check("julho não repete junho", serie[1][1] != serie[0][1])
 check("julho marcado como estimado", serie[1][2])
 
+print("\n=== 5. bancário sem cronograma: só o débito que é parcela ===")
+# Contrato CEF do Gnileb: parcela fixa 46.753,70. Em jul/2026 a conta de
+# principal recebeu, além da parcela, uma reclassificação de longo prazo e uma
+# taxa. Somar tudo dava 140.323 onde o pago foi 46.754.
+PARCELA = 46753.70
+CONTA_EMP = "2.1.1.01.07.001"
+conn = get_conn()
+conn.execute("DELETE FROM emprestimos_bancarios WHERE empresa_id=?", (EMP,))
+conn.execute("DELETE FROM razao WHERE empresa_id=? AND conta_cod=?", (EMP, CONTA_EMP))
+conn.execute(
+    "INSERT INTO emprestimos_bancarios (empresa_id, banco, descricao, conta_cp_principal,"
+    " valor_contratado, qtd_parcelas, data_primeira_parcela, valor_parcela_fixa)"
+    " VALUES (?,?,?,?,?,?,?,?)",
+    (EMP, "CEF", "Capital de giro", CONTA_EMP, 1500000.0, 48, "2025-09", PARCELA),
+)
+conn.executemany(
+    "INSERT INTO razao (empresa_id, competencia, data_lanc, conta_cod, documento,"
+    " historico, debito, credito, valor) VALUES (?,?,?,?,?,?,?,?,?)",
+    [
+        (EMP, "2026-07", "2026-07-05", CONTA_EMP, "PG",  "PGTO PARCELA",        PARCELA, 0, 0),
+        (EMP, "2026-07", "2026-07-31", CONTA_EMP, "RCL", "TRANSF LP->CP",       89500.00, 0, 0),
+        (EMP, "2026-07", "2026-07-20", CONTA_EMP, "TX",  "TARIFA",                 69.30, 0, 0),
+        (EMP, "2026-08", "2026-08-05", CONTA_EMP, "PG",  "PARCELA 1",           PARCELA, 0, 0),
+        (EMP, "2026-08", "2026-08-25", CONTA_EMP, "PG",  "PARCELA 2 (antecip.)", PARCELA, 0, 0),
+    ],
+)
+conn.commit(); conn.close()
+pgb = A._pagamentos_mensais_bancario(EMP, ["2026-07", "2026-08"])
+check("julho = a parcela, não a soma bruta", abs(pgb["2026-07"] - PARCELA) < 0.01,
+      f"({pgb['2026-07']:.2f}; soma bruta seria {PARCELA + 89500 + 69.30:.2f})")
+check("descartou a reclassificação LP→CP", pgb["2026-07"] < 89500)
+check("descartou a tarifa", abs(pgb["2026-07"] - (PARCELA + 69.30)) > 1)
+check("duas parcelas no mês somam as duas", abs(pgb["2026-08"] - PARCELA * 2) < 0.01,
+      f"({pgb['2026-08']:.2f})")
+
+print("\n=== 6. sem parcela fixa cadastrada, mantém a soma dos débitos ===")
+conn = get_conn()
+conn.execute("UPDATE emprestimos_bancarios SET valor_parcela_fixa=NULL WHERE empresa_id=?", (EMP,))
+conn.commit(); conn.close()
+pgb2 = A._pagamentos_mensais_bancario(EMP, ["2026-07"])
+check("soma tudo quando não há parâmetro para filtrar",
+      abs(pgb2["2026-07"] - (PARCELA + 89500 + 69.30)) < 0.01, f"({pgb2['2026-07']:.2f})")
+
 print("\n" + ("TODAS AS PROVAS PASSARAM" if ok else "HOUVE FALHA"))
 sys.exit(0 if ok else 1)
