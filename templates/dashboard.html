@@ -211,14 +211,26 @@
     <span class="min-chart-title">Detalhamento Mensal</span>
     <table class="table-simple" style="font-size:12px; text-align:center;">
       <thead>
-        <tr><th style="text-align:center">Mês</th><th style="text-align:center">Parc. Pagas</th><th style="text-align:center">Dív. Acum.</th><th style="text-align:center">ROB</th><th style="text-align:center">% Dív/ROB</th><th style="text-align:center">% Parc/ROB</th></tr>
+        <tr><th style="text-align:center">Mês</th><th style="text-align:center">Tributário<br><span style="font-weight:400;font-size:10px">MKB</span></th><th style="text-align:center">Bancário<br><span style="font-weight:400;font-size:10px">Gnileb</span></th><th style="text-align:center">Parc. Pagas</th><th style="text-align:center">Dív. Acum.</th><th style="text-align:center">ROB</th><th style="text-align:center">% Dív/ROB</th><th style="text-align:center">% Parc/ROB</th></tr>
       </thead>
       <tbody>
         {% for l in serie_endividamento_mensal %}
         <tr>
           <td>{{ mes_label(l.competencia) }}</td>
-          <td>{{ fmt_brl(l.valor_pago) }}</td>
-          <td>{{ fmt_brl(l.divida_acumulada) }}</td>
+          <td title="MKB {{ fmt_brl(l.pg_trib_mkb) }} · Gnileb {{ fmt_brl(l.pg_trib_gni) }}">
+            {{ fmt_brl(l.valor_pago_trib) }}
+            {%- if l.pg_trib_gni %} <span class="text-danger" title="Gnileb não tem tributário — {{ fmt_brl(l.pg_trib_gni) }} entrando indevidamente">⚠</span>{% endif %}
+          </td>
+          <td title="Gnileb {{ fmt_brl(l.pg_banc_gni) }} · MKB {{ fmt_brl(l.pg_banc_mkb) }}">
+            {{ fmt_brl(l.valor_pago_banc) }}
+            {%- if l.banc_gni_estimado %}<span class="text-muted" title="parcela fixa do Gnileb (sem cronograma no banco)">*</span>{% endif %}
+            {%- if l.pg_banc_mkb %} <span class="text-danger" title="MKB não tem bancário — {{ fmt_brl(l.pg_banc_mkb) }} entrando indevidamente">⚠</span>{% endif %}
+          </td>
+          <td style="font-weight:700">{{ fmt_brl(l.valor_pago) }}</td>
+          <td title="Tributário {{ fmt_brl(l.divida_trib) }} · Bancário {{ fmt_brl(l.divida_banc) }}">
+            {{ fmt_brl(l.divida_acumulada) }}
+            {%- if l.divida_estimada %}<span class="text-muted" title="sem planilha de parcelamentos deste mês: deduzido do mês anterior menos as parcelas pagas">*</span>{% endif %}
+          </td>
           <td>{{ fmt_brl(l.rob_mes) }}</td>
           <td>{% if l.pct_divida is not none %}{{ "%.1f"|format(l.pct_divida) }}%{% else %}—{% endif %}</td>
           <td>{% if l.pct_parcela is not none %}{{ "%.1f"|format(l.pct_parcela) }}%{% else %}—{% endif %}</td>
@@ -226,6 +238,11 @@
         {% endfor %}
       </tbody>
     </table>
+    <p class="text-muted" style="font-size:10px;margin:8px 0 0;text-align:left">
+      O grupo tem o tributário na MKB e o bancário no Gnileb — <span class="text-danger">⚠</span> marca
+      valor na empresa errada. <strong>*</strong> = estimado, não veio de planilha importada
+      (passe o mouse para ver a origem).
+    </p>
   </div>
 </div>
 

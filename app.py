@@ -233,15 +233,18 @@ def _resumo_endividamento_tributario(empresa_id: int) -> dict:
         (empresa_id, comp_ref)
     ).fetchall()
 
-    grupos_conta: dict[tuple, list] = {}
+    # Rateio por conta_cp: é o débito DELA que está sendo dividido. Incluir
+    # conta_lp na chave separava dois parcelamentos da mesma conta corrente em
+    # grupos distintos, cada um com peso 1.0 -- e o mesmo débito era contado
+    # duas vezes (ex.: TRANSAÇÃO DEMAIS DÉBITOS e TRANSAÇÃO PREVIDENCIÁRIOS,
+    # que dividem a 2.1.3.05.06.001 com contas de longo prazo diferentes).
+    grupos_conta: dict[str, list] = {}
     for p in parcelamentos:
-        chave = (p["conta_cp"], p["conta_lp"])
-        grupos_conta.setdefault(chave, []).append(p["tributo"])
+        grupos_conta.setdefault(p["conta_cp"], []).append(p["tributo"])
 
     peso_por_tributo: dict[str, float] = {}
     for p in parcelamentos:
-        chave = (p["conta_cp"], p["conta_lp"])
-        membros = grupos_conta[chave]
+        membros = grupos_conta[p["conta_cp"]]
         if len(membros) == 1:
             peso_por_tributo[p["tributo"]] = 1.0
             continue
@@ -396,15 +399,18 @@ def _pagamentos_mensais_tributario(empresa_id: int, competencias: list) -> dict:
         (empresa_id, comp_ref)
     ).fetchall()
 
-    grupos_conta: dict[tuple, list] = {}
+    # Rateio por conta_cp: é o débito DELA que está sendo dividido. Incluir
+    # conta_lp na chave separava dois parcelamentos da mesma conta corrente em
+    # grupos distintos, cada um com peso 1.0 -- e o mesmo débito era contado
+    # duas vezes (ex.: TRANSAÇÃO DEMAIS DÉBITOS e TRANSAÇÃO PREVIDENCIÁRIOS,
+    # que dividem a 2.1.3.05.06.001 com contas de longo prazo diferentes).
+    grupos_conta: dict[str, list] = {}
     for p in parcelamentos:
-        chave = (p["conta_cp"], p["conta_lp"])
-        grupos_conta.setdefault(chave, []).append(p["tributo"])
+        grupos_conta.setdefault(p["conta_cp"], []).append(p["tributo"])
 
     peso_por_tributo: dict[str, float] = {}
     for p in parcelamentos:
-        chave = (p["conta_cp"], p["conta_lp"])
-        membros = grupos_conta[chave]
+        membros = grupos_conta[p["conta_cp"]]
         if len(membros) == 1:
             peso_por_tributo[p["tributo"]] = 1.0
             continue
@@ -719,11 +725,16 @@ def index():
     pagos_banc_mkb = _pagamentos_mensais_bancario(EMPRESAS["mkb"]["id"], competencias)
     pagos_banc_gni = _pagamentos_mensais_bancario(EMPRESAS["gnileb"]["id"], competencias)
 
-    # Gnileb não tem emprestimos_bancarios no DB; parcela fixa R$ 46.753,70/mês
+    # Gnileb não tem emprestimos_bancarios no DB; parcela fixa R$ 46.753,70/mês.
+    # O corte antigo era "c <= 2026-05" e, vencido o prazo, jun/jul ficaram SEM
+    # a parcela bancária do Gnileb -- que é justamente onde mora o bancário do
+    # grupo. Sem data de validade: preenche todo mês que não tiver dado real.
     _PARCELA_BANC_GNI = 46753.70
+    banc_gni_estimado = set()
     for c in competencias:
-        if c <= "2026-05" and pagos_banc_gni.get(c, 0.0) == 0.0:
+        if pagos_banc_gni.get(c, 0.0) == 0.0:
             pagos_banc_gni[c] = _PARCELA_BANC_GNI
+            banc_gni_estimado.add(c)
 
     # Dívida tributária mensal: snapshot dos parcelamentos por competência
     conn_dash = get_conn()
@@ -759,20 +770,55 @@ def index():
     }
 
     serie_endividamento_mensal = []
+    divida_trib_ant = divida_banc_ant = None
     for c in competencias:
         rob_mes = mensal_todos[c].get("ROB", 0) or 0
-        valor_pago_trib = pagos_trib_mkb.get(c, 0.0) + pagos_trib_gni.get(c, 0.0)
-        valor_pago_banc = pagos_banc_mkb.get(c, 0.0) + pagos_banc_gni.get(c, 0.0)
+        pg_trib_mkb = pagos_trib_mkb.get(c, 0.0)
+        pg_trib_gni = pagos_trib_gni.get(c, 0.0)
+        pg_banc_mkb = pagos_banc_mkb.get(c, 0.0)
+        pg_banc_gni = pagos_banc_gni.get(c, 0.0)
+        valor_pago_trib = pg_trib_mkb + pg_trib_gni
+        valor_pago_banc = pg_banc_mkb + pg_banc_gni
         valor_pago = valor_pago_trib + valor_pago_banc
-        divida_trib_mes = divida_trib_por_mes.get(c, divida_tributaria)
-        divida_banc_mes = _DIVIDA_BANC_HIST.get(c, divida_bancaria)
+
+        # Dívida do mês: usa o snapshot da planilha de parcelamentos quando ele
+        # existe. Faltando o snapshot, DEDUZ do mês anterior o que foi pago --
+        # antes o código repetia o último valor conhecido, e a dívida congelava
+        # (jun e jul apareciam idênticos como se nada tivesse sido amortizado).
+        snap_trib = divida_trib_por_mes.get(c)
+        if snap_trib is not None:
+            divida_trib_mes, est_trib = snap_trib, False
+        elif divida_trib_ant is not None:
+            # piso em zero: dívida não fica negativa. Chegar a zero por dedução
+            # é sinal de que falta snapshot há meses demais, não de quitação.
+            divida_trib_mes, est_trib = max(round(divida_trib_ant - valor_pago_trib, 2), 0.0), True
+        else:
+            divida_trib_mes, est_trib = divida_tributaria, True
+
+        snap_banc = _DIVIDA_BANC_HIST.get(c)
+        if snap_banc is not None:
+            divida_banc_mes, est_banc = snap_banc, False
+        elif divida_banc_ant is not None:
+            divida_banc_mes, est_banc = max(round(divida_banc_ant - valor_pago_banc, 2), 0.0), True
+        else:
+            divida_banc_mes, est_banc = divida_bancaria, True
+
+        divida_trib_ant, divida_banc_ant = divida_trib_mes, divida_banc_mes
         divida_mes = divida_trib_mes + divida_banc_mes
         pct_divida = (divida_mes / rob_mes * 100) if rob_mes else None
         pct_parcela = (valor_pago / rob_mes * 100) if rob_mes else None
         serie_endividamento_mensal.append({
             "competencia": c, "valor_pago": valor_pago,
             "valor_pago_trib": valor_pago_trib, "valor_pago_banc": valor_pago_banc,
+            # Quebra por empresa: o grupo tem o tributário na MKB e o bancário
+            # no Gnileb, então valor fora dessas duas casas é sinal de problema.
+            "pg_trib_mkb": pg_trib_mkb, "pg_trib_gni": pg_trib_gni,
+            "pg_banc_mkb": pg_banc_mkb, "pg_banc_gni": pg_banc_gni,
+            "banc_gni_estimado": c in banc_gni_estimado,
+            "fora_do_padrao": round(pg_trib_gni + pg_banc_mkb, 2),
             "divida_acumulada": divida_mes, "rob_mes": rob_mes,
+            "divida_trib": divida_trib_mes, "divida_banc": divida_banc_mes,
+            "divida_estimada": est_trib or est_banc,
             "pct_divida": pct_divida, "pct_parcela": pct_parcela,
         })
 
