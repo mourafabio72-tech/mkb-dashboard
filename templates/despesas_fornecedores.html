@@ -15,6 +15,29 @@
   border-left:1px solid rgba(52,211,153,.2);
 }
 .av-pct-sub { text-align:right; font-size:9.5px; color:rgba(107,107,154,.65); white-space:nowrap; width:44px; }
+
+/* ── Tendência ──────────────────────────────────────────────────────────────
+   Cores INVERTIDAS em relação à tela de Receita: aqui aumento é gasto que
+   subiu (vermelho) e redução é gasto que caiu (verde). */
+.df-trend { text-align:center; white-space:nowrap; width:34px; min-width:34px; }
+.df-trend-icon {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:22px; height:22px; border-radius:50%; font-size:12px; line-height:1;
+}
+.df-trend-up   { background:rgba(239,68,68,.12);  color:#ef4444; border:1px solid rgba(239,68,68,.25); }
+.df-trend-down { background:rgba(52,211,153,.12); color:#34d399; border:1px solid rgba(52,211,153,.25); }
+.df-trend-sub .df-trend-icon { width:18px; height:18px; font-size:10px; }
+.df-tend-bar { display:flex; align-items:center; gap:8px; margin:0 0 16px; flex-wrap:wrap; }
+.df-tend-btn {
+  font-size:11px; font-weight:600; color:var(--muted);
+  background:var(--card2); border:1px solid var(--border); border-radius:6px;
+  padding:5px 12px; cursor:pointer; transition:all .15s;
+}
+.df-tend-btn:hover { border-color:var(--accent); color:var(--primary); }
+.df-tend-btn.ativo {
+  background:rgba(139,92,246,.15); border-color:var(--accent); color:var(--primary); font-weight:700;
+}
+.df-tend-hint { font-size:10px; color:var(--muted); }
 </style>
 
 <div class="page-header">
@@ -79,6 +102,19 @@
          placeholder="🔍 Buscar {{ 'conta' if visao == 'grupo' else 'fornecedor' }}..."
          oninput="filtrarLinhasPivot(this.value)" style="min-width:220px">
 </form>
+
+{# ── Filtro de tendência ───────────────────────────────────────────────────
+   Vale nos DOIS níveis: a linha principal aparece quando ela própria bate ou
+   quando alguma linha filha dela bate -- assim dá para achar tanto a conta que
+   disparou quanto o fornecedor, dentro dela, que puxou. #}
+<div class="df-tend-bar">
+  <span class="selector-label">Tendência:</span>
+  <button type="button" class="df-tend-btn ativo" data-tend="todos"   onclick="selecionarTend(this)">Todos</button>
+  <button type="button" class="df-tend-btn"       data-tend="aumento" onclick="selecionarTend(this)">▲ Aumento</button>
+  <button type="button" class="df-tend-btn"       data-tend="reducao" onclick="selecionarTend(this)">▼ Redução</button>
+  <button type="button" class="df-tend-btn"       data-tend="atipico" onclick="selecionarTend(this)">▲▼ Ambos</button>
+  <span class="df-tend-hint">último mês vs média dos anteriores (±30%)</span>
+</div>
 
 {# ── Alerta: meses sem CT1 ─────────────────────────────────────────────────── #}
 {% if analise.competencias_sem_ct1 %}
@@ -170,6 +206,7 @@
         {% endfor %}
         <th class="num col-acum">Total</th>
         <th class="num pct-col col-acum" title="AV% do período">AV%</th>
+        <th class="df-trend" title="Tendência do último mês vs média dos anteriores">Tend.</th>
       </tr>
     </thead>
     <tbody>
@@ -179,8 +216,11 @@
       {% set lin_pct = linha.total_geral / analise.total_geral * 100 if analise.total_geral else 0 %}
 
       {# ── Linha principal (nível 1) ───────────────────────────────────────── #}
+      {% set tend_filhas = filhas | map(attribute='tendencia') | select('string') | unique | join(' ') %}
       <tr class="dre-row dre-grupo pivot-row" data-pivot="{{ safe_id }}"
           data-nome="{{ (linha.label if visao == 'grupo' else linha.nome) | lower }}"
+          data-tendencia="{{ linha.tendencia or '' }}"
+          data-tend-filhas="{{ tend_filhas }}"
           onclick="togglePivot(this)">
         <td class="col-linha">
           <span class="expand-icon" id="icon-{{ safe_id }}">▶</span>
@@ -203,6 +243,15 @@
         {% endfor %}
         <td class="num fw-600">{{ fmt_brl(linha.total_geral) }}</td>
         <td class="av-pct-total num">{{ "%.1f"|format(lin_pct) }}%</td>
+        <td class="df-trend">
+          {% if linha.tendencia == "aumento" %}
+            <span class="df-trend-icon df-trend-up"
+                  title="Gasto subiu {{ '%.0f'|format(linha.tendencia_pct) }}% no último mês vs média dos anteriores">▲</span>
+          {% elif linha.tendencia == "reducao" %}
+            <span class="df-trend-icon df-trend-down"
+                  title="Gasto caiu {{ '%.0f'|format(linha.tendencia_pct | abs) }}% no último mês vs média dos anteriores">▼</span>
+          {% endif %}
+        </td>
       </tr>
 
       {# ── Drill nível 2: filha header ─────────────────────────────────────── #}
@@ -214,6 +263,7 @@
         {% endfor %}
         <th class="num col-sub">Total</th>
         <th class="col-sub"></th>
+        <th class="col-sub df-trend">Tend.</th>
       </tr>
 
       {% for filha in filhas %}
@@ -222,7 +272,9 @@
 
       {# ── Drill nível 2: linha filha ──────────────────────────────────────── #}
       <tr class="dre-filha filha-expansivel" id="{{ safe_id_f }}" data-pivot="{{ safe_id_f }}"
-          data-parent="{{ safe_id }}" style="display:none" onclick="togglePivot(this)">
+          data-parent="{{ safe_id }}" data-tendencia="{{ filha.tendencia or '' }}"
+          data-nome="{{ (filha.nome if visao == 'grupo' else filha.label) | lower }}"
+          style="display:none" onclick="togglePivot(this)">
         <td class="indent-1">
           <span class="expand-icon" id="icon-{{ safe_id_f }}">▶</span>
           {% if visao == 'grupo' %}
@@ -248,6 +300,15 @@
         {% endfor %}
         <td class="num fw-600">{{ fmt_brl(filha.total_geral) }}</td>
         <td class="num" style="font-size:10px;color:var(--muted)">{{ "%.1f"|format(fil_pct) }}%</td>
+        <td class="df-trend df-trend-sub">
+          {% if filha.tendencia == "aumento" %}
+            <span class="df-trend-icon df-trend-up"
+                  title="Gasto subiu {{ '%.0f'|format(filha.tendencia_pct) }}% no último mês vs média dos anteriores">▲</span>
+          {% elif filha.tendencia == "reducao" %}
+            <span class="df-trend-icon df-trend-down"
+                  title="Gasto caiu {{ '%.0f'|format(filha.tendencia_pct | abs) }}% no último mês vs média dos anteriores">▼</span>
+          {% endif %}
+        </td>
       </tr>
 
       {# ── Drill nível 3: NF header ────────────────────────────────────────── #}
@@ -258,6 +319,7 @@
           <th class="col-sub"></th>
         {% endfor %}
         <th class="num col-sub">Total</th>
+        <th class="col-sub"></th>
         <th class="col-sub"></th>
       </tr>
 
@@ -281,6 +343,7 @@
         {% endfor %}
         <td class="num fw-600">{{ fmt_brl(nf.total_geral) }}</td>
         <td></td>
+        <td></td>
       </tr>
       {% endfor %}
       {% endfor %}
@@ -295,6 +358,7 @@
         {% endfor %}
         <td class="num fw-600">{{ fmt_brl(analise.total_geral) }}</td>
         <td class="num pct-col fw-600">100%</td>
+        <td class="df-trend"></td>
       </tr>
     </tfoot>
   </table>
@@ -331,6 +395,7 @@ function togglePivot(row) {
   if (abrir) {
     if (hdr) hdr.style.display = '';
     diretos.forEach(r => { r.style.display = ''; });
+    if (typeof _aplicarTendNasFilhas === 'function') _aplicarTendNasFilhas(id);
   } else {
     if (hdr) hdr.style.display = 'none';
     document.querySelectorAll(`[id^="${id}-"]`).forEach(r => {
@@ -353,18 +418,54 @@ function expandirTodosPivot(abrir) {
     const diretos = document.querySelectorAll(`[data-parent="${id}"]`);
     if (hdr) hdr.style.display = abrir ? '' : 'none';
     diretos.forEach(r => { r.style.display = abrir ? '' : 'none'; });
+    if (abrir && typeof _aplicarTendNasFilhas === 'function') _aplicarTendNasFilhas(id);
     if (icon) icon.textContent = abrir ? '▼' : '▶';
     row.classList.toggle('grupo-expandido', abrir);
     row.classList.toggle('filha-expandida', abrir && row.classList.contains('filha-expansivel'));
   });
 }
 
+// ── Filtro combinado: texto + tendência ───────────────────────────────────
+let _tendSel = 'todos';
+let _termoBusca = '';
+
+function _bateTend(t) {
+  if (_tendSel === 'todos') return true;
+  if (_tendSel === 'atipico') return t === 'aumento' || t === 'reducao';
+  return t === _tendSel;
+}
+
+function selecionarTend(btn) {
+  document.querySelectorAll('.df-tend-btn').forEach(b => b.classList.remove('ativo'));
+  btn.classList.add('ativo');
+  _tendSel = btn.dataset.tend;
+  filtrarLinhasPivot(_termoBusca);
+}
+
+// Uma filha só aparece se ela mesma bate o filtro de tendência -- assim, dentro
+// de uma conta que subiu, sobram só os fornecedores que puxaram.
+function _aplicarTendNasFilhas(idPai) {
+  document.querySelectorAll(`[data-parent="${idPai}"]`).forEach(f => {
+    if (!f.classList.contains('filha-expansivel')) return;
+    if (f.style.display === 'none') return;
+    if (!_bateTend(f.dataset.tendencia || '')) f.style.display = 'none';
+  });
+}
+
 function filtrarLinhasPivot(termo) {
-  const t = termo.trim().toLowerCase();
+  _termoBusca = termo || '';
+  const t = _termoBusca.trim().toLowerCase();
   document.querySelectorAll('.pivot-row').forEach(row => {
     const nome = row.dataset.nome || '';
-    const bate = !t || nome.includes(t);
+    const bateNome = !t || nome.includes(t);
+    // A linha principal fica visível também quando o movimento atípico está
+    // numa filha dela -- senão o filtro esconderia justamente onde olhar.
+    const tendProp   = row.dataset.tendencia || '';
+    const tendFilhas = (row.dataset.tendFilhas || '').split(' ').filter(Boolean);
+    const bateTend = _bateTend(tendProp) || tendFilhas.some(_bateTend);
+    const bate = bateNome && bateTend;
     row.style.display = bate ? '' : 'none';
+    if (bate) _aplicarTendNasFilhas(row.dataset.pivot);
     const id = row.dataset.pivot;
     if (!bate) {
       const hdr = document.getElementById(`hdr-${id}`);

@@ -1687,28 +1687,8 @@ def analisar_receita_clientes(empresa_id: int, competencias: list) -> dict:
             })
         notas.sort(key=lambda x: (x["data"] or "", x["numero"] or ""))
 
-        # Detecta movimentação atípica: último mês vs média dos anteriores
-        tendencia = None
-        tendencia_pct = 0.0
-        if len(comps_ok) >= 2:
-            valores_ord = [dados["totais"].get(c, 0.0) for c in comps_ok]
-            ultimo = valores_ord[-1]
-            anteriores = [v for v in valores_ord[:-1] if v]
-            if anteriores:
-                media_ant = sum(anteriores) / len(anteriores)
-                if media_ant > 0:
-                    variacao = (ultimo - media_ant) / media_ant
-                    tendencia_pct = variacao * 100
-                    if variacao >= 0.30:
-                        tendencia = "aumento"
-                    elif variacao <= -0.30:
-                        tendencia = "reducao"
-                elif ultimo > 0:
-                    tendencia = "aumento"
-                    tendencia_pct = 100.0
-            elif ultimo > 0:
-                tendencia = "aumento"
-                tendencia_pct = 100.0
+        # Movimentação atípica: último mês vs média dos anteriores (ver _tendencia)
+        tendencia, tendencia_pct = _tendencia(dados["totais"], comps_ok)
 
         lista.append({
             "nome":          nome,
@@ -1942,6 +1922,36 @@ def _extrair_nf_fornecedor(historico: str | None) -> tuple:
             return None, nome
 
     return None, None
+
+
+def _tendencia(totais: dict, comps: list, limiar: float = 0.30) -> tuple:
+    """Movimentação atípica de uma linha: último mês vs média dos anteriores.
+
+    Trabalha em MAGNITUDE (valor absoluto), então serve tanto para receita
+    (valores positivos) quanto para custo/despesa (negativos): "aumento"
+    significa sempre que a linha pesou mais no último mês, não que o número
+    subiu na reta numérica.
+
+    Meses zerados no meio não entram na média -- linha que fatura/gasta a cada
+    dois meses não vira alarme falso. Retorna ("aumento"|"reducao"|None, pct).
+    """
+    if len(comps) < 2:
+        return None, 0.0
+    valores = [abs(totais.get(c, 0.0) or 0.0) for c in comps]
+    ultimo = valores[-1]
+    anteriores = [v for v in valores[:-1] if v]
+    if not anteriores:
+        return ("aumento", 100.0) if ultimo else (None, 0.0)
+    media_ant = sum(anteriores) / len(anteriores)
+    if media_ant <= 0:
+        return ("aumento", 100.0) if ultimo else (None, 0.0)
+    variacao = (ultimo - media_ant) / media_ant
+    pct = variacao * 100
+    if variacao >= limiar:
+        return "aumento", pct
+    if variacao <= -limiar:
+        return "reducao", pct
+    return None, pct
 
 
 def analisar_despesas_fornecedores(empresa_id: int, competencias: list, tipo: str = "todos") -> dict:
@@ -2384,11 +2394,13 @@ def analisar_despesas_fornecedores(empresa_id: int, competencias: list, tipo: st
         })
         for comp, v in dados["totais"].items():
             g["totais"][comp] = g["totais"].get(comp, 0.0) + v
+        tend_linha, tend_pct_linha = _tendencia(dados["totais"], comps_ok)
         g["fornecedores"].append({
             "nome": dados["nome"], "aproximado": dados["aproximado"],
             "via_similaridade": dados.get("via_similaridade", False),
             "alinhado": dados.get("alinhado", False),
             "totais": dados["totais"], "total_geral": total_linha,
+            "tendencia": tend_linha, "tendencia_pct": tend_pct_linha,
             "lancamentos": lancamentos,
         })
 
@@ -2407,19 +2419,28 @@ def analisar_despesas_fornecedores(empresa_id: int, competencias: list, tipo: st
         f["grupos"].append({
             "id": conta_cod, "label": rotulo,
             "totais": dados["totais"], "total_geral": total_linha,
+            "tendencia": tend_linha, "tendencia_pct": tend_pct_linha,
             "lancamentos": lancamentos,
         })
 
+    # Tendência (ver _tendencia) nos DOIS níveis das DUAS visões: a conta e o
+    # fornecedor dentro dela, o fornecedor e a conta dentro dele. Assim o filtro
+    # ▲/▼ responde tanto "que conta disparou" quanto "qual fornecedor dentro
+    # dela puxou" -- que é a pergunta que se faz olhando custo.
     lista_grupos = []
     for conta_cod, dados in por_grupo.items():
         dados["fornecedores"].sort(key=lambda x: x["total_geral"])   # maior despesa (mais negativo) primeiro
-        lista_grupos.append({**dados, "total_geral": sum(dados["totais"].values())})
+        tend, tend_pct = _tendencia(dados["totais"], comps_ok)
+        lista_grupos.append({**dados, "total_geral": sum(dados["totais"].values()),
+                             "tendencia": tend, "tendencia_pct": tend_pct})
     lista_grupos.sort(key=lambda x: x["total_geral"])
 
     lista_fornecedores = []
     for _chave, dados in por_fornecedor.items():
         dados["grupos"].sort(key=lambda x: x["total_geral"])
-        lista_fornecedores.append({**dados, "total_geral": sum(dados["totais"].values())})
+        tend, tend_pct = _tendencia(dados["totais"], comps_ok)
+        lista_fornecedores.append({**dados, "total_geral": sum(dados["totais"].values()),
+                                   "tendencia": tend, "tendencia_pct": tend_pct})
     lista_fornecedores.sort(key=lambda x: x["total_geral"])
 
     totais_mes  = {comp: sum(g["totais"].get(comp, 0.0) for g in lista_grupos) for comp in comps_ok}
