@@ -156,8 +156,15 @@ CREATE TABLE IF NOT EXISTS emprestimos_parcelas (
     competencia     TEXT NOT NULL,       -- 'YYYY-MM'
     amortizacao     REAL,                -- parte da parcela que abate o principal
     juros           REAL,                -- parte da parcela que é juros do período
-    saldo_devedor   REAL,                -- SD após esta parcela
+    saldo_devedor   REAL,                -- SD do PRINCIPAL após esta parcela
     valor_parcela   REAL,                -- PMT (amortização + juros)
+    parcela_paga    REAL,                -- o que foi EFETIVAMENTE pago nesta parcela
+                                         -- (coluna "Parcela paga" da planilha de
+                                         -- controle). Vazio = ainda não paga. Pode
+                                         -- vir maior que o PMT quando se paga mais
+                                         -- de uma parcela no mesmo mês.
+    saldo_total     REAL,                -- saldo devedor TOTAL restante, juros
+                                         -- futuros inclusos (coluna "saldo devedor")
     UNIQUE (emprestimo_id, numero_parcela)
 );
 

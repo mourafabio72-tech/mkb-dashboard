@@ -56,6 +56,12 @@ def _indices_colunas(header_norm: list) -> dict:
         "juros": idx("juros"),
         "sd":    idx("sd"),
         "pmt":   idx("pmt"),
+        # Controle de pagamento da planilha do escritório (não vem do banco):
+        # "Parcela paga" é o que saiu de fato -- e registra, por exemplo, duas
+        # parcelas quitadas no mesmo mês. "saldo devedor" é o total restante
+        # com juros futuros, diferente do "SD principal".
+        "paga":  idx("parcela paga", "parc paga", "pago"),
+        "sdtot": idx("saldo devedor", "saldo dev"),
     }
 
 
@@ -103,13 +109,19 @@ def parse_cronograma(caminho: Path) -> list[dict]:
             continue
         competencia = f"{m.group(2)}-{int(m.group(1)):02d}"
 
+        def num(chave):
+            v = col(chave)
+            return float(v) if isinstance(v, (int, float)) else None
+
         registros.append({
             "numero_parcela": n_val,
             "competencia":    competencia,
-            "amortizacao":    col("amort"),
-            "juros":          col("juros"),
-            "saldo_devedor":  col("sd"),
-            "valor_parcela":  col("pmt"),
+            "amortizacao":    num("amort"),
+            "juros":          num("juros"),
+            "saldo_devedor":  num("sd"),
+            "valor_parcela":  num("pmt"),
+            "parcela_paga":   num("paga"),
+            "saldo_total":    num("sdtot"),
         })
 
     wb.close()
@@ -127,11 +139,16 @@ def importar_cronograma(caminho: Path, emprestimo_id: int, conn: sqlite3.Connect
     conn.executemany(
         """
         INSERT INTO emprestimos_parcelas
-            (emprestimo_id, numero_parcela, competencia, amortizacao, juros, saldo_devedor, valor_parcela)
-        VALUES (:emprestimo_id, :numero_parcela, :competencia, :amortizacao, :juros, :saldo_devedor, :valor_parcela)
+            (emprestimo_id, numero_parcela, competencia, amortizacao, juros,
+             saldo_devedor, valor_parcela, parcela_paga, saldo_total)
+        VALUES (:emprestimo_id, :numero_parcela, :competencia, :amortizacao, :juros,
+                :saldo_devedor, :valor_parcela, :parcela_paga, :saldo_total)
         """,
         [{**r, "emprestimo_id": emprestimo_id} for r in registros],
     )
     conn.commit()
+    pagas = [r for r in registros if (r.get("parcela_paga") or 0)]
     return {"registros": len(registros), "competencia_ini": registros[0]["competencia"],
-            "competencia_fim": registros[-1]["competencia"]}
+            "competencia_fim": registros[-1]["competencia"],
+            "com_pagamento": len(pagas),
+            "total_pago": round(sum(r["parcela_paga"] for r in pagas), 2)}

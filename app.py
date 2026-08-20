@@ -458,16 +458,24 @@ def _pagamentos_mensais_bancario(empresa_id: int, competencias: list) -> dict:
     emprestimo_ids = [e["id"] for e in emprestimos]
     placeholders = ",".join("?" * len(emprestimo_ids))
     rows = conn.execute(
-        f"SELECT competencia, SUM(valor_parcela) as total FROM emprestimos_parcelas "
+        f"SELECT competencia, SUM(valor_parcela) AS previsto, "
+        f"       SUM(COALESCE(parcela_paga, 0)) AS pago "
+        f"FROM emprestimos_parcelas "
         f"WHERE emprestimo_id IN ({placeholders}) GROUP BY competencia",
         emprestimo_ids
     ).fetchall()
 
     tem_cronograma = len(rows) > 0
     if tem_cronograma:
+        # Havendo controle de pagamento na planilha, o mês vale o que foi PAGO
+        # -- não o previsto. É o que registra, por exemplo, duas parcelas
+        # quitadas no mesmo mês (jun/2026 do contrato CEF: 93.507,40).
+        tem_pago = any((r["pago"] or 0) > 0 for r in rows)
         for r in rows:
-            if r["competencia"] in resultado:
-                resultado[r["competencia"]] += r["total"] or 0.0
+            if r["competencia"] not in resultado:
+                continue
+            valor = (r["pago"] or 0.0) if tem_pago else (r["previsto"] or 0.0)
+            resultado[r["competencia"]] += valor
     else:
         # Sem cronograma: lê os pagamentos do razão. Mas a conta de principal
         # recebe MAIS do que parcela -- reclassificação de longo para curto
@@ -3499,8 +3507,71 @@ def endividamento_bancario(empresa):
             s_lp_j = -s_lp_j
 
         tem_razao = any(v is not None for v in (s_cp_p, s_cp_j, s_lp_p, s_lp_j))
+        # Controle de pagamento vindo da planilha do escritório (coluna
+        # "Parcela paga"). Quando existe, ELE manda: o razão media outra coisa
+        # -- o débito na conta de principal é só amortização, e o saldo
+        # contábil carrega reclassificação de longo para curto prazo. Era isso
+        # que fazia o quadro mostrar saldo a pagar (1.862.950) MAIOR que o
+        # próprio valor contratado (1.500.000).
+        pagas_ctrl = [p for p in parcelas if (p["parcela_paga"] or 0)]
 
         detalhe = []
+        if pagas_ctrl:
+            ultima = pagas_ctrl[-1]
+            total_pago = round(sum(p["parcela_paga"] for p in pagas_ctrl), 2)
+            # Parcela paga em dobro no mês conta como duas (jun/2026 do CEF).
+            parcelas_pagas = 0
+            for p in pagas_ctrl:
+                pmt = p["valor_parcela"] or 0
+                parcelas_pagas += max(1, round(p["parcela_paga"] / pmt)) if pmt else 1
+            parcelas_pagas = min(parcelas_pagas, e["qtd_parcelas"])
+            parcelas_a_pagar = e["qtd_parcelas"] - parcelas_pagas
+            # Saldo a pagar = tudo que ainda sai do caixa, juros futuros inclusos
+            saldo_a_pagar = ultima["saldo_total"]
+            if saldo_a_pagar is None:
+                saldo_a_pagar = round(
+                    sum((p["valor_parcela"] or 0) for p in parcelas) - total_pago, 2)
+            saldo_principal = ultima["saldo_devedor"]
+            prox = next((p for p in parcelas if p["numero_parcela"] > ultima["numero_parcela"]), None)
+            valor_parcela_atual = (prox or ultima)["valor_parcela"]
+            # Confronto: o que a contabilidade registra de desembolso
+            r_pg = conn.execute(
+                "SELECT SUM(debito) as td FROM razao WHERE empresa_id=? AND conta_cod=?",
+                (emp_id, e["conta_cp_principal"])
+            ).fetchone()
+            pago_razao = (r_pg["td"] or 0) if r_pg else 0
+            linhas.append({
+                "id": e["id"], "banco": e["banco"], "descricao": e["descricao"],
+                "valor_contratado": e["valor_contratado"],
+                "valor_total_com_juros": e["valor_total_com_juros"],
+                "qtd_parcelas": e["qtd_parcelas"],
+                "tem_dados": True,
+                "diag_contas": {
+                    "cp_principal": {"conta": e["conta_cp_principal"], "saldo": s_cp_p, "fonte": f_cp_p},
+                    "cp_juros": {"conta": e["conta_cp_juros"], "saldo": s_cp_j, "fonte": f_cp_j},
+                    "lp_principal": {"conta": e["conta_lp_principal"], "saldo": s_lp_p, "fonte": f_lp_p},
+                    "lp_juros": {"conta": e["conta_lp_juros"], "saldo": s_lp_j, "fonte": f_lp_j},
+                },
+                "total_pago": total_pago, "saldo_a_pagar": saldo_a_pagar,
+                "saldo_principal": saldo_principal,
+                "valor_parcela_atual": valor_parcela_atual,
+                "parcelas_pagas": parcelas_pagas, "parcelas_a_pagar": parcelas_a_pagar,
+                "ultima_paga": ultima["competencia"],
+                "pago_razao": pago_razao,
+                "dif_razao": round(pago_razao - total_pago, 2),
+                "fonte": "Controle (planilha)",
+                "detalhe": [
+                    {"competencia": p["competencia"], "numero_parcela": p["numero_parcela"],
+                     "valor_parcela": p["valor_parcela"], "amortizacao": p["amortizacao"],
+                     "juros": p["juros"], "saldo_devedor": p["saldo_devedor"],
+                     "saldo_total": p["saldo_total"], "parcela_paga": p["parcela_paga"],
+                     "paga": bool(p["parcela_paga"]),
+                     "dobrada": bool(p["parcela_paga"] and p["valor_parcela"]
+                                     and p["parcela_paga"] > p["valor_parcela"] * 1.5)}
+                    for p in parcelas
+                ],
+            })
+            continue
         if tem_razao:
             saldo_a_pagar = (s_cp_p or 0) + (s_lp_p or 0)
             total_pago = conn.execute(

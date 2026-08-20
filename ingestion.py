@@ -56,6 +56,13 @@ def criar_schema(conn: sqlite3.Connection) -> None:
     if "saldo_atual" not in cols:
         conn.execute("ALTER TABLE razao ADD COLUMN saldo_atual REAL")
 
+    # Migração: controle de pagamento no cronograma do empréstimo
+    cols_ep = {row[1] for row in conn.execute("PRAGMA table_info(emprestimos_parcelas)").fetchall()}
+    if cols_ep and "parcela_paga" not in cols_ep:
+        conn.execute("ALTER TABLE emprestimos_parcelas ADD COLUMN parcela_paga REAL")
+    if cols_ep and "saldo_total" not in cols_ep:
+        conn.execute("ALTER TABLE emprestimos_parcelas ADD COLUMN saldo_total REAL")
+
     # Migração: `saldo_ant` no balancete (detecção de lançamento retroativo)
     cols_bal = {row[1] for row in conn.execute("PRAGMA table_info(balancete)").fetchall()}
     if cols_bal and "saldo_ant" not in cols_bal:

@@ -101,8 +101,22 @@
         <td>{{ l.descricao or '—' }}</td>
         <td>{% if l.fonte %}<span class="text-muted">{{ l.fonte }}</span>{% else %}—{% endif %}</td>
         <td>{{ l.valor_contratado | brl }}</td>
-        <td>{{ l.total_pago | brl if l.tem_dados else '— (sem dados)' }}</td>
-        <td>{{ l.saldo_a_pagar | brl if l.tem_dados else '— (sem dados)' }}</td>
+        <td>
+          {{ l.total_pago | brl if l.tem_dados else '— (sem dados)' }}
+          {%- if l.dif_razao is defined and l.dif_razao and l.dif_razao|abs >= 1 %}
+          <br><span class="text-muted" style="font-size:10px"
+                title="A conta de principal no razão acumula {{ l.pago_razao | brl }} de débito. A diferença é esperada: o débito lá é só amortização, sem os juros da parcela.">
+            razão: {{ l.pago_razao | brl }}</span>
+          {%- endif %}
+        </td>
+        <td>
+          {{ l.saldo_a_pagar | brl if l.tem_dados else '— (sem dados)' }}
+          {%- if l.saldo_principal %}
+          <br><span class="text-muted" style="font-size:10px"
+                title="Saldo do principal, sem os juros das parcelas futuras — é este que a contabilidade registra">
+            principal: {{ l.saldo_principal | brl }}</span>
+          {%- endif %}
+        </td>
         <td>{{ l.valor_parcela_atual | brl if l.tem_dados and l.valor_parcela_atual is not none else '—' }}</td>
         <td>
           {% if l.tem_dados %}
@@ -154,6 +168,12 @@
   <h2>🗓 Detalhamento mês a mês — {{ l.banco }}{% if l.descricao %} ({{ l.descricao }}){% endif %}</h2>
   <p class="ingest-desc">
     Fonte: <strong>{{ l.fonte }}</strong>.
+    {% if l.fonte == 'Controle (planilha)' %}
+      A coluna <strong>Pago</strong> vem da planilha de controle do escritório; o
+      <strong>saldo devedor</strong> é o total que ainda sai do caixa, juros futuros inclusos
+      (passe o mouse para ver o saldo do principal). O razão entra como conferência no quadro
+      acima.
+    {% endif %}
     {% if l.fonte == 'Cronograma do contrato' %}
       Assim que o Razão de {{ empresa | upper }} tiver as 4 contas vinculadas, esta tela passa a
       usar o saldo real do Razão em vez do cronograma.
@@ -167,8 +187,9 @@
         <th>Status</th>
         <th>Amortização</th>
         <th>Juros</th>
-        <th>Valor da Parcela</th>
-        <th>Saldo Devedor</th>
+        <th>Parcela prevista</th>
+        <th>Pago</th>
+        <th>Saldo devedor</th>
       </tr>
     </thead>
     <tbody>
@@ -176,11 +197,18 @@
       <tr class="{{ 'row-paga' if d.paga else '' }}">
         <td>{{ d.numero_parcela }}</td>
         <td>{{ mes_label(d.competencia) }}</td>
-        <td>{% if d.paga %}✔ Paga{% else %}A pagar{% endif %}</td>
+        <td>
+          {% if d.dobrada %}<span title="mais de uma parcela quitada neste mês">✔✔ Paga em dobro</span>
+          {% elif d.paga %}✔ Paga
+          {% else %}A pagar{% endif %}
+        </td>
         <td>{{ d.amortizacao | brl }}</td>
         <td>{{ d.juros | brl }}</td>
         <td>{{ d.valor_parcela | brl }}</td>
-        <td>{{ d.saldo_devedor | brl }}</td>
+        <td>{% if d.parcela_paga %}{{ d.parcela_paga | brl }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td title="principal {{ d.saldo_devedor | brl }}">
+          {{ (d.saldo_total if d.saldo_total is not none else d.saldo_devedor) | brl }}
+        </td>
       </tr>
       {% endfor %}
     </tbody>
