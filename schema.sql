@@ -277,3 +277,19 @@ CREATE TABLE IF NOT EXISTS irpj_csll (
 );
 
 CREATE INDEX IF NOT EXISTS idx_irpj_emp_comp ON irpj_csll (empresa_id, competencia);
+
+-- ─── DE-PARA do BALANÇO (conta/prefixo → linha do Balanço Patrimonial) ─────
+-- Espelha o account_map_custom (que serve à DRE), mas para as contas
+-- patrimoniais (1.x/2.x). A estrutura padrão de linhas vive em
+-- balanco_engine.py; esta tabela ESTENDE ou CORRIGE aquele mapa e persiste no
+-- volume /data, sobrevivendo a redeploys.
+--   bloco  = AC | ANC | PERM | PC | PNC | PL
+--   linha  = rótulo exibido no balanço. Se o rótulo não existir no bloco, uma
+--            linha nova é criada no fim daquele bloco.
+-- Prefixo mais longo tem prioridade; custom sobrepõe o padrão no prefixo igual.
+CREATE TABLE IF NOT EXISTS balanco_map_custom (
+    prefixo     TEXT PRIMARY KEY,   -- código completo OU prefixo da conta
+    bloco       TEXT NOT NULL,
+    linha       TEXT NOT NULL,
+    criado_em   TEXT DEFAULT (datetime('now','localtime'))
+);

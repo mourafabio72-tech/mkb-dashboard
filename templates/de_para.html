@@ -2,18 +2,41 @@
 {% block title %}De-Para de Contas{% endblock %}
 
 {% block content %}
+{% set aba = request.args.get('aba', 'dre') %}
 <div class="page-header">
-  <h1>🔗 De-Para de Contas → DRE</h1>
-  <p class="subtitle">
-    Mapeie contas que não estão entrando na DRE. O mapeamento por prefixo já vem embutido
-    (account_map.json); aqui você <strong>estende ou corrige</strong> esse mapa — salvo no banco,
-    sobrevive a redeploys. Prefixo mais longo tem prioridade.
-  </p>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div>
+      <h1>🔗 De-Para de Contas</h1>
+      <p class="subtitle">
+        Onde cada conta entra nos relatórios. Contas de resultado (3.x/4.x) alimentam a
+        <strong>DRE</strong>; contas patrimoniais (1.x/2.x), o <strong>Balanço</strong>.
+        O mapa padrão já vem embutido; aqui você <strong>estende ou corrige</strong> — salvo no
+        banco, sobrevive a redeploys. Prefixo mais longo tem prioridade.
+      </p>
+    </div>
+    <div class="toggle-dre-tipo">
+      <a href="{{ url_for('de_para', aba='dre') }}"
+         class="btn-toggle-tipo {% if aba != 'balanco' %}ativo{% endif %}">
+        DRE
+        {% if nao_classificadas %}<span class="badge-recom"
+          style="background:rgba(178,91,76,.15);color:var(--danger)">{{ nao_classificadas|length }}</span>{% endif %}
+      </a>
+      <a href="{{ url_for('de_para', aba='balanco') }}"
+         class="btn-toggle-tipo {% if aba == 'balanco' %}ativo{% endif %}">
+        Balanço
+        {% if bal_fora %}<span class="badge-recom"
+          style="background:rgba(178,91,76,.15);color:var(--danger)">{{ bal_fora|length }}</span>{% endif %}
+      </a>
+    </div>
+  </div>
 </div>
+
+{# ══════════════════════════ ABA DRE ═══════════════════════════════════════ #}
+<div id="aba-dre" {% if aba == 'balanco' %}style="display:none"{% endif %}>
 
 {# ── Form: adicionar mapeamento ───────────────────────────────────────────── #}
 <div class="section-card" style="margin-bottom:20px;">
-  <h2>➕ Novo mapeamento</h2>
+  <h2>➕ Novo mapeamento — DRE</h2>
   <p class="ingest-desc">
     Informe o <strong>código completo</strong> de uma conta (ex.: <code>4.1.1.03.07.007</code>)
     para mapear só ela, ou um <strong>prefixo terminado em ponto</strong> (ex.: <code>4.1.1.09.</code>)
@@ -65,7 +88,7 @@
         <td class="num">{{ fmt_brl(c.total) }}</td>
         <td style="text-align:right">
           <button type="button" class="btn-sm"
-                  onclick="preencher('{{ c.cod }}')"
+                  onclick="preencher('campo-prefixo', '{{ c.cod }}')"
                   style="background:rgba(139,92,246,.12);color:var(--accent);border:1px solid var(--border);border-radius:5px;cursor:pointer;padding:3px 10px;font-size:11px;font-weight:700">
             Mapear ↑
           </button>
@@ -81,7 +104,7 @@
 
 {# ── Mapeamentos customizados existentes ─────────────────────────────────── #}
 <div class="section-card">
-  <h2>📒 Mapeamentos customizados</h2>
+  <h2>📒 Mapeamentos customizados — DRE</h2>
   {% if custom %}
   <table class="table-simple">
     <thead>
@@ -111,13 +134,149 @@
   <p class="text-muted">Nenhum mapeamento customizado ainda — só o de-para padrão (account_map.json) está ativo.</p>
   {% endif %}
 </div>
+</div>{# /aba-dre #}
+
+{# ═════════════════════════ ABA BALANÇO ════════════════════════════════════ #}
+<div id="aba-balanco" {% if aba != 'balanco' %}style="display:none"{% endif %}>
+
+{# ── Form: adicionar mapeamento do balanço ───────────────────────────────── #}
+<div class="section-card" style="margin-bottom:20px;">
+  <h2>➕ Novo mapeamento — Balanço</h2>
+  <p class="ingest-desc">
+    Vincule uma conta patrimonial (<strong>1.x</strong> ou <strong>2.x</strong>) a uma linha do
+    Balanço. Use o <strong>código completo</strong> para uma conta só, ou um <strong>prefixo</strong>
+    (ex.: <code>1.2.2</code>) para o grupo inteiro. Se a linha certa ainda não existe, escolha
+    <strong>“➕ Nova linha”</strong> e diga em qual bloco ela entra — ela passa a valer no balanço
+    das duas empresas.
+  </p>
+
+  <form method="POST" action="{{ url_for('de_para_balanco_add') }}" class="form-ingest">
+    <div class="form-row">
+      <label>Conta ou prefixo</label>
+      <input type="text" name="prefixo" id="campo-prefixo-bal" class="input-sm" style="width:240px"
+             placeholder="1.2.2.01.01" required>
+    </div>
+    <div class="form-row">
+      <label>Linha do Balanço</label>
+      <select name="destino" id="sel-destino-bal" class="input-sm" style="width:360px" required
+              onchange="toggleNovaLinha()">
+        <option value="">— selecione —</option>
+        {% for bloco_cod, bloco_label in bloco_labels.items() %}
+          {% if bal_linhas.get(bloco_cod) %}
+          <optgroup label="{{ bloco_label }}">
+            {% for linha in bal_linhas[bloco_cod] %}
+              <option value="{{ bloco_cod }}|{{ linha }}">{{ linha }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endif %}
+        {% endfor %}
+        <option value="__nova__">➕ Nova linha…</option>
+      </select>
+    </div>
+    <div class="form-row" id="row-nova-linha" style="display:none">
+      <label>Nova linha</label>
+      <select name="bloco_novo" class="input-sm" style="width:200px">
+        {% for bloco_cod, bloco_label in bloco_labels.items() %}
+          <option value="{{ bloco_cod }}">{{ bloco_label }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="linha_nova" class="input-sm" style="width:260px;margin-left:8px"
+             placeholder="Nome da linha (ex.: Investimentos)">
+    </div>
+    <button type="submit" class="btn btn-primary">Salvar mapeamento</button>
+  </form>
+</div>
+
+{# ── Contas do balancete fora do de-para ─────────────────────────────────── #}
+<div class="section-card" style="margin-bottom:20px;">
+  <h2>⚠️ Contas fora do de-para do Balanço
+    <span class="badge-recom" style="background:rgba(178,91,76,.15);color:var(--danger)">
+      {{ bal_fora | length }}
+    </span>
+  </h2>
+  <p class="ingest-desc">
+    Contas analíticas do <strong>último balancete importado</strong> de cada empresa que não casam
+    com nenhuma linha — são elas que somam na linha “Outras contas (fora do de-para)” do balanço.
+    Clique em “Mapear” para preencher o formulário acima.
+  </p>
+
+  {% if bal_fora %}
+  <table class="table-simple">
+    <thead>
+      <tr><th>Empresa</th><th>Lado</th><th>Conta</th><th>Descrição</th>
+          <th class="num">Saldo</th><th>Competência</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for c in bal_fora %}
+      <tr>
+        <td>{{ c.empresa }}</td>
+        <td>{{ c.lado }}</td>
+        <td style="font-family:monospace">{{ c.cod }}</td>
+        <td>{{ c.descricao or '—' }}</td>
+        <td class="num">{{ fmt_brl(c.valor) }}</td>
+        <td class="text-muted">{{ c.competencia }}</td>
+        <td style="text-align:right">
+          <button type="button" class="btn-sm"
+                  onclick="preencher('campo-prefixo-bal', '{{ c.cod }}')"
+                  style="background:rgba(139,92,246,.12);color:var(--accent);border:1px solid var(--border);border-radius:5px;cursor:pointer;padding:3px 10px;font-size:11px;font-weight:700">
+            Mapear ↑
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-muted">Nenhuma conta patrimonial fora do de-para 🎉 — o balanço fecha sem sobra.</p>
+  {% endif %}
+</div>
+
+{# ── Mapeamentos customizados do balanço ─────────────────────────────────── #}
+<div class="section-card">
+  <h2>📒 Mapeamentos customizados — Balanço</h2>
+  {% if bal_custom %}
+  <table class="table-simple">
+    <thead>
+      <tr><th>Conta / prefixo</th><th>Bloco</th><th>Linha</th><th>Criado em</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for m in bal_custom %}
+      <tr>
+        <td style="font-family:monospace">{{ m[0] }}</td>
+        <td>{{ bloco_labels.get(m[1], m[1]) }}</td>
+        <td>{{ m[2] }}</td>
+        <td class="text-muted">{{ m[3] }}</td>
+        <td style="text-align:right">
+          <form method="POST" action="{{ url_for('de_para_balanco_excluir') }}" style="display:inline"
+                onsubmit="return confirm('Remover o mapeamento {{ m[0] }} → {{ m[2] }}?');">
+            <input type="hidden" name="prefixo" value="{{ m[0] }}">
+            <button type="submit" class="btn-sm"
+                    style="background:rgba(178,91,76,.12);color:var(--danger);border:1px solid var(--border);border-radius:5px;cursor:pointer;padding:3px 9px;font-size:11px;font-weight:700">
+              ✕ Remover
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-muted">Nenhum mapeamento customizado ainda — só a estrutura padrão do balanço está ativa.</p>
+  {% endif %}
+</div>
+</div>{# /aba-balanco #}
 
 <script>
-function preencher(cod) {
-  var campo = document.getElementById('campo-prefixo');
+function preencher(id, cod) {
+  var campo = document.getElementById(id);
   campo.value = cod;
   campo.scrollIntoView({behavior:'smooth', block:'center'});
   campo.focus();
+}
+function toggleNovaLinha() {
+  var sel = document.getElementById('sel-destino-bal');
+  var row = document.getElementById('row-nova-linha');
+  row.style.display = (sel.value === '__nova__') ? '' : 'none';
 }
 </script>
 {% endblock %}

@@ -39,6 +39,8 @@ from dre_engine import (
     detectar_retroativos,
 )
 from balancete_parser import importar_balancete
+from balanco_engine import (BLOCO_LABELS, linhas_disponiveis,
+                            contas_fora_do_de_para, _norm_prefixo)
 
 from datetime import timedelta as _td
 
@@ -2416,6 +2418,11 @@ def de_para():
     custom = conn.execute(
         "SELECT prefixo, grupo, criado_em FROM account_map_custom ORDER BY prefixo"
     ).fetchall()
+    bal_custom = conn.execute(
+        "SELECT prefixo, bloco, linha, criado_em FROM balanco_map_custom ORDER BY prefixo"
+    ).fetchall()
+    bal_linhas = linhas_disponiveis(conn)
+    bal_fora = contas_fora_do_de_para(conn)
     conn.close()
     return render_template(
         "de_para.html",
@@ -2423,6 +2430,10 @@ def de_para():
         nao_classificadas=contas_nao_classificadas(),
         grupos=grupos_disponiveis(),
         grupo_labels=GRUPO_LABELS,
+        bal_custom=bal_custom,
+        bal_linhas=bal_linhas,
+        bal_fora=bal_fora,
+        bloco_labels=BLOCO_LABELS,
         fmt_brl=fmt_brl,
     )
 
@@ -2465,6 +2476,63 @@ def de_para_excluir():
     invalidar_prefixos()
     flash(f"Mapeamento removido: {prefixo}.", "success")
     return redirect(url_for("de_para"))
+
+
+# --- ROTA: DE-PARA DO BALANÇO (mapeamento conta 1.x/2.x → linha do balanço) --
+
+@app.route("/de-para/balanco/add", methods=["POST"])
+@login_required
+@admin_required
+def de_para_balanco_add():
+    prefixo = _norm_prefixo(request.form.get("prefixo") or "")
+    destino = (request.form.get("destino") or "").strip()
+    bloco_novo = (request.form.get("bloco_novo") or "").strip()
+    linha_nova = (request.form.get("linha_nova") or "").strip()
+
+    if destino == "__nova__":
+        bloco, linha = bloco_novo, linha_nova
+    else:
+        bloco, _, linha = destino.partition("|")
+
+    if not prefixo or not bloco or not linha:
+        flash("Informe a conta/prefixo e a linha do balanço.", "warning")
+        return redirect(url_for("de_para", aba="balanco"))
+    if bloco not in BLOCO_LABELS:
+        flash("Bloco do balanço inválido.", "danger")
+        return redirect(url_for("de_para", aba="balanco"))
+    if not (prefixo.startswith("1") or prefixo.startswith("2")):
+        flash("O balanço só recebe contas patrimoniais (1.x ou 2.x). "
+              "Conta de resultado vai no de-para da DRE.", "warning")
+        return redirect(url_for("de_para", aba="balanco"))
+
+    conn = get_conn()
+    criar_schema(conn)
+    conn.execute(
+        """
+        INSERT INTO balanco_map_custom (prefixo, bloco, linha) VALUES (?, ?, ?)
+        ON CONFLICT (prefixo) DO UPDATE SET bloco = excluded.bloco,
+                                            linha = excluded.linha
+        """,
+        (prefixo, bloco, linha)
+    )
+    conn.commit()
+    conn.close()
+    flash(f"Mapeamento salvo: {prefixo} → {BLOCO_LABELS[bloco]} · {linha}.", "success")
+    return redirect(url_for("de_para", aba="balanco"))
+
+
+@app.route("/de-para/balanco/excluir", methods=["POST"])
+@login_required
+@admin_required
+def de_para_balanco_excluir():
+    prefixo = _norm_prefixo(request.form.get("prefixo") or "")
+    conn = get_conn()
+    criar_schema(conn)
+    conn.execute("DELETE FROM balanco_map_custom WHERE prefixo = ?", (prefixo,))
+    conn.commit()
+    conn.close()
+    flash(f"Mapeamento removido: {prefixo}.", "success")
+    return redirect(url_for("de_para", aba="balanco"))
 
 
 # --- ROTA: API ---------------------------------------------------------------
