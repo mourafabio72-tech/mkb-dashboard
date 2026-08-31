@@ -527,6 +527,21 @@ app.jinja_env.globals["mes_label"] = _mes_label
 
 # --- LOGIN / LOGOUT ----------------------------------------------------------
 
+def _ip_cliente() -> str:
+    """IP real do cliente, atrás do proxy do EasyPanel (Traefik).
+
+    Lê o ÚLTIMO elemento do X-Forwarded-For, que é o que o Traefik carimba; o
+    que vem antes é o que o cliente mandou, e o cliente mente. Usar
+    `request.remote_addr` puro aqui era pior: atrás do proxy ele é sempre o IP
+    do Traefik, então TODOS os clientes caíam no mesmo balde do rate-limit e
+    um cliente errando a senha travava o login de todos. Sem XFF (app exposto
+    direto, sem proxy), cai no remote_addr."""
+    xff = request.headers.get("X-Forwarded-For")
+    if xff:
+        return xff.split(",")[-1].strip()
+    return request.remote_addr or "unknown"
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -534,7 +549,7 @@ def login():
         senha   = (request.form.get("senha")   or "").strip()
         next_url = request.form.get("next") or url_for("index")
 
-        ip = request.remote_addr or "unknown"
+        ip = _ip_cliente()
         blocked, wait = rate_limit_login(ip, check_only=True)
         if blocked:
             return render_template("login.html",

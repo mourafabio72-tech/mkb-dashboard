@@ -40,3 +40,8 @@ cookies.txt
 .idea/
 .DS_Store
 Thumbs.db
+
+# versões empacotadas (backup local, não versionar)
+z_Versoes/
+gerar_versao.command
+gerar_versao.bat
