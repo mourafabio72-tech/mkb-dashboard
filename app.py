@@ -14,6 +14,7 @@ from config import (
     SECRET_KEY, PORT, DEBUG, EMPRESAS, OPENAI_API_KEY,
     ZOARIA_COOKIE_DOMAIN, ZOARIA_COOKIE_NAME, HUB_URL,
 )
+from versao import VERSAO_COMPLETA
 from auth import (login_required, admin_required, verificar_credenciais,
                   rate_limit_login, empresas_permitidas)
 from ingestion import get_conn, criar_schema, seed_empresas, importar, ler_template_dre, salvar_lancamentos
@@ -105,6 +106,13 @@ def filtro_pct(valor, rob=None):
 
 
 # --- CONTEXT PROCESSOR -------------------------------------------------------
+
+@app.context_processor
+def inject_versao():
+    # Carimbo de build na tela publica de login: e assim que se pergunta a
+    # producao o que ela esta servindo, sem login e sem abrir o painel.
+    return {"versao_build": VERSAO_COMPLETA}
+
 
 @app.context_processor
 def inject_globals():
