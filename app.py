@@ -14,7 +14,7 @@ from config import (
     SECRET_KEY, PORT, DEBUG, EMPRESAS, OPENAI_API_KEY,
     ZOARIA_COOKIE_DOMAIN, ZOARIA_COOKIE_NAME, HUB_URL,
 )
-from versao import VERSAO_COMPLETA
+from versao import VERSAO_COMPLETA, BUILD
 from auth import (login_required, admin_required, verificar_credenciais,
                   rate_limit_login, empresas_permitidas)
 from ingestion import get_conn, criar_schema, seed_empresas, importar, ler_template_dre, salvar_lancamentos
@@ -135,13 +135,30 @@ _ENDPOINTS_EMPRESA_QUERY = {"balanco", "validacao", "api_dre",
                             "api_lancamentos", "api_lancamentos_razao"}
 
 
+@app.route("/health")
+def health():
+    """Fora de sessao, de CSRF e de permissao. So diz que o processo respira, e
+    qual versao esta servida.
+
+    Nasceu em 2026-09-01, na varredura de deploy do ecossistema. Este app entra
+    por SSO do Hub: o /login redireciona para zoaria.com.br e nao existe tela
+    publica onde por o carimbo. Sem esta rota nao havia NENHUMA forma de
+    perguntar, de fora, o que estava no ar aqui.
+
+    Nao toca o banco de proposito: healthcheck que falha com o banco fora faz o
+    orquestrador reiniciar o container em loop, o que nao conserta nada e ainda
+    apaga o log do que aconteceu.
+    """
+    return {"status": "ok", "build": BUILD}
+
+
 @app.before_request
 def _guard_empresa():
     """Garante que um usuário restrito a certas empresas (cliente vindo do hub)
     só acesse dados dessas empresas — em qualquer rota, inclusive trocando a URL.
     Admin e usuários internos (que veem todas) passam sem alteração."""
     ep = request.endpoint
-    if not ep or ep == "static" or ep in ("login", "logout"):
+    if not ep or ep == "static" or ep in ("login", "logout", "health"):
         return
     perm = empresas_permitidas()
     if perm is None:
