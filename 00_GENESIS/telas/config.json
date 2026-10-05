@@ -1,0 +1,5 @@
+{"base_url": "http://127.0.0.1:5056",
+ "login": {"url": "/login?local=1", "campo_usuario": "input[name=usuario]", "campo_senha": "input[name=senha]",
+           "botao": "button[type=submit]", "usuario": "telas", "senha": "env:TELAS_SENHA"},
+ "parametros": {"competencia": "2026-08", "empresa": "mkb"},
+ "rotas_extra": [], "ignorar": [], "ignorar_problemas": []}

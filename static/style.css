@@ -999,3 +999,214 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
   /* Gráficos canvas (Chart.js) */
   canvas { max-width: 100% !important; max-height: 280px !important; }
 }
+
+
+/* ══ PERGUNTE À IA ═══════════════════════════════════════════════════════════
+   Marca de IA (Padrao_Marca_IA): ph-sparkle e família roxa, nunca a cor da
+   empresa. Tokens aqui; template não escreve cor nem style=. Escuro é o
+   :root deste app; o claro (Sage & Creme) sobrescreve em [data-theme="light"]. */
+:root {
+  --roxo:          #7C3AED;
+  --roxo-escuro:   #6D28D9;
+  --roxo-claro:    #A78BFA;
+  --roxo-texto:    #5B21B6;
+  --roxo-borda:    #C4B5FD;
+  --roxo-pastel-1: #FAF5FF;
+  --roxo-pastel-2: #EDE9FE;
+  --roxo-suave:    #F3EEFF;
+  --roxo-contraste: #FFFFFF;
+  /* escuro: a nota não define, decisão do CHECKLIST: corpo do card, borda lavanda */
+  --ia-fundo:      var(--card2);
+  --ia-borda:      var(--roxo-claro);
+  --ia-texto:      var(--roxo-borda);
+  --ia-tag-fundo:  rgba(167,139,250,.14);
+  --ia-tag-texto:  var(--roxo-borda);
+  --ia-campo:      var(--card);
+  --ia-neutro-on:  var(--roxo-escuro);
+}
+[data-theme="light"] {
+  --ia-fundo:      linear-gradient(135deg, var(--roxo-pastel-1), var(--roxo-pastel-2));
+  --ia-borda:      var(--roxo-borda);
+  --ia-texto:      var(--roxo-texto);
+  --ia-tag-fundo:  var(--roxo-suave);
+  --ia-tag-texto:  var(--roxo);
+  --ia-campo:      #fffdf9;
+  --ia-neutro-on:  var(--primary);
+}
+
+/* hidden vence o display das classes abaixo (senão aviso e análise aparecem vazios) */
+.bloco-ia [hidden], .ia-resultado [hidden], .ia-config [hidden] { display: none !important; }
+
+/* ── Bloco, botão e tag de IA ── */
+.bloco-ia {
+  background: var(--ia-fundo); border: 1px solid var(--ia-borda);
+  border-radius: 12px; padding: 16px 18px; margin-bottom: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.bloco-ia h2 {
+  margin: 0; font-size: 15px; font-weight: 700; color: var(--ia-texto);
+  display: flex; align-items: center; gap: 8px;
+}
+.bloco-ia .ia-desc { margin: 0; font-size: 13px; color: var(--ia-texto); line-height: 1.5; }
+.btn-ia {
+  background: var(--roxo); color: var(--roxo-contraste); border: 0; border-radius: 8px;
+  padding: 0 18px; height: 40px; box-sizing: border-box; font-size: 13px; font-weight: 700;
+  font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  white-space: nowrap; transition: background .15s;
+}
+.btn-ia:hover    { background: var(--roxo-escuro); }
+.btn-ia:disabled { background: var(--roxo-claro); cursor: wait; }
+.tag-ia {
+  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+  background: var(--ia-tag-fundo); color: var(--ia-tag-texto);
+  border: 1px solid var(--roxo-borda); border-radius: 999px; padding: 2px 8px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+}
+.tag-ia i { font-size: 11px; }
+
+/* ── Linha de formulário (Padrao_Formulario: 40px, label 13/600, base) ── */
+.ia-form { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
+.ia-form .campo { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ia-form .campo-principal { flex: 1; min-width: 220px; }
+.ia-form .campo-acao { margin-left: auto; }      /* ação primária ancorada à direita */
+.ia-form label { font-size: 13px; font-weight: 600; color: var(--ia-texto); }
+.ia-input {
+  height: 40px; box-sizing: border-box; width: 100%; padding: 0 12px;
+  border: 1px solid var(--ia-borda); border-radius: 8px; background: var(--ia-campo);
+  color: var(--text); font-size: 14px; font-family: inherit;
+}
+.ia-input:focus { outline: 2px solid var(--roxo); outline-offset: 1px; }
+.ia-contador { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ── Toggle tipo 2 (Padrao_Toggle_Tipos): sólido invertido no ativo ── */
+.ia-fonte {
+  display: inline-flex; align-items: stretch; height: 40px; box-sizing: border-box;
+  border: 1px solid var(--border); border-radius: 7px; overflow: hidden; background: var(--ia-campo);
+  max-width: 100%;
+}
+.ia-fonte button {
+  border: none; background: transparent; padding: 0 13px; font-size: 12.5px; font-weight: 700;
+  font-family: inherit; color: var(--text); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+}
+.ia-fonte button + button { border-left: 1px solid var(--border); }
+.ia-fonte button.on { background: var(--roxo); color: var(--roxo-contraste); }
+.ia-fonte.ia-fonte-neutra button.on { background: var(--ia-neutro-on); color: var(--roxo-contraste); }
+.ia-fonte button:focus-visible { outline: 2px solid var(--roxo); outline-offset: -2px; }
+.ia-modo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ia-aviso {
+  margin: 0; font-size: 12.5px; color: var(--ia-texto); display: flex; align-items: center; gap: 6px;
+}
+
+/* ── Exemplos clicáveis ── */
+.ia-exemplos { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ia-exemplos-rotulo { font-size: 12px; color: var(--muted); font-weight: 600; }
+.ia-exemplo {
+  border: 1px solid var(--ia-borda); background: transparent; color: var(--ia-texto);
+  border-radius: 999px; padding: 0 14px; min-height: 40px; font-size: 12.5px; font-family: inherit; cursor: pointer;
+}
+.ia-exemplo:hover { border-color: var(--roxo); color: var(--roxo); }
+
+/* ── Resultado ── */
+.ia-resultado { display: flex; flex-direction: column; gap: 14px; min-height: 120px; }
+.ia-card {
+  background: var(--card2); border: 1px solid var(--border); border-radius: 12px; padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.ia-card-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ia-entendi { margin: 0; font-size: 14px; color: var(--text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ia-contagem { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ia-numero { font-size: 28px; font-weight: 700; color: var(--primary); font-variant-numeric: tabular-nums; }
+.ia-numero-rotulo { font-size: 12.5px; color: var(--muted); }
+.ia-tabela-wrap { overflow-x: auto; }
+.ia-tabela { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.ia-tabela th {
+  text-align: left; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--border);
+}
+.ia-tabela td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text); }
+.ia-tabela .ia-num, .ia-tabela th.ia-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ia-tabela tr.ia-outros td { color: var(--muted); font-style: italic; }
+.ia-tabela tr.ia-total td { font-weight: 700; border-bottom: 0; }
+.ia-obs { margin: 0; font-size: 12.5px; color: var(--muted); }
+.ia-rodape { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.ia-rodape a { color: var(--accent); font-weight: 600; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
+.ia-rodape a:hover { text-decoration: underline; }
+.ia-analise {
+  background: var(--ia-fundo); border: 1px solid var(--ia-borda); border-radius: 12px; padding: 12px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.ia-analise p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text); white-space: pre-line; }
+.ia-erro {
+  border: 1px solid var(--danger); border-radius: 12px; padding: 12px;
+  color: var(--danger); font-size: 13.5px; display: flex; align-items: center; gap: 8px;
+}
+
+/* ── Loading inline (Padrao_Loading_Estado), roxo por ser IA ── */
+.loading-inline {
+  padding: 48px 20px; text-align: center; display: flex; flex-direction: column;
+  align-items: center; gap: 14px;
+}
+.loading-inline .spinner-circle {
+  width: 44px; height: 44px; border: 4px solid var(--border); border-top-color: var(--roxo);
+  border-radius: 50%; animation: ia-gira .8s linear infinite;
+}
+.loading-inline .loading-text { font-size: 14px; font-weight: 600; color: var(--ia-texto); }
+.loading-inline .loading-sub { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+@keyframes ia-gira { to { transform: rotate(360deg); } }
+
+/* ── Estado vazio (Padrao_Estado_Vazio), versão de seção ── */
+.vz {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 22px 16px; min-height: 150px;
+}
+.vz .vz-icone { font-size: 30px; color: var(--muted); line-height: 1; margin-bottom: 10px; }
+.vz-titulo { margin: 0; font-size: 14.5px; font-weight: 700; color: var(--text); }
+.vz-sub { margin: 7px 0 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; max-width: 400px; }
+
+/* ── Configuração da IA (tela técnica: corpo neutro, só a tag é roxa) ── */
+.ia-config { display: flex; flex-direction: column; gap: 16px; }
+.ia-config-faixa {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--card2); border: 1px solid var(--border); border-radius: 12px; padding: 16px;
+}
+.ia-config-rotulo { font-size: 13px; font-weight: 600; color: var(--muted); }
+.ia-config-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; align-items: stretch; }
+.ia-config-card {
+  background: var(--card2); border: 1px solid var(--border); border-radius: 12px; padding: 16px;
+  display: flex; flex-direction: column; gap: 6px; height: 100%; box-sizing: border-box;
+}
+.ia-config-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.ia-config-cab h2 { margin: 0; font-size: 15px; font-weight: 700; color: var(--primary); }
+.ia-config-status { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ia-config-card label { font-size: 13px; font-weight: 600; color: var(--muted); margin-top: 6px; }
+.ia-config-card .ia-input { border-color: var(--border); }
+.ia-config-acoes { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: auto; padding-top: 10px; flex-wrap: wrap; }
+.ia-config-teste { font-size: 12.5px; color: var(--muted); margin-right: auto; min-height: 1em; }
+.ia-config-teste.ok   { color: var(--success); }
+.ia-config-teste.erro { color: var(--danger); }
+.ia-config-teste .ph-spinner-gap { display: inline-block; margin-right: 5px; color: var(--roxo); animation: ia-gira .8s linear infinite; }
+.ia-config-rodape { display: flex; justify-content: flex-end; }
+.btn-neutro {
+  height: 40px; box-sizing: border-box; padding: 0 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; color: var(--text); border: 1px solid var(--border);
+}
+.btn-neutro:hover { border-color: var(--accent); color: var(--accent); }
+.btn-neutro:disabled { opacity: .6; cursor: wait; }
+.btn-acao {
+  height: 40px; box-sizing: border-box; padding: 0 18px; border-radius: 8px; font-size: 13px; font-weight: 700;
+  font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  background: var(--ia-neutro-on); color: var(--roxo-contraste); border: 0;
+}
+.btn-acao:hover { opacity: .9; }
+
+/* ── Caixa no topo do dashboard ── */
+.bloco-ia-dash { margin: 0 0 16px; }
+
+@media (max-width: 600px) {
+  .ia-form .campo-acao { margin-left: 0; width: 100%; }
+  .ia-form .campo-acao .btn-ia { width: 100%; justify-content: center; }
+  .ia-numero { font-size: 22px; }
+  .bloco-ia { padding: 14px; }
+}

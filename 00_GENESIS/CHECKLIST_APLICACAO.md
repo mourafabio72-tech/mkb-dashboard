@@ -109,9 +109,10 @@ Toggle: tipo 2, duas opções
       EVIDÊNCIA: ia_perguntas.pacote_analise (itens só rotulo+valor; cliente/fornecedor viram 'Cliente n'); prova seção 1: sem historico, documento, DOC0, 'VL. NF', número da NF, razao, conta_cod, nome de cliente nem nome citado na pergunta
 - [x] Prompt: "use só os números fornecidos", até 6 frases, português
       EVIDÊNCIA: PROMPT_ANALISE: 'Use SOMENTE os números', 'Não invente número', 'no máximo 6 frases', 'português do Brasil'; prova seção 3
-- [ ] Texto volta puro; front usa `textContent` (Mapa_de_Conceitos: "nunca `| safe` em output de LLM")
+- [x] Texto volta puro; front usa `textContent` (Mapa_de_Conceitos: "nunca `| safe` em output de LLM")
       PROVA: `grep -rnE "\| *safe|innerHTML" templates/ia.html static/ia.js` vazio
       METADE BACKEND: `resp['analise']` é string pura, espaços colapsados, até 1500 (prova seção 3). METADE FRONT: grep em templates/ia.html e static/ia.js roda no gate da Fase 5, e só então este item vira [x].
+      EVIDÊNCIA FRONT (Fase 5): grep `| *safe|innerHTML` em templates/ia.html e static/ia.js só acha o comentário da linha 3 do ia.js, que proíbe innerHTML; todo texto entra por textContent (el(), clonar())
 - [x] Balde de limite compartilhado com Perguntar
       EVIDÊNCIA: as duas rotas passam por _ia_ler_pergunta -> ia_perguntas.consumir(_ia_quem()); prova seção 6: 19 perguntar + 1 analisar = 20 ok, a 21ª (analisar) 429
 - [x] `provas/prova_ia_analisar.py` verde
@@ -120,45 +121,71 @@ Toggle: tipo 2, duas opções
 ## Fase 5: Telas
 
 ### Marca de IA
-- [ ] Todo elemento de IA (pílula, caixa do dashboard, botão, frase Entendi, texto do Analisar) usa `ph-sparkle` e tokens `--roxo*` (Padrao_Marca_IA: "Nunca usar laranja, azul ou cor da empresa em botão/bloco/badge de IA")
+- [x] Todo elemento de IA (pílula, caixa do dashboard, botão, frase Entendi, texto do Analisar) usa `ph-sparkle` e tokens `--roxo*` (Padrao_Marca_IA: "Nunca usar laranja, azul ou cor da empresa em botão/bloco/badge de IA")
       PROIBIDO: `ph-robot`, `ph-magic-wand`, `ph-star`, emoji
-- [ ] `.bloco-ia`: `background: linear-gradient(135deg, var(--roxo-pastel-1), var(--roxo-pastel-2)); border: 1px solid var(--roxo-borda)` no claro; no escuro, `var(--card)` com borda `var(--roxo-claro)` (a nota não define escuro, decisão registrada aqui)
-- [ ] `.btn-ia`: fundo `var(--roxo)`, hover `var(--roxo-escuro)`, `:disabled` `var(--roxo-claro)` + `cursor: wait`
-- [ ] `.tag-ia`: `<span class="tag-ia"><i class="ph ph-sparkle" aria-hidden="true"></i> IA</span>` antes da frase Entendi e do texto do Analisar (Padrao_Marca_IA: "Resultado gerado por IA marcado com `.tag-ia`")
-- [ ] Botão com `aria-label` descritivo e ícone `aria-hidden="true"`
-- [ ] Texto descritivo junto do botão: "A IA lê sua pergunta e diz ao FinHub o que buscar. Os números vêm do FinHub." (Sempre_Marcar_IA: "A IA vai ler X e te entregar Y")
-- [ ] Tela `/config/ia`: corpo neutro, tag IA roxa no título (Sempre_Marcar_IA, exceção única)
+      EVIDÊNCIA: pílula (dashboard.html, ícone ph-sparkle, cor var(--roxo)), caixa .bloco-ia, .btn-ia, .tag-ia na frase Entendi e na análise; grep ph-robot|ph-magic-wand|ph-star em templates/ rc=1. Conferência visual pendente com o Fábio
+- [x] `.bloco-ia`: `background: linear-gradient(135deg, var(--roxo-pastel-1), var(--roxo-pastel-2)); border: 1px solid var(--roxo-borda)` no claro; no escuro, `var(--card)` com borda `var(--roxo-claro)` (a nota não define escuro, decisão registrada aqui)
+      EVIDÊNCIA: style.css bloco PERGUNTE À IA: --ia-fundo = gradiente pastel-1/pastel-2 no claro e var(--card2) no escuro; borda --ia-borda (roxo-borda no claro, roxo-claro no escuro)
+- [x] `.btn-ia`: fundo `var(--roxo)`, hover `var(--roxo-escuro)`, `:disabled` `var(--roxo-claro)` + `cursor: wait`
+      EVIDÊNCIA: style.css .btn-ia background var(--roxo), :hover var(--roxo-escuro), :disabled var(--roxo-claro) + cursor wait
+- [x] `.tag-ia`: `<span class="tag-ia"><i class="ph ph-sparkle" aria-hidden="true"></i> IA</span>` antes da frase Entendi e do texto do Analisar (Padrao_Marca_IA: "Resultado gerado por IA marcado com `.tag-ia`")
+      EVIDÊNCIA: ia.html moldes Resultado e Vazio com <span class="tag-ia"><i class="ph ph-sparkle" aria-hidden="true"></i> IA</span>; análise com tag 'Análise da IA'
+- [x] Botão com `aria-label` descritivo e ícone `aria-hidden="true"`
+      EVIDÊNCIA: ia.html e dashboard.html: aria-label="Perguntar à inteligência artificial", ícones aria-hidden
+- [x] Texto descritivo junto do botão: "A IA lê sua pergunta e diz ao FinHub o que buscar. Os números vêm do FinHub." (Sempre_Marcar_IA: "A IA vai ler X e te entregar Y")
+      EVIDÊNCIA: ia.html e dashboard.html: 'A IA lê sua pergunta e diz ao FinHub o que buscar. Os números vêm do FinHub.'
+- [x] Tela `/config/ia`: corpo neutro, tag IA roxa no título (Sempre_Marcar_IA, exceção única)
+      EVIDÊNCIA: config_ia.html: cards .ia-config-card em var(--card2), botões .btn-neutro/.btn-acao; só a .tag-ia do título é roxa (print de 2026-10-05 22:5x)
 
 ### Toggle tipo 2
-- [ ] `.ia-fonte{display:inline-flex;align-items:stretch;border:1px solid var(--border);border-radius:7px;overflow:hidden}`; `.ia-fonte button.on` com fundo sólido (`var(--roxo)` na tela de IA, `var(--accent)` na config) e texto branco (Padrao_Toggle_Tipos tipo 2)
-- [ ] Wrapper `role="radiogroup"` + `aria-label`; botões `type="button"`; ícone Phosphor em cada opção
+- [x] `.ia-fonte{display:inline-flex;align-items:stretch;border:1px solid var(--border);border-radius:7px;overflow:hidden}`; `.ia-fonte button.on` com fundo sólido (`var(--roxo)` na tela de IA, `var(--accent)` na config) e texto branco (Padrao_Toggle_Tipos tipo 2)
+      EVIDÊNCIA: style.css .ia-fonte inline-flex/stretch/borda/7px/overflow hidden; .on sólido var(--roxo) na tela de IA e var(--ia-neutro-on) (primary no claro) na config, texto var(--roxo-contraste). Desvio: na config o ativo é --primary e não --accent, porque branco sobre --accent dava 4,3:1 (conferir-telas)
+- [x] Wrapper `role="radiogroup"` + `aria-label`; botões `type="button"`; ícone Phosphor em cada opção
       PROIBIDO: sublinhado de aba, verde, `<select>`
+      EVIDÊNCIA: grep role=radiogroup: 1 em ia.html, 1 em config_ia.html; botões type=button role=radio com aria-checked; ícone ph em cada opção
 
 ### Formulário, botão, card
-- [ ] Campos e botão com `height:40px; box-sizing:border-box`; label 13px 600 sem uppercase (Padrao_Formulario)
-- [ ] Botão principal ancorado à direita pelo CSS do container (`margin-left:auto` na classe, nunca em `style=`) (Acao_Primaria_a_Direita)
-- [ ] Cards com `display:flex; flex-direction:column`, cabeçalho `space-between`, sem hover mudando `background` (Padrao_Box_Card)
-- [ ] Nenhum `<select>` nas telas novas: `grep -n "<select" templates/ia.html templates/config_ia.html` vazio (Sem_Select_Nativo)
-- [ ] Nenhum `style=` nem hex nas telas novas: `grep -nE 'style="|#[0-9a-fA-F]{3,6}' templates/ia.html templates/config_ia.html` vazio (Sistema_de_Estilos)
+- [x] Campos e botão com `height:40px; box-sizing:border-box`; label 13px 600 sem uppercase (Padrao_Formulario)
+      EVIDÊNCIA: medido no navegador: campo, botão, toggle, inputs e botões da config = 40px; label 13px 600 none
+- [x] Botão principal ancorado à direita pelo CSS do container (`margin-left:auto` na classe, nunca em `style=`) (Acao_Primaria_a_Direita)
+      EVIDÊNCIA: style.css .ia-form .campo-acao{margin-left:auto}; .ia-config-rodape e .ia-config-acoes justify-content flex-end (corrigido após print: mensagem longa empurrava o Testar); grep style= float/margin nas telas novas rc=1
+- [x] Cards com `display:flex; flex-direction:column`, cabeçalho `space-between`, sem hover mudando `background` (Padrao_Box_Card)
+      EVIDÊNCIA: style.css .ia-card, .ia-config-card flex column; .ia-card-cab e .ia-config-cab space-between; grep hover com background em ia- rc=1
+- [x] Nenhum `<select>` nas telas novas: `grep -n "<select" templates/ia.html templates/config_ia.html` vazio (Sem_Select_Nativo)
+      EVIDÊNCIA: grep <select em ia.html e config_ia.html rc=1
+- [x] Nenhum `style=` nem hex nas telas novas: `grep -nE 'style="|#[0-9a-fA-F]{3,6}' templates/ia.html templates/config_ia.html` vazio (Sistema_de_Estilos)
+      EVIDÊNCIA: grep style=|<style|#hex em ia.html e config_ia.html rc=1
 
 ### Loading, vazio, tabela
-- [ ] Loading inline no container do resultado, spinner com borda `var(--roxo)`, texto no gerúndio; mais de 10 s mostra `.loading-sub` com segundos (Padrao_Loading_Estado)
+- [x] Loading inline no container do resultado, spinner com borda `var(--roxo)`, texto no gerúndio; mais de 10 s mostra `.loading-sub` com segundos (Padrao_Loading_Estado)
       PROIBIDO: "Carregando...", "Aguarde...", "Processando..."
-- [ ] Botão `disabled` durante a chamada; `finally` reabilita (Padrao_Loading_Estado regras 6 e 7)
-- [ ] Resultado vazio: `.vz` com `ph-funnel-x`, título "Nenhum Resultado", sub "Nenhum lançamento atende à pergunta." (Padrao_Estado_Vazio)
-- [ ] Tabela de resultado: título dentro do card, contagem no cabeçalho ("7 clientes"), valores `tabular-nums`, até 10 linhas (Padrao_Cabecalho_da_Tabela; Padrao_Tabela regra 1 não dispara)
-- [ ] Número único no modo Perguntar não vira grade de KPI (Listagens_sem_KPI)
+      EVIDÊNCIA: molde iaMoldeLoading em #iaResultado: spinner border-top var(--roxo), texto 'Lendo sua pergunta...' > 'Somando os lançamentos...' > 'Escrevendo a análise dos totais...', .loading-sub com segundos a partir de 10 s (ia.js)
+- [x] Botão `disabled` durante a chamada; `finally` reabilita (Padrao_Loading_Estado regras 6 e 7)
+      EVIDÊNCIA: ia.js enviar(): botao.disabled = true; .finally reabilita e limpa o relógio; grep -c finally ia.js = 2. Texto do botão não muda: Padrao_Loading_Estado proíbe loading dentro do botão
+- [x] Resultado vazio: `.vz` com `ph-funnel-x`, título "Nenhum Resultado", sub "Nenhum lançamento atende à pergunta." (Padrao_Estado_Vazio)
+      EVIDÊNCIA: molde iaMoldeVazio: .vz com ph-funnel-x, 'Nenhum Resultado', sub com ponto; medido no navegador: 'Nenhum Resultado | Não há lançamentos importados nesse período.'
+- [x] Tabela de resultado: título dentro do card, contagem no cabeçalho ("7 clientes"), valores `tabular-nums`, até 10 linhas (Padrao_Cabecalho_da_Tabela; Padrao_Tabela regra 1 não dispara)
+      EVIDÊNCIA: título e contagem no cabeçalho do card ('12 clientes, 10 maiores'), th uppercase 11.5/700, .ia-num tabular-nums, até 10 + Outros + Total (medido: 12 linhas no tbody)
+- [x] Número único no modo Perguntar não vira grade de KPI (Listagens_sem_KPI)
+      EVIDÊNCIA: tipo numero vira um bloco só (.ia-numero), sem grade de KPI
 
 ### Telas e entrada
-- [ ] Dict novo em `itens` de `templates/dashboard.html` (endpoint `ia_tela`, ícone `ph-sparkle`, rótulo `pergunte à IA`)
-- [ ] Caixa no topo do dashboard, `.bloco-ia`, `GET /ia?q=`
-- [ ] Link para `/config/ia` em Cadastro, só para admin
-- [ ] Exemplos clicáveis: "quanto a MKB faturou em agosto?", "salários de julho contra agosto", "despesa com o fornecedor X neste ano", "qual o saldo do endividamento tributário?"
+- [x] Dict novo em `itens` de `templates/dashboard.html` (endpoint `ia_tela`, ícone `ph-sparkle`, rótulo `pergunte à IA`)
+      EVIDÊNCIA: dashboard.html: endpoint ia_tela, ícone ph-sparkle, label 'pergunte à IA'
+- [x] Caixa no topo do dashboard, `.bloco-ia`, `GET /ia?q=`
+      EVIDÊNCIA: dashboard.html: form GET url_for('ia_tela') .bloco-ia acima do filtro de período; no navegador a pergunta foi para /ia?q=... e rodou sozinha
+- [x] Link para `/config/ia` em Cadastro, só para admin
+      EVIDÊNCIA: cadastro.html: card Configuração da IA (a rota /cadastro já é @admin_required)
+- [x] Exemplos clicáveis: "quanto a MKB faturou em agosto?", "salários de julho contra agosto", "despesa com o fornecedor X neste ano", "qual o saldo do endividamento tributário?"
+      EVIDÊNCIA: ia.html: os 4 exemplos do plano como .ia-exemplo; ia.js preenche e envia
 
 ### Língua e conferência
-- [ ] Zero travessão nos arquivos novos: `grep -rn "—" templates/ia.html templates/config_ia.html static/ia.js ia_config.py ia_perguntas.py` vazio (Sem_Travessao)
-- [ ] Acentuação completa em todo texto visível; identificadores sem acento (Portugues_BR_Acentuacao); leitura tela por tela registrada no LOG (Revisao_Professor_Pasquale, fallback sem script)
-- [ ] Vocabulário: `grep -rniE "processando|aguarde|carregando|vale ressaltar|em suma" templates/ia.html templates/config_ia.html static/ia.js` vazio (Padrao_Texto_e_Linguagem)
+- [x] Zero travessão nos arquivos novos: `grep -rn "—" templates/ia.html templates/config_ia.html static/ia.js ia_config.py ia_perguntas.py` vazio (Sem_Travessao)
+      EVIDÊNCIA: grep — em ia_config.py ia_perguntas.py ia.html config_ia.html ia.js rc=1
+- [x] Acentuação completa em todo texto visível; identificadores sem acento (Portugues_BR_Acentuacao); leitura tela por tela registrada no LOG (Revisao_Professor_Pasquale, fallback sem script)
+      EVIDÊNCIA: grep -w de palavras sem acento nos arquivos novos rc=1; mojibake rc=1; file = UTF-8; leitura tela por tela registrada no LOG (pasquale.py não existe na vault: fallback da nota)
+- [x] Vocabulário: `grep -rniE "processando|aguarde|carregando|vale ressaltar|em suma" templates/ia.html templates/config_ia.html static/ia.js` vazio (Padrao_Texto_e_Linguagem)
+      EVIDÊNCIA: grep processando|aguarde|carregando|vale ressaltar|em suma|outrossim|prezado nos arquivos novos rc=1
 - [ ] `conferir-telas` em `/ia`, `/config/ia` e `/`, computador e celular, claro e escuro: zero erro
 
 ## Fase 6: Entrega

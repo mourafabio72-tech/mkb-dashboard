@@ -4,15 +4,15 @@
 {% block content %}
 <div class="page-header">
   <h1>Configuração da IA <span class="tag-ia"><i class="ph ph-sparkle" aria-hidden="true"></i> IA</span></h1>
-  <p class="subtitle">Chave e modelo de cada provedor. A chave fica guardada no servidor e aparece aqui só mascarada.</p>
+  <p class="subtitle">Chave e modelo de cada provedor usado no Pergunte à IA. A chave fica guardada no servidor e aparece aqui só mascarada.</p>
 </div>
 
-<form method="POST" action="{{ url_for('config_ia_salvar') }}" class="ia-config">
+<form method="POST" action="{{ url_for('config_ia_salvar') }}" class="ia-config" id="iaConfig" autocomplete="off">
   <input type="hidden" name="ativo" value="{{ ia.ativo }}" data-ia-ativo>
 
-  <div class="ia-config-ativo">
-    <span class="ia-config-rotulo">Provedor usado nas perguntas</span>
-    <div class="ia-fonte" role="radiogroup" aria-label="Provedor de IA ativo">
+  <div class="ia-config-faixa">
+    <span class="ia-config-rotulo" id="iaAtivoRotulo">Provedor usado nas perguntas</span>
+    <div class="ia-fonte ia-fonte-neutra" role="radiogroup" aria-labelledby="iaAtivoRotulo" id="iaAtivo">
       {% for p in ia.provedores %}
       <button type="button" role="radio" data-provedor="{{ p.id }}"
               aria-checked="{{ 'true' if p.id == ia.ativo else 'false' }}"
@@ -25,30 +25,35 @@
 
   <div class="ia-config-cards">
     {% for p in ia.provedores %}
-    <section class="section-card ia-config-card" aria-labelledby="ia-titulo-{{ p.id }}">
-      <header class="ia-config-cab">
+    <section class="ia-config-card" aria-labelledby="ia-titulo-{{ p.id }}">
+      <div class="ia-config-cab">
         <h2 id="ia-titulo-{{ p.id }}">{{ p.nome }}</h2>
         <span class="ia-config-status">
           {% if p.tem_chave %}Chave {{ p.mascara }}{% if p.origem == 'ambiente' %} (variável de ambiente){% endif %}{% else %}Sem chave{% endif %}
         </span>
-      </header>
+      </div>
       <label for="chave_{{ p.id }}">Nova chave</label>
-      <input type="password" id="chave_{{ p.id }}" name="chave_{{ p.id }}" autocomplete="off"
-             placeholder="{{ p.prefixo }}... (vazio mantém a atual)">
+      <input type="password" id="chave_{{ p.id }}" name="chave_{{ p.id }}" class="ia-input"
+             autocomplete="new-password" placeholder="{{ p.prefixo }}... (vazio mantém a atual)">
       <label for="modelo_{{ p.id }}">Modelo</label>
-      <input type="text" id="modelo_{{ p.id }}" name="modelo_{{ p.id }}" value="{{ p.modelo }}" maxlength="80">
+      <input type="text" id="modelo_{{ p.id }}" name="modelo_{{ p.id }}" class="ia-input"
+             value="{{ p.modelo }}" maxlength="80" spellcheck="false">
       <div class="ia-config-acoes">
-        <button type="button" class="btn btn-secondary" data-testar="{{ p.id }}">
+        <span class="ia-config-teste" data-teste-msg="{{ p.id }}" aria-live="polite">O teste usa a chave já salva.</span>
+        <button type="button" class="btn-neutro" data-testar="{{ p.id }}" data-nome="{{ p.nome }}">
           <i class="ph ph-plug-charging" aria-hidden="true"></i> Testar {{ p.nome }}
         </button>
-        <span class="ia-config-teste" data-teste-msg="{{ p.id }}" aria-live="polite"></span>
       </div>
     </section>
     {% endfor %}
   </div>
 
   <div class="ia-config-rodape">
-    <button type="submit" class="btn btn-primary"><i class="ph ph-floppy-disk" aria-hidden="true"></i> Salvar configuração</button>
+    <button type="submit" class="btn-acao"><i class="ph ph-floppy-disk" aria-hidden="true"></i> Salvar configuração</button>
   </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='ia.js') }}"></script>
 {% endblock %}

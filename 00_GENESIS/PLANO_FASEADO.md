@@ -86,7 +86,7 @@ No modo Analisar, o FinHub recalcula o mesmo resultado e manda só os totais par
 
 ## Fase 5: Telas
 
-- **Status:** pending
+- **Status:** blocked (2026-10-05): tudo feito e medido; falta a conferência visual do Fábio e a decisão sobre o navbar herdado que estoura a largura no celular
 - **Duração estimada:** 4h
 - **Critério de aceite:**
   - Pílula "pergunte à IA" (ícone `ph-sparkle`) na lista `itens` de `templates/dashboard.html`, levando a `GET /ia` (`templates/ia.html`).

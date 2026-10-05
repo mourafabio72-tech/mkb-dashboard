@@ -2273,6 +2273,18 @@ def _ia_ler_pergunta():
     return pergunta, None
 
 
+@app.route("/ia")
+@login_required
+def ia_tela():
+    prov = ia_config.ler_config()["ativo"]
+    return render_template(
+        "ia.html",
+        pergunta_inicial=(request.args.get("q") or "")[:ia_perguntas.MAX_PERGUNTA],
+        tem_chave=bool(ia_config.ler_chave(prov)),
+        provedor_nome=ia_config.PROVEDORES[prov]["nome"],
+    )
+
+
 @app.route("/ia/perguntar", methods=["POST"])
 @login_required
 def ia_perguntar():

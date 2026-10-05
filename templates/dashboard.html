@@ -14,6 +14,7 @@
   {'endpoint': 'endividamento_bancario',       'params': {'empresa': 'gnileb'},           'cor': '#3f5147', 'txt': '#ffffff', 'icone': 'ph-bank',           'label': 'Endividamento Bancário',  'sub': 'Empréstimos · contratado, pago e saldo'},
   {'endpoint': 'receita_clientes',             'params': {'empresa': 'mkb'},              'cor': '#cdb487', 'txt': '#2f3b2f', 'icone': 'ph-briefcase',      'label': 'Receita',                 'sub': 'Por cliente · pivot mensal'},
   {'endpoint': 'despesas_fornecedores',        'params': {'empresa': 'mkb'},              'cor': '#b07d5a', 'txt': '#ffffff', 'icone': 'ph-receipt',        'label': 'Despesas',                'sub': 'Por fornecedor · conta contábil'},
+  {'endpoint': 'ia_tela',                      'params': {},                              'cor': 'var(--roxo)', 'txt': 'var(--roxo-contraste)', 'icone': 'ph-sparkle', 'label': 'pergunte à IA',          'sub': 'Pergunta em português, números do FinHub'},
   {'endpoint': 'cadastro',                     'params': {},                              'cor': '#2f3b2f', 'txt': '#ffffff', 'icone': 'ph-folder',        'label': 'Cadastro',                'sub': 'Importar dados e de-para de contas', 'admin_apenas': true},
 ] %}
 {% set eh_admin = session.usuario_logado and session.usuario_logado.role == 'admin' %}
@@ -98,6 +99,25 @@
     </a>
   </div>
 </div>
+
+{# ── Pergunte à IA (caixa no topo; a pergunta roda na tela /ia) ─────────── #}
+<form method="GET" action="{{ url_for('ia_tela') }}" class="bloco-ia bloco-ia-dash" aria-labelledby="iaDashTitulo">
+  <h2 id="iaDashTitulo"><i class="ph ph-sparkle" aria-hidden="true"></i> Pergunte à IA</h2>
+  <p class="ia-desc">A IA lê sua pergunta e diz ao FinHub o que buscar. Os números vêm do FinHub.</p>
+  <div class="ia-form">
+    <div class="campo campo-principal">
+      <label for="iaDashPergunta">Sua pergunta</label>
+      <input type="text" id="iaDashPergunta" name="q" class="ia-input" maxlength="300" required
+             placeholder="Ex.: salários de julho contra agosto">
+    </div>
+    <div class="campo campo-acao">
+      <label aria-hidden="true">&nbsp;</label>
+      <button type="submit" class="btn-ia" aria-label="Perguntar à inteligência artificial">
+        <i class="ph ph-sparkle" aria-hidden="true"></i> Perguntar
+      </button>
+    </div>
+  </div>
+</form>
 
 {# ── Filtro de período ───────────────────────────────────────────────────── #}
 <form method="GET" action="{{ url_for('index') }}" id="form-meses-dash" class="min-period-bar">

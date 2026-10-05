@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Pergunte à IA{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Pergunte à IA</h1>
+  <p class="subtitle">Pergunte em português sobre DRE, receita, despesas, folha, endividamento e IRPJ.</p>
+</div>
+
+<section class="bloco-ia" aria-labelledby="ia-titulo">
+  <h2 id="ia-titulo"><i class="ph ph-sparkle" aria-hidden="true"></i> Pergunte ao FinHub</h2>
+  <p class="ia-desc">A IA lê sua pergunta e diz ao FinHub o que buscar. Os números vêm do FinHub.</p>
+
+  <div class="ia-modo">
+    <div class="ia-fonte" role="radiogroup" aria-label="Modo da pergunta" id="iaModo">
+      <button type="button" role="radio" aria-checked="true" class="on" data-modo="perguntar">
+        <i class="ph ph-sparkle" aria-hidden="true"></i> Perguntar
+      </button>
+      <button type="button" role="radio" aria-checked="false" data-modo="analisar">
+        <i class="ph ph-sparkle" aria-hidden="true"></i> Analisar
+      </button>
+    </div>
+    <p class="ia-aviso" id="iaAvisoAnalisar" hidden>
+      <i class="ph ph-info" aria-hidden="true"></i>
+      No modo Analisar, os totais deste resultado vão para a {{ provedor_nome }} escrever a explicação. Nomes de cliente e fornecedor não vão.
+    </p>
+  </div>
+
+  <form class="ia-form" id="iaForm" autocomplete="off">
+    <div class="campo campo-principal">
+      <label for="iaPergunta">Sua pergunta</label>
+      <input type="text" id="iaPergunta" name="q" class="ia-input" maxlength="300"
+             value="{{ pergunta_inicial }}" placeholder="Ex.: quanto a MKB faturou em agosto?">
+    </div>
+    <div class="campo campo-acao">
+      <label aria-hidden="true">&nbsp;</label>
+      <button type="submit" class="btn-ia" id="iaEnviar" aria-label="Perguntar à inteligência artificial">
+        <i class="ph ph-sparkle" aria-hidden="true"></i> Perguntar
+      </button>
+    </div>
+  </form>
+  <span class="ia-contador" id="iaContador" aria-live="polite"></span>
+
+  <div class="ia-exemplos">
+    <span class="ia-exemplos-rotulo">Exemplos:</span>
+    <button type="button" class="ia-exemplo">quanto a MKB faturou em agosto?</button>
+    <button type="button" class="ia-exemplo">salários de julho contra agosto</button>
+    <button type="button" class="ia-exemplo">despesa com o fornecedor X neste ano</button>
+    <button type="button" class="ia-exemplo">qual o saldo do endividamento tributário?</button>
+  </div>
+</section>
+
+<div class="ia-resultado" id="iaResultado" aria-live="polite"
+     data-sem-chave="{{ '1' if not tem_chave else '' }}"></div>
+
+{# Moldes: o JS clona e troca só o texto (Padrao_Estado_Vazio: copy no template) #}
+<template id="iaMoldeLoading">
+  <div class="loading-inline">
+    <div class="spinner-circle" aria-hidden="true"></div>
+    <div class="loading-text">Lendo sua pergunta...</div>
+    <div class="loading-sub" hidden></div>
+  </div>
+</template>
+
+<template id="iaMoldeInicial">
+  <div class="vz">
+    <i class="ph ph-sparkle vz-icone" aria-hidden="true"></i>
+    <p class="vz-titulo">Nenhuma Pergunta Feita</p>
+    <p class="vz-sub">Escreva sua pergunta ou toque num dos exemplos.</p>
+  </div>
+</template>
+
+<template id="iaMoldeVazio">
+  <div class="ia-card">
+    <p class="ia-entendi"><span class="tag-ia"><i class="ph ph-sparkle" aria-hidden="true"></i> IA</span> <span data-entendi></span></p>
+    <div class="vz">
+      <i class="ph ph-funnel-x vz-icone" aria-hidden="true"></i>
+      <p class="vz-titulo">Nenhum Resultado</p>
+      <p class="vz-sub">Nenhum lançamento atende à pergunta.</p>
+    </div>
+  </div>
+</template>
+
+<template id="iaMoldeNaoEntendi">
+  <div class="ia-card">
+    <div class="vz">
+      <i class="ph ph-question vz-icone" aria-hidden="true"></i>
+      <p class="vz-titulo">Pergunta Não Entendida</p>
+      <p class="vz-sub">Reescreva citando o que quer ver e o mês, ou toque num dos exemplos acima.</p>
+    </div>
+  </div>
+</template>
+
+<template id="iaMoldeSemChave">
+  <div class="ia-card">
+    <div class="vz">
+      <i class="ph ph-plugs vz-icone" aria-hidden="true"></i>
+      <p class="vz-titulo">IA Não Configurada</p>
+      <p class="vz-sub">Peça a um administrador para salvar a chave em Configuração da IA.</p>
+    </div>
+  </div>
+</template>
+
+<template id="iaMoldeResultado">
+  <div class="ia-card">
+    <div class="ia-card-cab">
+      <p class="ia-entendi"><span class="tag-ia"><i class="ph ph-sparkle" aria-hidden="true"></i> IA</span> <span data-entendi></span></p>
+      <span class="ia-contagem" data-contagem></span>
+    </div>
+    <div data-corpo></div>
+    <p class="ia-obs" data-aviso hidden></p>
+    <div class="ia-analise" data-analise hidden>
+      <span class="tag-ia"><i class="ph ph-sparkle" aria-hidden="true"></i> Análise da IA</span>
+      <p data-analise-texto></p>
+    </div>
+    <div class="ia-rodape" data-rodape hidden>
+      <a href="#" data-ver-tudo>Ver tudo na tela do módulo <i class="ph ph-arrow-right" aria-hidden="true"></i></a>
+    </div>
+  </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='ia.js') }}"></script>
+{% endblock %}
