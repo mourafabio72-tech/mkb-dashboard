@@ -41,3 +41,13 @@ Diario de bordo. O 00_GENESIS nasceu aqui no cerco de seguranca de 2026-08-29
   isento login/logout/health/static. Front (base.html): meta csrf-token + patch no fetch (header) + listener
   de submit que injeta campo oculto em todo form POST (cobre os ~15 forms sem editar cada um). Provado local:
   POST /usuarios/novo sem token -> 400; com token -> 302 e cria; login isento -> 302; GET livre. Nao commitado.
+
+[2026-10-05T19:56:00] fase=pre acao=commit_seguranca resultado=ok obs="564181a CSRF+headers e 1346fd9 LOG do cerco; index.lock velho de 21/09 removido; producao 20261005-1956 em 50s, headers conferidos"
+[2026-10-05T20:00:00] fase=0 acao=graphify resultado=ok obs="graphify --code-only + cluster-only: 469 nos, 1150 ligacoes, 28 comunidades"
+[2026-10-05T20:10:00] fase=0 acao=genesis_criado resultado=ok obs="Pergunte a IA (OpenAI+NVIDIA). Modo ampliacao. 47 notas, 5 batedores sonnet + 1 do codigo. Decisoes: modos a+b, escopo tudo, todo logado, pilula+caixa, toggle tipo 2, fornecedor por competencia, chaves com admin no volume. 7 fases."
+[2026-10-05T20:20:00] fase=0 acao=plano_aprovado resultado=ok obs="aprovado sem ajustes (pode seguir direto); inclui o limite de 10 linhas + Outros + ver tudo"
+[2026-10-05T20:35:00] fase=1 acao=modo_execucao resultado=ok obs="modo=autonomo, escolhido pelo Fabio; gravado no topo do PLANO_FASEADO"
+[2026-10-05T20:38:00] fase=1 acao=claude_md_criado resultado=ok obs="CLAUDE.md 135 linhas: bloco da vault reaproveitado do analise-balancete (ja traduzido para o Mac, _MAPA_CHAVES em 00A_MAPAS/) + convencoes do FinHub. grep de credencial vazio."
+[2026-10-05T20:40:00] fase=1 acao=graphify_claude_install resultado=ok obs="secao ## graphify apensada apos a linha 135, diff do bloco anterior vazio; .claude/settings.json com hooks PreToolUse do graphify"
+[2026-10-05T20:41:00] fase=1 acao=ignore resultado=ok obs="graphify-out/ no .gitignore e no .dockerignore (git check-ignore ok). Fora do item, registrado: 00_GENESIS/ tambem no .dockerignore, para commit so de LOG nao mudar a imagem nem o carimbo (mesmo arranjo do Balancete)."
+[2026-10-05T20:42:00] fase=1 acao=fase_fechada resultado=ok obs="5 de 5 itens com evidencia. Sem tela, gate de conformidade nao se aplica; linha Padrao_CLAUDE_MD_Projeto da matriz preenchida. Marcadores escada: 0 (fase sem codigo). Verificacao adversarial: autoverificacao (fase de meta-arquivo, sem codigo para derrubar)."

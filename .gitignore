@@ -45,3 +45,6 @@ Thumbs.db
 z_Versoes/
 gerar_versao.command
 gerar_versao.bat
+
+# mapa do graphify (gerado localmente, se refaz com graphify update .)
+graphify-out/

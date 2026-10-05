@@ -1,0 +1,145 @@
+---
+tipo: checklist
+projeto: FinHub (_deploy_mkb)
+gerado_em: 2026-10-05 20:10
+trabalho: Pergunte à IA
+---
+
+# Checklist de aplicação
+
+Só marcar `[x]` com EVIDÊNCIA apontável (arquivo:linha ou saída de prova). Fonte da regra entre parênteses.
+
+```
+Cor de marca: tokens do FinHub (--primary, --accent, --card, --border, --text, --muted), tema Sage & Creme
+Token de IA: --roxo #7C3AED, --roxo-escuro #6D28D9, --roxo-claro #A78BFA, --roxo-texto #5B21B6,
+             --roxo-borda #C4B5FD, --roxo-pastel-1 #FAF5FF, --roxo-pastel-2 #EDE9FE, --roxo-suave #F3EEFF
+Arquivo do token: static/style.css (bloco :root e [data-theme="light"])
+PROIBIDO: hex de qualquer cor dentro de template
+Tema: claro (padrão) e escuro, com o alternador que já existe
+Acesso: perfil (admin / leitura) + SSO do Hub com escopo de empresa
+Toggle: tipo 2, duas opções
+```
+
+---
+
+## Fase 1: CLAUDE.md e higiene do mapa
+
+- [x] `CLAUDE.md` na raiz, começando pelo bloco do template, com os caminhos do Mac: `/Users/fabiomoura/ObsidianJovi/CLAUDE.md` etc. (Padrao_CLAUDE_MD_Projeto)
+      EVIDÊNCIA: CLAUDE.md:1-76 (bloco da vault, caminhos /Users/fabiomoura/ObsidianJovi/, _MAPA_CHAVES em 00A_MAPAS/); `head -5 CLAUDE.md` mostra o título e o aviso da vault
+- [x] Seção "CONVENÇÕES ESPECÍFICAS": branch `master`, Python 3.11+ (`uv run --python 3.12`), `/health`, `COPY . .`, provas com `DB_PATH` antes do import, Sage & Creme, ajuste de saldo exige aprovação, Protheus retroativo, chave de IA no volume (decisão 8). (Padrao_CLAUDE_MD_Projeto: só o que é do projeto)
+      EVIDÊNCIA: CLAUDE.md:77-135 (master, Python 3.11+/uv, /health, COPY . ., provas DB_PATH, Sage & Creme, ajuste com aprovação, Protheus retroativo, chave de IA no volume)
+- [x] Nenhuma credencial no CLAUDE.md: `grep -niE "sk-|nvapi-|senha *[:=]" CLAUDE.md` vazio (Admin_Inicial_Padrao regra 5)
+      EVIDÊNCIA: grep rc=1, vazio, ok
+- [x] `graphify claude install` rodado DEPOIS do CLAUDE.md, bloco da vault preservado (Padrao_Graphify_Projeto_Novo, ordem item 4)
+      EVIDÊNCIA: `diff <(head -135 CLAUDE.md) copia_antes` sem diferença; seção `## graphify` apensada em CLAUDE.md:136+; hooks em .claude/settings.json
+- [x] `graphify-out/` em `.gitignore` e `.dockerignore`
+      EVIDÊNCIA: `git check-ignore graphify-out` -> graphify-out; .gitignore:50, .dockerignore:13
+
+## Fase 2: Configuração dos provedores
+
+- [ ] `ia_config.py`: env vence arquivo; arquivo em `Path(DB_PATH).parent` (prod `/data`) (decisão 8)
+- [ ] Arquivos `openai_key.txt`, `nvidia_key.txt`, `ia_config.json` com permissão `0o600` ao gravar (decisão 8, compensação)
+- [ ] `PROVEDORES` com URL fixa: `https://api.openai.com/v1/chat/completions` e `https://integrate.api.nvidia.com/v1/chat/completions`; nenhum campo de URL (Mapa_de_Conceitos A10 SSRF: "Whitelist de domínios em requisição HTTP do servidor")
+- [ ] Rotas `/config/ia*` com `@login_required` + `@admin_required` (Principios: "Toda rota que muda dado ou mostra dado privado exige login")
+- [ ] Chave nunca volta ao navegador, só `mascarar(chave)` = 3 primeiros + `...` + 4 últimos (Revisao_Vulnerabilidades: "Nenhuma chave de API pode chegar ao navegador")
+      PROVA: na prova, o HTML de `GET /config/ia` não contém a chave semeada
+- [ ] Campo de chave vazio ao salvar = mantém a atual (não apaga sem querer)
+- [ ] Validação: chave OpenAI começa com `sk-`, NVIDIA com `nvapi-`, 20 a 200 caracteres, sem espaço; modelo até 80 caracteres em `[A-Za-z0-9._/:-]` (Padrao_Validacao_de_Input)
+- [ ] Erro do provedor genérico, sem `r.text` nem `str(e)` na resposta (Padrao_Logging_Estruturado: "Header Authorization ou Cookie brutos" nunca em log)
+- [ ] Nenhum log com chave ou cabeçalho: `grep -nE "log.*(key|chave|Authorization)" ia_config.py app.py` vazio
+- [ ] `httpx==<versão exata>` em `requirements.txt` (Padrao_Dependencias_Lockfile: "Versao de dependencia eh pinada")
+- [ ] `/cadastro/aliases/config-ia` grava via `ia_config.py`; sugestão de aliases continua funcionando (Escada degrau 2: reusar)
+- [ ] `provas/prova_ia_config.py` verde, sem rede
+
+## Fase 3: Motor do modo Perguntar
+
+- [ ] Prompt de sistema separado da mensagem do usuário; pergunta entre `"""` no `user` (Mapa_de_Conceitos: "sempre system prompt separado do user input")
+- [ ] `response_format json_object` só para OpenAI; leitor de JSON tolera cerca de texto (NVIDIA)
+- [ ] Timeout 30 s; exceção vira "Não consegui falar com a <provedor> agora."
+- [ ] Lista fechada `INTENCOES = {...}` com campos por intenção; campo fora da lista ignorado e listado em `ignorados` (Padrao_Mass_Assignment: "Tudo que veio no body e nao esta na whitelist eh ignorado")
+- [ ] `empresa` validada contra `empresas_permitidas()` DA SESSÃO; fora do escopo = recusa sem revelar dado (Padrao_IDOR)
+      PROVA: sessão restrita a MKB perguntando da GNILEB recebe recusa
+- [ ] Competência `AAAA-MM` validada por regex + existência; janela máx. 24 meses com `# escada:` explicando o teto
+- [ ] Textos livres (cliente, fornecedor) até 80 caracteres, só como parâmetro `?` ou comparação em Python; zero f-string com valor do filtro em SQL (Revisao_Vulnerabilidades: "Todo SQL usa parâmetros")
+      PROVA: `grep -nE "execute\(f[\"']" ia_perguntas.py` vazio
+- [ ] Executor reusa `dre_engine` (`calcular_dre_mensal`, `calcular_dre_detalhada`, `analisar_receita_clientes`, `analisar_despesas_fornecedores`, `classificar_conta`) e `_resumo_endividamento_*` de `app.py` (Escada degrau 2)
+- [ ] Folha = `CPV_FOLHA + DADM_FOLHA + CPV_PROLAB + DADM_PROLAB + CPV_ENCARG + DADM_ENCARG`
+- [ ] `despesa_fornecedor` responde com o rótulo "despesa de competência, não pagamento" (decisão 6)
+- [ ] Tabela máx. 10 linhas + "Outros" + link "ver tudo" para a tela do módulo
+- [ ] Frase "Entendi" montada do filtro VALIDADO
+- [ ] `POST /ia/perguntar`: `@login_required`, CSRF (o `fetch` do `base.html` já manda `X-CSRF-Token`), 300 caracteres, 409 sem chave
+- [ ] Limite 20 por usuário a cada 10 min, 429 com mensagem "Muitas perguntas seguidas. Tente de novo em N min." (Mapa_de_Conceitos: "rate limit em endpoint de IA")
+- [ ] Log `IA_PERGUNTA` com usuário, intenção, provedor, ms; SEM texto da pergunta (Padrao_Logging_Estruturado: "Conteúdo de mensagem privada do usuário" nunca)
+- [ ] `provas/prova_ia_perguntar.py` verde: as 8 intenções, escopo de empresa, campo extra, período gigante, pergunta de 5000 caracteres, IA fora do ar, JSON cercado de texto
+
+## Fase 4: Modo Analisar
+
+- [ ] Servidor recalcula; não aceita números do corpo da requisição (Padrao_Mass_Assignment)
+- [ ] Pacote para a IA só com rótulo, competência e valor; sem `historico`, `documento`, NF, linha de razão (decisão 1)
+      PROVA: dublê captura o payload e a prova procura essas chaves
+- [ ] Prompt: "use só os números fornecidos", até 6 frases, português
+- [ ] Texto volta puro; front usa `textContent` (Mapa_de_Conceitos: "nunca `| safe` em output de LLM")
+      PROVA: `grep -rnE "\| *safe|innerHTML" templates/ia.html static/ia.js` vazio
+- [ ] Balde de limite compartilhado com Perguntar
+- [ ] `provas/prova_ia_analisar.py` verde
+
+## Fase 5: Telas
+
+### Marca de IA
+- [ ] Todo elemento de IA (pílula, caixa do dashboard, botão, frase Entendi, texto do Analisar) usa `ph-sparkle` e tokens `--roxo*` (Padrao_Marca_IA: "Nunca usar laranja, azul ou cor da empresa em botão/bloco/badge de IA")
+      PROIBIDO: `ph-robot`, `ph-magic-wand`, `ph-star`, emoji
+- [ ] `.bloco-ia`: `background: linear-gradient(135deg, var(--roxo-pastel-1), var(--roxo-pastel-2)); border: 1px solid var(--roxo-borda)` no claro; no escuro, `var(--card)` com borda `var(--roxo-claro)` (a nota não define escuro, decisão registrada aqui)
+- [ ] `.btn-ia`: fundo `var(--roxo)`, hover `var(--roxo-escuro)`, `:disabled` `var(--roxo-claro)` + `cursor: wait`
+- [ ] `.tag-ia`: `<span class="tag-ia"><i class="ph ph-sparkle" aria-hidden="true"></i> IA</span>` antes da frase Entendi e do texto do Analisar (Padrao_Marca_IA: "Resultado gerado por IA marcado com `.tag-ia`")
+- [ ] Botão com `aria-label` descritivo e ícone `aria-hidden="true"`
+- [ ] Texto descritivo junto do botão: "A IA lê sua pergunta e diz ao FinHub o que buscar. Os números vêm do FinHub." (Sempre_Marcar_IA: "A IA vai ler X e te entregar Y")
+- [ ] Tela `/config/ia`: corpo neutro, tag IA roxa no título (Sempre_Marcar_IA, exceção única)
+
+### Toggle tipo 2
+- [ ] `.ia-fonte{display:inline-flex;align-items:stretch;border:1px solid var(--border);border-radius:7px;overflow:hidden}`; `.ia-fonte button.on` com fundo sólido (`var(--roxo)` na tela de IA, `var(--accent)` na config) e texto branco (Padrao_Toggle_Tipos tipo 2)
+- [ ] Wrapper `role="radiogroup"` + `aria-label`; botões `type="button"`; ícone Phosphor em cada opção
+      PROIBIDO: sublinhado de aba, verde, `<select>`
+
+### Formulário, botão, card
+- [ ] Campos e botão com `height:40px; box-sizing:border-box`; label 13px 600 sem uppercase (Padrao_Formulario)
+- [ ] Botão principal ancorado à direita pelo CSS do container (`margin-left:auto` na classe, nunca em `style=`) (Acao_Primaria_a_Direita)
+- [ ] Cards com `display:flex; flex-direction:column`, cabeçalho `space-between`, sem hover mudando `background` (Padrao_Box_Card)
+- [ ] Nenhum `<select>` nas telas novas: `grep -n "<select" templates/ia.html templates/config_ia.html` vazio (Sem_Select_Nativo)
+- [ ] Nenhum `style=` nem hex nas telas novas: `grep -nE 'style="|#[0-9a-fA-F]{3,6}' templates/ia.html templates/config_ia.html` vazio (Sistema_de_Estilos)
+
+### Loading, vazio, tabela
+- [ ] Loading inline no container do resultado, spinner com borda `var(--roxo)`, texto no gerúndio; mais de 10 s mostra `.loading-sub` com segundos (Padrao_Loading_Estado)
+      PROIBIDO: "Carregando...", "Aguarde...", "Processando..."
+- [ ] Botão `disabled` durante a chamada; `finally` reabilita (Padrao_Loading_Estado regras 6 e 7)
+- [ ] Resultado vazio: `.vz` com `ph-funnel-x`, título "Nenhum Resultado", sub "Nenhum lançamento atende à pergunta." (Padrao_Estado_Vazio)
+- [ ] Tabela de resultado: título dentro do card, contagem no cabeçalho ("7 clientes"), valores `tabular-nums`, até 10 linhas (Padrao_Cabecalho_da_Tabela; Padrao_Tabela regra 1 não dispara)
+- [ ] Número único no modo Perguntar não vira grade de KPI (Listagens_sem_KPI)
+
+### Telas e entrada
+- [ ] Dict novo em `itens` de `templates/dashboard.html` (endpoint `ia_tela`, ícone `ph-sparkle`, rótulo `pergunte à IA`)
+- [ ] Caixa no topo do dashboard, `.bloco-ia`, `GET /ia?q=`
+- [ ] Link para `/config/ia` em Cadastro, só para admin
+- [ ] Exemplos clicáveis: "quanto a MKB faturou em agosto?", "salários de julho contra agosto", "despesa com o fornecedor X neste ano", "qual o saldo do endividamento tributário?"
+
+### Língua e conferência
+- [ ] Zero travessão nos arquivos novos: `grep -rn "—" templates/ia.html templates/config_ia.html static/ia.js ia_config.py ia_perguntas.py` vazio (Sem_Travessao)
+- [ ] Acentuação completa em todo texto visível; identificadores sem acento (Portugues_BR_Acentuacao); leitura tela por tela registrada no LOG (Revisao_Professor_Pasquale, fallback sem script)
+- [ ] Vocabulário: `grep -rniE "processando|aguarde|carregando|vale ressaltar|em suma" templates/ia.html templates/config_ia.html static/ia.js` vazio (Padrao_Texto_e_Linguagem)
+- [ ] `conferir-telas` em `/ia`, `/config/ia` e `/`, computador e celular, claro e escuro: zero erro
+
+## Fase 6: Entrega
+
+- [ ] Provas novas e antigas verdes (saída colada no LOG)
+- [ ] Teste real no Mac: 1 pergunta OpenAI + 1 NVIDIA conferidas contra a tela do módulo
+- [ ] `graphify update .`
+- [ ] Um commit por fase no `master`; push
+- [ ] `curl -s https://dre.zoaria.com.br/health` com o carimbo do último commit
+- [ ] `curl -s -o /dev/null -w "%{http_code}" https://dre.zoaria.com.br/static/ia.js` = 200
+- [ ] Aviso ao Fábio: salvar a chave NVIDIA em `/config/ia` na produção
+- [ ] LOG `fase=6 acao=entrega resultado=ok`
+
+---
+
+## Itens fora do escopo
+
+Ver PLANO_FASEADO, seção "Fora de escopo (cortado pela escada)".
