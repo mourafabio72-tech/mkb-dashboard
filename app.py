@@ -17,6 +17,7 @@ from config import (
 )
 from versao import VERSAO_COMPLETA, BUILD
 import ia_config
+import ia_perguntas
 from auth import (login_required, admin_required, verificar_credenciais,
                   rate_limit_login, empresas_permitidas)
 from ingestion import get_conn, criar_schema, seed_empresas, importar, ler_template_dre, salvar_lancamentos
@@ -2237,6 +2238,65 @@ def config_ia_testar():
         return jsonify({"ok": False, "mensagem": "Provedor desconhecido."}), 400
     ok, msg = ia_config.testar(prov)
     return jsonify({"ok": ok, "mensagem": msg})
+
+
+# --- ROTAS: PERGUNTE À IA ----------------------------------------------------
+# A IA só lê a pergunta e devolve um filtro; quem calcula é o FinHub (ver
+# ia_perguntas.py). Todo usuário logado pergunta, sempre dentro das empresas
+# que a sessão enxerga. Log sem o texto da pergunta.
+
+def _ia_quem() -> str:
+    u = session.get("usuario_logado") or {}
+    quem = u.get("id") or u.get("usuario") or u.get("email")
+    # sem identificador na sessão, o balde é por IP, não um balde comum a todos
+    return f"{u.get('origem') or 'local'}:{quem if quem else 'ip-' + _ip_cliente()}"[:120]
+
+
+def _ia_ler_pergunta():
+    """(pergunta, None) ou (None, resposta de erro)."""
+    dados = request.get_json(silent=True)
+    if not isinstance(dados, dict):
+        dados = request.form
+    pergunta = dados.get("pergunta")
+    if not isinstance(pergunta, str) or not pergunta.strip():
+        return None, (jsonify({"erro": "Escreva a pergunta."}), 400)
+    pergunta = pergunta.strip()
+    if len(pergunta) > ia_perguntas.MAX_PERGUNTA:
+        return None, (jsonify({"erro": f"A pergunta passa de {ia_perguntas.MAX_PERGUNTA} caracteres. Encurte e tente de novo."}), 400)
+    prov = ia_config.ler_config()["ativo"]
+    if not ia_config.ler_chave(prov):
+        return None, (jsonify({"erro": "A IA ainda não foi configurada. Peça a um administrador para salvar a chave em Configuração da IA."}), 409)
+    espera = ia_perguntas.consumir(_ia_quem())
+    if espera:
+        ia_config.registrar("RATE_LIMIT_HIT", level="WARN", user_id=_ia_quem(), ip=_ip_cliente(), path=request.path)
+        return None, (jsonify({"erro": f"Muitas perguntas seguidas. Tente de novo em {espera} min."}), 429)
+    return pergunta, None
+
+
+@app.route("/ia/perguntar", methods=["POST"])
+@login_required
+def ia_perguntar():
+    pergunta, erro = _ia_ler_pergunta()
+    if erro:
+        return erro
+    t0 = datetime.now()
+    prov = ia_config.ler_config()["ativo"]
+    log = {"user_id": _ia_quem(), "ip": _ip_cliente(), "provedor": prov}
+    try:
+        resp = ia_perguntas.responder(
+            pergunta, datetime.now().strftime("%Y-%m-%d"), empresas_permitidas(),
+            _competencias_disponiveis(), url=lambda e, **k: url_for(e, **k))
+    except ia_perguntas.Recusa:
+        # 404 genérico (Padrao_IDOR): não confirma o que existe fora do acesso
+        ia_config.registrar("ACESSO_NEGADO_IDOR", level="WARN", recurso="ia_perguntar", **log)
+        return jsonify({"tipo": "recusa", "erro": "Não encontrei dados para essa pergunta no seu acesso."}), 404
+    except ia_config.ErroIA as e:
+        ia_config.registrar("IA_ERRO", level="WARN", **log)
+        return jsonify({"erro": str(e)}), 502
+    ms = int((datetime.now() - t0).total_seconds() * 1000)
+    ia_config.registrar("IA_PERGUNTA", intencao=resp.get("intencao"), tipo=resp.get("tipo"), ms=ms,
+                        campos_ignorados=resp.get("ignorados") or [], **log)
+    return jsonify(resp)
 
 
 # --- ROTA: PENDÊNCIAS DE CADASTRO --------------------------------------------

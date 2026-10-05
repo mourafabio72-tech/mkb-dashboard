@@ -65,24 +65,40 @@ Toggle: tipo 2, duas opções
 
 ## Fase 3: Motor do modo Perguntar
 
-- [ ] Prompt de sistema separado da mensagem do usuário; pergunta entre `"""` no `user` (Mapa_de_Conceitos: "sempre system prompt separado do user input")
-- [ ] `response_format json_object` só para OpenAI; leitor de JSON tolera cerca de texto (NVIDIA)
-- [ ] Timeout 30 s; exceção vira "Não consegui falar com a <provedor> agora."
-- [ ] Lista fechada `INTENCOES = {...}` com campos por intenção; campo fora da lista ignorado e listado em `ignorados` (Padrao_Mass_Assignment: "Tudo que veio no body e nao esta na whitelist eh ignorado")
-- [ ] `empresa` validada contra `empresas_permitidas()` DA SESSÃO; fora do escopo = recusa sem revelar dado (Padrao_IDOR)
+- [x] Prompt de sistema separado da mensagem do usuário; pergunta entre `"""` no `user` (Mapa_de_Conceitos: "sempre system prompt separado do user input")
+      EVIDÊNCIA: ia_perguntas.interpretar: messages[0] system = PROMPT_SISTEMA constante, pergunta só em messages[1] entre aspas triplas; prova seção 6
+- [x] `response_format json_object` só para OpenAI; leitor de JSON tolera cerca de texto (NVIDIA)
+      EVIDÊNCIA: ia_config.chamar só põe response_format para openai (prova_ia_config seção 3); ia_perguntas.ler_json usa JSONDecoder.raw_decode e devolve o 1º objeto válido (prova: dois objetos no texto); prova seção 5 'JSON cercado de texto é lido'
+- [x] Timeout 30 s; exceção vira "Não consegui falar com a <provedor> agora."
+      EVIDÊNCIA: interpretar(timeout=30); ErroIA 'Não consegui falar com a OpenAI agora.' -> 502; prova seção 5
+- [x] Lista fechada `INTENCOES = {...}` com campos por intenção; campo fora da lista ignorado e listado em `ignorados` (Padrao_Mass_Assignment: "Tudo que veio no body e nao esta na whitelist eh ignorado")
+      EVIDÊNCIA: ia_perguntas.INTENCOES (8 intenções); validar() exige str e lista fora da lista em `ignorados` (até 10); prova seção 3: empresa_id e sql ignorados, intencao lista/dict/número/None/bool -> Não entendi 200 (mutação sem isinstance: prova rc=1, TypeError)
+- [x] `empresa` validada contra `empresas_permitidas()` DA SESSÃO; fora do escopo = recusa sem revelar dado (Padrao_IDOR)
       PROVA: sessão restrita a MKB perguntando da GNILEB recebe recusa
-- [ ] Competência `AAAA-MM` validada por regex + existência; janela máx. 24 meses com `# escada:` explicando o teto
-- [ ] Textos livres (cliente, fornecedor) até 80 caracteres, só como parâmetro `?` ou comparação em Python; zero f-string com valor do filtro em SQL (Revisao_Vulnerabilidades: "Todo SQL usa parâmetros")
+      EVIDÊNCIA: ia_perguntas._empresa (perm da sessão; consolidado só para quem vê todas); prova seção 2: sessão só MKB pedindo GNILEB e consolidado -> 404 recusa genérica (Padrao_IDOR), sem o 777 da Gnileb e sem nomear a empresa; empresa inventada vira Não entendi, não alerta
+- [x] Competência `AAAA-MM` validada por regex + existência; janela máx. 24 meses com `# escada:` explicando o teto
+      EVIDÊNCIA: _RE_COMP + `c in disponiveis`; MAX_MESES=24 com `# escada:` (ia_perguntas.py topo); prova seção 4
+- [x] Textos livres (cliente, fornecedor) até 80 caracteres, só como parâmetro `?` ou comparação em Python; zero f-string com valor do filtro em SQL (Revisao_Vulnerabilidades: "Todo SQL usa parâmetros")
       PROVA: `grep -nE "execute\(f[\"']" ia_perguntas.py` vazio
-- [ ] Executor reusa `dre_engine` (`calcular_dre_mensal`, `calcular_dre_detalhada`, `analisar_receita_clientes`, `analisar_despesas_fornecedores`, `classificar_conta`) e `_resumo_endividamento_*` de `app.py` (Escada degrau 2)
-- [ ] Folha = `CPV_FOLHA + DADM_FOLHA + CPV_PROLAB + DADM_PROLAB + CPV_ENCARG + DADM_ENCARG`
-- [ ] `despesa_fornecedor` responde com o rótulo "despesa de competência, não pagamento" (decisão 6)
-- [ ] Tabela máx. 10 linhas + "Outros" + link "ver tudo" para a tela do módulo
-- [ ] Frase "Entendi" montada do filtro VALIDADO
-- [ ] `POST /ia/perguntar`: `@login_required`, CSRF (o `fetch` do `base.html` já manda `X-CSRF-Token`), 300 caracteres, 409 sem chave
-- [ ] Limite 20 por usuário a cada 10 min, 429 com mensagem "Muitas perguntas seguidas. Tente de novo em N min." (Mapa_de_Conceitos: "rate limit em endpoint de IA")
-- [ ] Log `IA_PERGUNTA` com usuário, intenção, provedor, ms; SEM texto da pergunta (Padrao_Logging_Estruturado: "Conteúdo de mensagem privada do usuário" nunca)
-- [ ] `provas/prova_ia_perguntar.py` verde: as 8 intenções, escopo de empresa, campo extra, período gigante, pergunta de 5000 caracteres, IA fora do ar, JSON cercado de texto
+      EVIDÊNCIA: _texto corta em 80, comparação em Python (_norm + `in`), nunca SQL; `grep -nE "execute\(f[\"']" ia_perguntas.py` rc=1; prova 3 e 9
+- [x] Executor reusa `dre_engine` (`calcular_dre_mensal`, `calcular_dre_detalhada`, `analisar_receita_clientes`, `analisar_despesas_fornecedores`, `classificar_conta`) e `_resumo_endividamento_*` de `app.py` (Escada degrau 2)
+      EVIDÊNCIA: ia_perguntas importa calcular_dre_mensal, calcular_dre_detalhada (folha), analisar_receita_clientes, analisar_despesas_fornecedores; zero SQL próprio de lançamento (classificar_conta entra via calcular_dre_detalhada); endividamento via app._resumo_endividamento_*; prova seção 1 confere ROB contra calcular_dre_mensal
+- [x] Folha = `CPV_FOLHA + DADM_FOLHA + CPV_PROLAB + DADM_PROLAB + CPV_ENCARG + DADM_ENCARG`
+      EVIDÊNCIA: GRUPOS_FOLHA com os 6 grupos; _folha soma os subtotais de calcular_dre_detalhada; prova semeia os 6 grupos: ago = -(6000+1000+100+200+300+400) = -8000, sinal da DRE
+- [x] `despesa_fornecedor` responde com o rótulo "despesa de competência, não pagamento" (decisão 6)
+      EVIDÊNCIA: aviso 'Despesa de competência (quando a nota foi lançada), não pagamento.'; prova seção 1
+- [x] Tabela máx. 10 linhas + "Outros" + link "ver tudo" para a tela do módulo
+      EVIDÊNCIA: _top (MAX_LINHAS=10 + 'Outros (n)'); ver_tudo por url_for do módulo; prova seção 1: 12 clientes -> 11 linhas, Outros = 3000
+- [x] Frase "Entendi" montada do filtro VALIDADO
+      EVIDÊNCIA: executar monta de f (LINHAS, NOME_EMPRESA, mes_label); prova: 'Entendi: Receita Operacional Bruta de MKB, em ago/2026.'
+- [x] `POST /ia/perguntar`: `@login_required`, CSRF (o `fetch` do `base.html` já manda `X-CSRF-Token`), 300 caracteres, 409 sem chave
+      EVIDÊNCIA: app.py:2276 @login_required; CSRF pelo before_request (prova: sem token 400); 300 caracteres (5000 -> 400); sem chave 409
+- [x] Limite 20 por usuário a cada 10 min, 429 com mensagem "Muitas perguntas seguidas. Tente de novo em N min." (Mapa_de_Conceitos: "rate limit em endpoint de IA")
+      EVIDÊNCIA: ia_perguntas.consumir (deque por usuário, trava, `# escada:` memória por processo); prova seção 8: 21ª -> 429 com a mensagem; outro usuário passa; janela de 600 s
+- [x] Log `IA_PERGUNTA` com usuário, intenção, provedor, ms; SEM texto da pergunta (Padrao_Logging_Estruturado: "Conteúdo de mensagem privada do usuário" nunca)
+      EVIDÊNCIA: app.ia_perguntar registrar IA_PERGUNTA (user_id, ip, provedor, intencao, tipo, ms); prova seção 7: texto da pergunta fora do log; recusa vira ACESSO_NEGADO_IDOR
+- [x] `provas/prova_ia_perguntar.py` verde: as 8 intenções, escopo de empresa, campo extra, período gigante, pergunta de 5000 caracteres, IA fora do ar, JSON cercado de texto
+      EVIDÊNCIA: rc=0, 0 FALHA; provas antigas e prova_ia_config verdes (rc=0 nas 7)
 
 ## Fase 4: Modo Analisar
 

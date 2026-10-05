@@ -57,7 +57,7 @@ No modo Analisar, o FinHub recalcula o mesmo resultado e manda só os totais par
 
 ## Fase 3: Motor do modo Perguntar (backend + prova)
 
-- **Status:** pending
+- **Status:** done (2026-10-05)
 - **Duração estimada:** 4h
 - **Critério de aceite** (prova `provas/prova_ia_perguntar.py`, banco temporário com dados semeados, IA dublê):
   - `ia_perguntas.interpretar(pergunta, hoje)`: prompt de sistema separado da pergunta, `temperature 0`, `max_tokens 300`, timeout 30 s, JSON lido mesmo cercado de texto (NVIDIA).
@@ -132,5 +132,6 @@ No modo Analisar, o FinHub recalcula o mesmo resultado e manda só os totais par
 
 ## Histórico de mudanças neste plano
 
+- 2026-10-05 22:30: Fase 3, decisões de execução registradas no LOG: valores com o sinal da tela do módulo (gasto negativo); recusa de empresa responde 404 genérico (Padrao_IDOR) em vez de 403; IRPJ é por empresa (consolidado mostra a MKB com aviso).
 - 2026-10-05 20:50: Fase 2 troca `httpx` pinado por `urllib` da biblioteca padrão. Motivo: a premissa "httpx vem de carona do openai" era falsa (openai resolve para 3.24.0, sem httpx na árvore, medido com `uv pip compile`). Decisão do Fábio entre urllib, httpx e SDK openai.
 - 2026-10-05: plano criado (genesis-iniciar, modo ampliação). Decisões do dono: modos a+b, escopo 2c, acesso 3b, entrada 4c, Graphify sim; depois 1a, 2a, 3a, 4a.

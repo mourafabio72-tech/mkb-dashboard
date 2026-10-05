@@ -82,6 +82,14 @@ def registrar(evento: str, **campos) -> None:
     """Log estruturado (uma linha JSON no stdout, que o EasyPanel guarda).
     Nunca recebe chave, pergunta nem resposta: só quem, o quê e quanto tempo."""
     linha = {"timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "level": "INFO", "event": evento}
+    try:
+        from flask import g, has_request_context, request
+        if has_request_context():
+            if "request_id" not in g:
+                g.request_id = os.urandom(8).hex()
+            linha.update(request_id=g.request_id, path=request.path, method=request.method)
+    except ImportError:
+        pass
     linha.update(campos)
     print(json.dumps(linha, ensure_ascii=False), file=sys.stdout, flush=True)
 
