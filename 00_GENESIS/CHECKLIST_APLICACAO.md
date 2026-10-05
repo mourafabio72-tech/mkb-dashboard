@@ -102,14 +102,20 @@ Toggle: tipo 2, duas opções
 
 ## Fase 4: Modo Analisar
 
-- [ ] Servidor recalcula; não aceita números do corpo da requisição (Padrao_Mass_Assignment)
-- [ ] Pacote para a IA só com rótulo, competência e valor; sem `historico`, `documento`, NF, linha de razão (decisão 1)
+- [x] Servidor recalcula; não aceita números do corpo da requisição (Padrao_Mass_Assignment)
+      EVIDÊNCIA: app.ia_analisar só chama _ia_ler_pergunta (lê só `pergunta`); ia_perguntas.analisar chama responder() e monta o pacote do resultado recalculado; prova seção 2: linhas/total/valor do corpo (999999, 123456, 777777) não chegam à IA
+- [x] Pacote para a IA só com rótulo, competência e valor; sem `historico`, `documento`, NF, linha de razão (decisão 1)
       PROVA: dublê captura o payload e a prova procura essas chaves
-- [ ] Prompt: "use só os números fornecidos", até 6 frases, português
+      EVIDÊNCIA: ia_perguntas.pacote_analise (itens só rotulo+valor; cliente/fornecedor viram 'Cliente n'); prova seção 1: sem historico, documento, DOC0, 'VL. NF', número da NF, razao, conta_cod, nome de cliente nem nome citado na pergunta
+- [x] Prompt: "use só os números fornecidos", até 6 frases, português
+      EVIDÊNCIA: PROMPT_ANALISE: 'Use SOMENTE os números', 'Não invente número', 'no máximo 6 frases', 'português do Brasil'; prova seção 3
 - [ ] Texto volta puro; front usa `textContent` (Mapa_de_Conceitos: "nunca `| safe` em output de LLM")
       PROVA: `grep -rnE "\| *safe|innerHTML" templates/ia.html static/ia.js` vazio
-- [ ] Balde de limite compartilhado com Perguntar
-- [ ] `provas/prova_ia_analisar.py` verde
+      METADE BACKEND: `resp['analise']` é string pura, espaços colapsados, até 1500 (prova seção 3). METADE FRONT: grep em templates/ia.html e static/ia.js roda no gate da Fase 5, e só então este item vira [x].
+- [x] Balde de limite compartilhado com Perguntar
+      EVIDÊNCIA: as duas rotas passam por _ia_ler_pergunta -> ia_perguntas.consumir(_ia_quem()); prova seção 6: 19 perguntar + 1 analisar = 20 ok, a 21ª (analisar) 429
+- [x] `provas/prova_ia_analisar.py` verde
+      EVIDÊNCIA: rc=0, PROVA VERDE
 
 ## Fase 5: Telas
 

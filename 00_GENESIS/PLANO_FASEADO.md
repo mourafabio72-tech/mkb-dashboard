@@ -73,7 +73,7 @@ No modo Analisar, o FinHub recalcula o mesmo resultado e manda só os totais par
 
 ## Fase 4: Modo Analisar (backend + prova)
 
-- **Status:** pending
+- **Status:** done no backend (2026-10-05); o item 'front usa textContent' fecha no gate da Fase 5
 - **Duração estimada:** 1h30
 - **Critério de aceite** (prova `provas/prova_ia_analisar.py`):
   - `POST /ia/analisar` recebe a pergunta de novo, **recalcula no servidor** (não aceita números vindos do navegador) e monta o pacote só com totais: rótulo, competência, valor. Prova: o pacote enviado ao dublê não contém `historico`, `documento`, número de NF nem linha de `razao`.

@@ -2299,6 +2299,32 @@ def ia_perguntar():
     return jsonify(resp)
 
 
+@app.route("/ia/analisar", methods=["POST"])
+@login_required
+def ia_analisar():
+    """Modo Analisar: recebe só a pergunta, recalcula aqui e manda à IA apenas os
+    totais. Não aceita número vindo do navegador. Mesmo balde de limite do Perguntar."""
+    pergunta, erro = _ia_ler_pergunta()
+    if erro:
+        return erro
+    t0 = datetime.now()
+    log = {"user_id": _ia_quem(), "ip": _ip_cliente(), "provedor": ia_config.ler_config()["ativo"]}
+    try:
+        resp = ia_perguntas.analisar(
+            pergunta, datetime.now().strftime("%Y-%m-%d"), empresas_permitidas(),
+            _competencias_disponiveis(), url=lambda e, **k: url_for(e, **k))
+    except ia_perguntas.Recusa:
+        ia_config.registrar("ACESSO_NEGADO_IDOR", level="WARN", recurso="ia_analisar", **log)
+        return jsonify({"tipo": "recusa", "erro": "Não encontrei dados para essa pergunta no seu acesso."}), 404
+    except ia_config.ErroIA as e:
+        ia_config.registrar("IA_ERRO", level="WARN", **log)
+        return jsonify({"erro": str(e)}), 502
+    ms = int((datetime.now() - t0).total_seconds() * 1000)
+    ia_config.registrar("IA_ANALISE", intencao=resp.get("intencao"), tipo=resp.get("tipo"), ms=ms,
+                        campos_ignorados=resp.get("ignorados") or [], **log)
+    return jsonify(resp)
+
+
 # --- ROTA: PENDÊNCIAS DE CADASTRO --------------------------------------------
 
 @app.route("/cadastro/pendencias")

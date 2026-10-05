@@ -289,7 +289,12 @@ def chamar(mensagens: list[dict], provedor: str | None = None, *,
     if status != 200:
         raise ErroIA(f"A {p['nome']} respondeu HTTP {status}.")
     try:
-        return json.loads(bruto)["choices"][0]["message"]["content"] or ""
+        texto = json.loads(bruto)["choices"][0]["message"]["content"]
+        if texto is None:
+            return ""
+        if not isinstance(texto, str):   # lista de partes, dict: formato que não usamos
+            raise TypeError
+        return texto
     except (ValueError, KeyError, IndexError, TypeError):
         raise ErroIA(f"A {p['nome']} devolveu uma resposta que não entendi.") from None
 
