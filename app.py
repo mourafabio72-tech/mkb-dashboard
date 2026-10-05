@@ -3,6 +3,7 @@ app.py -- MKB-Dashboard  (porta 5001)
 Dashboard gerencial do Grupo Markbuilding: DRE, IRPJ/CSLL, Endividamento Tributário.
 """
 
+import secrets
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -67,6 +68,54 @@ def _no_cache_html(resp):
         resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         resp.headers["Pragma"] = "no-cache"
     return resp
+
+
+@app.after_request
+def _headers_seguranca(resp):
+    """Headers de segurança de base (mesmo conjunto do FinControl/CRM da casa).
+    Cerco do jericó, 2026-09: o app não mandava nenhum, então o dashboard podia
+    ser embutido em iframe (clickjacking). CSP fica de fora de propósito: o
+    dashboard usa <script> inline (ex.: {{ grafico_serie | safe }}), e uma CSP
+    script-src 'self' quebraria os gráficos. CSP exige nonce no template, tarefa
+    à parte."""
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    resp.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+    return resp
+
+
+# --- CSRF ---------------------------------------------------------------------
+# Cerco do jericó, 2026-09: o app não tinha CSRF. Token por sessão, exigido em
+# todo método que altera estado. O front injeta o token: nos formulários (campo
+# oculto csrf_token) e no fetch (header X-CSRF-Token) — ver base.html. Isento:
+# login/logout (abrem/fecham sessão), health e estáticos.
+CSRF_ISENTAS = {"login", "logout", "health", "static"}
+
+
+def get_csrf_token():
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_hex(32)
+    return session["csrf_token"]
+
+
+@app.context_processor
+def _inject_csrf():
+    return {"csrf_token": get_csrf_token()}
+
+
+@app.before_request
+def _csrf_protect():
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return None
+    if request.endpoint in CSRF_ISENTAS:
+        return None
+    enviado = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token") or ""
+    esperado = session.get("csrf_token") or ""
+    if not enviado or not esperado or not secrets.compare_digest(str(enviado), str(esperado)):
+        return ("Token CSRF inválido. Recarregue a página e tente de novo.", 400)
+    return None
 
 
 # --- FILTROS JINJA2 ----------------------------------------------------------

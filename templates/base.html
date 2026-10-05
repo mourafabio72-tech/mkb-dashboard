@@ -3,7 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token }}">
   <title>{% block title %}MKB Dashboard{% endblock %} — BPS4</title>
+  <script>
+  // CSRF (cerco do jericó): injeta o token em todo POST — nos formulários (campo
+  // oculto, no submit) e no fetch (header X-CSRF-Token). Roda no <head>, cobre
+  // tudo sem tocar em cada form/chamada.
+  (function(){
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    var tok = (meta && meta.content) || '';
+    if (!tok) return;
+    // 1) fetch same-origin que altera estado
+    var _fetch = window.fetch;
+    window.fetch = function(input, init){
+      init = init || {};
+      var metodo = (init.method || (typeof input === 'object' && input && input.method) || 'GET').toUpperCase();
+      var url = (typeof input === 'string') ? input : (input && input.url) || '';
+      var sameOrigin = url.indexOf('http') !== 0 || url.indexOf(location.origin) === 0;
+      if (sameOrigin && metodo !== 'GET' && metodo !== 'HEAD' && metodo !== 'OPTIONS') {
+        var h = new Headers(init.headers || {});
+        if (!h.has('X-CSRF-Token')) h.set('X-CSRF-Token', tok);
+        init.headers = h;
+      }
+      return _fetch.call(this, input, init);
+    };
+    // 2) formulários POST — insere campo oculto no submit (cobre form dinâmico)
+    document.addEventListener('submit', function(e){
+      var f = e.target;
+      if (!f || !f.method || f.method.toLowerCase() !== 'post') return;
+      if (!f.querySelector('input[name="csrf_token"]')) {
+        var i = document.createElement('input');
+        i.type = 'hidden'; i.name = 'csrf_token'; i.value = tok;
+        f.appendChild(i);
+      }
+    }, true);
+  })();
+  </script>
 
   {# ── Phosphor Icons (bold + regular) ── #}
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css">
