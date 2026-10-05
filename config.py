@@ -120,22 +120,9 @@ ZOARIA_COOKIE_NAME   = os.environ.get("ZOARIA_COOKIE_NAME", "zoaria_session")
 HUB_URL    = os.environ.get("HUB_URL", "").strip().rstrip("/")
 MODULO_HUB = "controladoria"   # módulo deste app no catálogo do hub
 
-# ─── OPENAI (sugestão automática de aliases de fornecedores) ─────────────────
-# Lê de env var OU de /data/openai_key.txt (fallback para Easypanel onde
-# variáveis de ambiente nem sempre chegam ao container)
-def _ler_openai_key() -> str:
-    chave = os.environ.get("OPENAI_API_KEY", "").strip()
-    if chave:
-        return chave
-    try:
-        p = Path("/data/openai_key.txt")
-        if p.exists():
-            return p.read_text().strip()
-    except Exception:
-        pass
-    return ""
-
-OPENAI_API_KEY = _ler_openai_key()
+# ─── IA ──────────────────────────────────────────────────────────────────────
+# Chaves, provedor ativo e modelo moram em ia_config.py (env vence o arquivo no
+# diretório do banco).
 
 # ─── AUTENTICAÇÃO ─────────────────────────────────────────────────────────────
 # DASHBOARD_USERS = "usuario1:senha1,usuario2:senha2" (nunca comitar senha).

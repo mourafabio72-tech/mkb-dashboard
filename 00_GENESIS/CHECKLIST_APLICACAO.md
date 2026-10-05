@@ -37,19 +37,31 @@ Toggle: tipo 2, duas opções
 
 ## Fase 2: Configuração dos provedores
 
-- [ ] `ia_config.py`: env vence arquivo; arquivo em `Path(DB_PATH).parent` (prod `/data`) (decisão 8)
-- [ ] Arquivos `openai_key.txt`, `nvidia_key.txt`, `ia_config.json` com permissão `0o600` ao gravar (decisão 8, compensação)
-- [ ] `PROVEDORES` com URL fixa: `https://api.openai.com/v1/chat/completions` e `https://integrate.api.nvidia.com/v1/chat/completions`; nenhum campo de URL (Mapa_de_Conceitos A10 SSRF: "Whitelist de domínios em requisição HTTP do servidor")
-- [ ] Rotas `/config/ia*` com `@login_required` + `@admin_required` (Principios: "Toda rota que muda dado ou mostra dado privado exige login")
-- [ ] Chave nunca volta ao navegador, só `mascarar(chave)` = 3 primeiros + `...` + 4 últimos (Revisao_Vulnerabilidades: "Nenhuma chave de API pode chegar ao navegador")
+- [x] `ia_config.py`: env vence arquivo; arquivo em `Path(DB_PATH).parent` (prod `/data`) (decisão 8)
+      EVIDÊNCIA: ia_config.py:ler_chave (env antes de `_dir_dados()/arquivo`), `_dir_dados()` = `Path(config.DB_PATH).parent`; prova seção 1 (6 OK)
+- [x] Arquivos `openai_key.txt`, `nvidia_key.txt`, `ia_config.json` com permissão `0o600` ao gravar (decisão 8, compensação)
+      EVIDÊNCIA: ia_config.py:_gravar_privado (mkstemp 0o600 + os.replace, atômico; trocado após verificação); prova seção 2: os três arquivos 0o600 e regravar reaperta
+- [x] `PROVEDORES` com URL fixa: `https://api.openai.com/v1/chat/completions` e `https://integrate.api.nvidia.com/v1/chat/completions`; nenhum campo de URL (Mapa_de_Conceitos A10 SSRF: "Whitelist de domínios em requisição HTTP do servidor")
+      EVIDÊNCIA: ia_config.py:PROVEDORES; prova seção 3 e 7b: allowlist = as duas URLs, redirect não seguido (mutação: sem _SemRedirect a prova fica VERMELHA), tela sem `name=...url`, chamada NVIDIA vai à URL fixa
+- [x] Rotas `/config/ia*` com `@login_required` + `@admin_required` (Principios: "Toda rota que muda dado ou mostra dado privado exige login")
+      EVIDÊNCIA: app.py:2198-2243, as três com @login_required + @admin_required; prova seção 4: sem sessão 302 /login, leitura barrada em GET, salvar e testar
+- [x] Chave nunca volta ao navegador, só `mascarar(chave)` = 3 primeiros + `...` + 4 últimos (Revisao_Vulnerabilidades: "Nenhuma chave de API pode chegar ao navegador")
       PROVA: na prova, o HTML de `GET /config/ia` não contém a chave semeada
-- [ ] Campo de chave vazio ao salvar = mantém a atual (não apaga sem querer)
-- [ ] Validação: chave OpenAI começa com `sk-`, NVIDIA com `nvapi-`, 20 a 200 caracteres, sem espaço; modelo até 80 caracteres em `[A-Za-z0-9._/:-]` (Padrao_Validacao_de_Input)
-- [ ] Erro do provedor genérico, sem `r.text` nem `str(e)` na resposta (Padrao_Logging_Estruturado: "Header Authorization ou Cookie brutos" nunca em log)
-- [ ] Nenhum log com chave ou cabeçalho: `grep -nE "log.*(key|chave|Authorization)" ia_config.py app.py` vazio
-- [ ] `httpx==<versão exata>` em `requirements.txt` (Padrao_Dependencias_Lockfile: "Versao de dependencia eh pinada")
-- [ ] `/cadastro/aliases/config-ia` grava via `ia_config.py`; sugestão de aliases continua funcionando (Escada degrau 2: reusar)
-- [ ] `provas/prova_ia_config.py` verde, sem rede
+      EVIDÊNCIA: prova seção 5: HTML sem CHAVE_OA e CHAVE_NV, com `sk-...XYZ9`; estado_publico sem a chave; JSON do testar sem a chave (seção 7)
+- [x] Campo de chave vazio ao salvar = mantém a atual (não apaga sem querer)
+      EVIDÊNCIA: ia_config.salvar_chave devolve None com vazio; prova seção 6 'campo vazio mantém a chave'
+- [x] Validação: chave OpenAI começa com `sk-`, NVIDIA com `nvapi-`, 20 a 200 caracteres, sem espaço; modelo até 80 caracteres em `[A-Za-z0-9._/:-]` (Padrao_Validacao_de_Input)
+      EVIDÊNCIA: ia_config.py `_RE_CHAVE` {20,200} sem espaço + prefixo; `_RE_MODELO` [A-Za-z0-9._/:-]{1,80}; prova seção 6: prefixo errado, espaço, modelo com `;`, modelo 81, provedor desconhecido recusados
+- [x] Erro do provedor genérico, sem `r.text` nem `str(e)` na resposta (Padrao_Logging_Estruturado: "Header Authorization ou Cookie brutos" nunca em log)
+      EVIDÊNCIA: ia_config.chamar: 3 mensagens fixas (HTTP <código>, não consegui falar, resposta que não entendi), `from None`; prova seção 7 (401 com chave no corpo, OSError com chave, JSON torto). Irmão corrigido: app.py sugerir-ia trocou `str(e)` por mensagem fixa, 502 (prova seção 8). O único `str(e)` restante (ia_config.testar) é de ErroIA, texto montado por nós.
+- [x] Nenhum log com chave ou cabeçalho: `grep -nE "log.*(key|chave|Authorization)" ia_config.py app.py` vazio
+      EVIDÊNCIA: `grep -nE "log.*(key|chave|Authorization)" ia_config.py app.py` rc=1, vazio, ok
+- [x] Nenhum pacote novo: chamada HTTP pela `urllib` (Padrao_Dependencias_Lockfile: "Eu realmente preciso disso, ou consigo com stdlib?"); `git diff requirements.txt` vazio. Item trocado em 2026-10-05 (era `httpx` pinado, premissa falsa)
+      EVIDÊNCIA: `git diff --stat requirements.txt` vazio; `grep "import httpx|import requests" ia_config.py` rc=1; HTTP por urllib (ia_config._post_json)
+- [x] `/cadastro/aliases/config-ia` grava via `ia_config.py`; sugestão de aliases continua funcionando (Escada degrau 2: reusar)
+      EVIDÊNCIA: app.py aliases_config_ia usa ia_config.validar_chave/salvar_chave; sugerir-ia usa ia_config.ler_chave; config.py sem _ler_openai_key; prova seção 8: rota antiga grava 0o600, SDK recebe a chave, sugestão responde 200
+- [x] `provas/prova_ia_config.py` verde, sem rede
+      EVIDÊNCIA: `uv run --no-project --python 3.12 --with-requirements requirements.txt python provas/prova_ia_config.py` -> PROVA VERDE, rc=0 (70 checagens, depois da verificação adversarial); provas antigas 5/5 verdes
 
 ## Fase 3: Motor do modo Perguntar
 

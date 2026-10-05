@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Configuração da IA{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Configuração da IA <span class="tag-ia"><i class="ph ph-sparkle" aria-hidden="true"></i> IA</span></h1>
+  <p class="subtitle">Chave e modelo de cada provedor. A chave fica guardada no servidor e aparece aqui só mascarada.</p>
+</div>
+
+<form method="POST" action="{{ url_for('config_ia_salvar') }}" class="ia-config">
+  <input type="hidden" name="ativo" value="{{ ia.ativo }}" data-ia-ativo>
+
+  <div class="ia-config-ativo">
+    <span class="ia-config-rotulo">Provedor usado nas perguntas</span>
+    <div class="ia-fonte" role="radiogroup" aria-label="Provedor de IA ativo">
+      {% for p in ia.provedores %}
+      <button type="button" role="radio" data-provedor="{{ p.id }}"
+              aria-checked="{{ 'true' if p.id == ia.ativo else 'false' }}"
+              class="{{ 'on' if p.id == ia.ativo else '' }}">
+        <i class="ph {{ 'ph-cpu' if p.id == 'nvidia' else 'ph-plugs' }}" aria-hidden="true"></i> {{ p.nome }}
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="ia-config-cards">
+    {% for p in ia.provedores %}
+    <section class="section-card ia-config-card" aria-labelledby="ia-titulo-{{ p.id }}">
+      <header class="ia-config-cab">
+        <h2 id="ia-titulo-{{ p.id }}">{{ p.nome }}</h2>
+        <span class="ia-config-status">
+          {% if p.tem_chave %}Chave {{ p.mascara }}{% if p.origem == 'ambiente' %} (variável de ambiente){% endif %}{% else %}Sem chave{% endif %}
+        </span>
+      </header>
+      <label for="chave_{{ p.id }}">Nova chave</label>
+      <input type="password" id="chave_{{ p.id }}" name="chave_{{ p.id }}" autocomplete="off"
+             placeholder="{{ p.prefixo }}... (vazio mantém a atual)">
+      <label for="modelo_{{ p.id }}">Modelo</label>
+      <input type="text" id="modelo_{{ p.id }}" name="modelo_{{ p.id }}" value="{{ p.modelo }}" maxlength="80">
+      <div class="ia-config-acoes">
+        <button type="button" class="btn btn-secondary" data-testar="{{ p.id }}">
+          <i class="ph ph-plug-charging" aria-hidden="true"></i> Testar {{ p.nome }}
+        </button>
+        <span class="ia-config-teste" data-teste-msg="{{ p.id }}" aria-live="polite"></span>
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+
+  <div class="ia-config-rodape">
+    <button type="submit" class="btn btn-primary"><i class="ph ph-floppy-disk" aria-hidden="true"></i> Salvar configuração</button>
+  </div>
+</form>
+{% endblock %}

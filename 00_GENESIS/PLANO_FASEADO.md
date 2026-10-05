@@ -41,9 +41,9 @@ No modo Analisar, o FinHub recalcula o mesmo resultado e manda só os totais par
 
 ## Fase 2: Configuração dos provedores (backend + prova)
 
-- **Status:** pending
+- **Status:** done (2026-10-05)
 - **Duração estimada:** 2h
-- **Critério de aceite** (prova `provas/prova_ia_config.py`, sem rede, `httpx.post` trocado por dublê):
+- **Critério de aceite** (prova `provas/prova_ia_config.py`, sem rede, a chamada HTTP trocada por dublê):
   - `ia_config.py` lê a chave de cada provedor: variável de ambiente (`OPENAI_API_KEY`, `NVIDIA_API_KEY`) vence o arquivo no diretório de dados (`/data/openai_key.txt`, `/data/nvidia_key.txt`, mesmo diretório do `DB_PATH`, então também funciona no Mac).
   - Provedor ativo e modelo em `/data/ia_config.json`; padrões `gpt-4o-mini` e `meta/llama-3.3-70b-instruct`.
   - URL **fixa no código**, só as duas da allowlist. Nenhum campo de URL na tela.
@@ -53,7 +53,7 @@ No modo Analisar, o FinHub recalcula o mesmo resultado e manda só os totais par
   - Erro do provedor volta genérico ("A NVIDIA respondeu HTTP 401."), sem corpo cru, sem chave, sem cabeçalho.
 - **Notas:** Vazamento_de_Chaves, Revisao_Vulnerabilidades, Padrao_Logging_Estruturado, CSRF_Cookies_Headers, Padrao_Dependencias_Lockfile, Painel_Desenvolvedor (decisão 7 do LASTRO)
 - **Dependências:** Fase 1
-- **Output:** `ia_config.py`, rotas em `app.py`, `provas/prova_ia_config.py`, `requirements.txt` (`httpx` pinado, hoje vem só de carona do `openai`)
+- **Output:** `ia_config.py`, rotas em `app.py`, `provas/prova_ia_config.py`, nenhum pacote novo: chamada HTTP pela `urllib` da biblioteca padrão (alterado em 2026-10-05, ver histórico)
 
 ## Fase 3: Motor do modo Perguntar (backend + prova)
 
@@ -132,4 +132,5 @@ No modo Analisar, o FinHub recalcula o mesmo resultado e manda só os totais par
 
 ## Histórico de mudanças neste plano
 
+- 2026-10-05 20:50: Fase 2 troca `httpx` pinado por `urllib` da biblioteca padrão. Motivo: a premissa "httpx vem de carona do openai" era falsa (openai resolve para 3.24.0, sem httpx na árvore, medido com `uv pip compile`). Decisão do Fábio entre urllib, httpx e SDK openai.
 - 2026-10-05: plano criado (genesis-iniciar, modo ampliação). Decisões do dono: modos a+b, escopo 2c, acesso 3b, entrada 4c, Graphify sim; depois 1a, 2a, 3a, 4a.

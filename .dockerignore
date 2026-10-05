@@ -12,3 +12,7 @@ cookies.txt
 .claude/
 graphify-out/
 00_GENESIS/
+openai_key.txt
+nvidia_key.txt
+ia_config.json
+*.db

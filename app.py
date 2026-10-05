@@ -12,10 +12,11 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from werkzeug.security import generate_password_hash
 
 from config import (
-    SECRET_KEY, PORT, DEBUG, EMPRESAS, OPENAI_API_KEY,
+    SECRET_KEY, PORT, DEBUG, EMPRESAS,
     ZOARIA_COOKIE_DOMAIN, ZOARIA_COOKIE_NAME, HUB_URL,
 )
 from versao import VERSAO_COMPLETA, BUILD
+import ia_config
 from auth import (login_required, admin_required, verificar_credenciais,
                   rate_limit_login, empresas_permitidas)
 from ingestion import get_conn, criar_schema, seed_empresas, importar, ler_template_dre, salvar_lancamentos
@@ -113,7 +114,9 @@ def _csrf_protect():
         return None
     enviado = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token") or ""
     esperado = session.get("csrf_token") or ""
-    if not enviado or not esperado or not secrets.compare_digest(str(enviado), str(esperado)):
+    # bytes dos dois lados: compare_digest com str não ASCII levanta TypeError (500)
+    if not enviado or not esperado or not secrets.compare_digest(
+            str(enviado).encode("utf-8"), str(esperado).encode("utf-8")):
         return ("Token CSRF inválido. Recarregue a página e tente de novo.", 400)
     return None
 
@@ -1891,8 +1894,7 @@ def aliases():
     nomes_aprox_sorted = sorted(nomes_aprox)
     canonicos = sorted({r[1] for r in aliases_rows})
 
-    from pathlib import Path as _P
-    tem_key = bool(OPENAI_API_KEY) or _P("/data/openai_key.txt").exists()
+    tem_key = bool(ia_config.ler_chave("openai"))
 
     return render_template(
         "aliases.html",
@@ -1974,19 +1976,18 @@ def aliases_excluir():
 @login_required
 @admin_required
 def aliases_config_ia():
-    """Salva a API key do OpenAI em /data/openai_key.txt (disco persistente)."""
-    from pathlib import Path as _P
+    """Salva a chave da OpenAI pelo mesmo caminho da tela /config/ia."""
     chave = request.form.get("api_key", "").strip()
-    if not chave or not chave.startswith("sk-"):
-        flash("Chave inválida — deve começar com sk-", "danger")
+    erro = ia_config.validar_chave("openai", chave) if chave else "Informe a chave."
+    if not erro:
+        erro = ia_config.salvar_chave("openai", chave)
+    if erro:
+        flash(erro, "danger")
         return redirect(url_for("aliases"))
-    _P("/data/openai_key.txt").write_text(chave)
-    # Atualiza em memória para uso imediato
-    import config
-    config.OPENAI_API_KEY = chave
-    global OPENAI_API_KEY
-    OPENAI_API_KEY = chave
-    flash("API key salva com sucesso.", "success")
+    u = session.get("usuario_logado") or {}
+    ia_config.registrar("IA_CONFIG_ALTERADA", user_id=u.get("id"), ip=_ip_cliente(),
+                        chaves_trocadas=["openai"], origem="aliases")
+    flash("Chave da OpenAI salva.", "success")
     return redirect(url_for("aliases"))
 
 
@@ -1996,17 +1997,9 @@ def aliases_config_ia():
 def aliases_sugerir_ia():
     """Envia nomes aproximados pendentes para GPT-4o-mini e retorna sugestões
     de agrupamento como JSON para revisão no frontend."""
-    import os, json
-    from pathlib import Path as _P
+    import json
 
-    api_key = OPENAI_API_KEY
-    if not api_key:
-        try:
-            p = _P("/data/openai_key.txt")
-            if p.exists():
-                api_key = p.read_text().strip()
-        except Exception:
-            pass
+    api_key = ia_config.ler_chave("openai")
     if not api_key:
         return jsonify({"erro": "API key não configurada. Use o botão 'Configurar API key' acima."}), 400
 
@@ -2151,8 +2144,9 @@ def aliases_sugerir_ia():
                 texto = texto.strip()
             grupos = json.loads(texto)
             todos_grupos.extend([g for g in grupos if g.get("nomes")])
-        except Exception as e:
-            return jsonify({"erro": f"Erro na API OpenAI: {str(e)}"}), 500
+        except Exception:
+            # genérico de propósito: str(e) do SDK pode trazer corpo da resposta
+            return jsonify({"erro": "A OpenAI não respondeu como esperado. Tente de novo em instantes."}), 502
 
     # Auto-salvar: grava todos os aliases direto no banco sem revisão
     # Índice para casar nomes da IA (que podem vir levemente diferentes) com os originais
@@ -2195,6 +2189,54 @@ def aliases_sugerir_ia():
         "sugestoes": todos_grupos,
         "auto_salvos": (total_aliases + prefixo_aliases) if auto else 0,
     })
+
+
+# --- ROTAS: CONFIGURAÇÃO DA IA (OpenAI e NVIDIA) -----------------------------
+# Chave, provedor ativo e modelo. Só admin (decisão 7 do LASTRO). A chave nunca
+# volta ao navegador: a tela recebe só a máscara (ver ia_config.estado_publico).
+
+@app.route("/config/ia")
+@login_required
+@admin_required
+def config_ia():
+    return render_template("config_ia.html", ia=ia_config.estado_publico())
+
+
+@app.route("/config/ia/salvar", methods=["POST"])
+@login_required
+@admin_required
+def config_ia_salvar():
+    chaves = {prov: request.form.get(f"chave_{prov}", "") for prov in ia_config.PROVEDORES}
+    ativo = request.form.get("ativo") or None
+    modelos = {prov: request.form.get(f"modelo_{prov}", "") for prov in ia_config.PROVEDORES}
+    erros = ia_config.validar_envio(chaves, ativo, modelos)
+    if erros:
+        for e in erros:
+            flash(e + " Nada foi salvo.", "danger")
+        return redirect(url_for("config_ia"))
+    for prov, chave in chaves.items():
+        ia_config.salvar_chave(prov, chave)
+    ia_config.salvar_config(ativo=ativo, modelos=modelos)
+    u = session.get("usuario_logado") or {}
+    ia_config.registrar("IA_CONFIG_ALTERADA", user_id=u.get("id"), ip=_ip_cliente(),
+                        chaves_trocadas=[p for p, c in chaves.items() if c.strip()],
+                        ativo=ia_config.ler_config()["ativo"])
+    flash("Configuração da IA salva.", "success")
+    return redirect(url_for("config_ia"))
+
+
+@app.route("/config/ia/testar", methods=["POST"])
+@login_required
+@admin_required
+def config_ia_testar():
+    dados = request.get_json(silent=True)
+    if not isinstance(dados, dict):
+        dados = request.form
+    prov = dados.get("provedor", "")
+    if not isinstance(prov, str) or prov not in ia_config.PROVEDORES:
+        return jsonify({"ok": False, "mensagem": "Provedor desconhecido."}), 400
+    ok, msg = ia_config.testar(prov)
+    return jsonify({"ok": ok, "mensagem": msg})
 
 
 # --- ROTA: PENDÊNCIAS DE CADASTRO --------------------------------------------

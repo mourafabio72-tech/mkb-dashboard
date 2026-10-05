@@ -48,3 +48,8 @@ gerar_versao.bat
 
 # mapa do graphify (gerado localmente, se refaz com graphify update .)
 graphify-out/
+
+# chaves e config de IA (gravadas pela tela /config/ia no diretório do banco)
+openai_key.txt
+nvidia_key.txt
+ia_config.json
