@@ -104,6 +104,7 @@ check("só as duas URLs da allowlist", urls == {
     "https://api.openai.com/v1/chat/completions",
     "https://integrate.api.nvidia.com/v1/chat/completions"})
 tpl = (RAIZ / "templates" / "config_ia.html").read_text(encoding="utf-8")
+check("campo de chave não é password (o navegador não autopreenche senha)", 'type="password"' not in tpl and "ia-segredo" in tpl)
 check("tela sem campo de URL", not re.search(r'(name|id)="[^"]*url|type="url"|https?://', tpl, re.I))
 d = Duble(corpo=resposta_ok())
 ia_config._post_json = d

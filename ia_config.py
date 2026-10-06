@@ -145,7 +145,8 @@ def validar_chave(provedor: str, chave: str) -> str | None:
     """Mensagem de erro para a tela, ou None se a chave tem formato válido."""
     p = PROVEDORES[provedor]
     if not chave.startswith(p["prefixo"]):
-        return f"A chave da {p['nome']} começa com {p['prefixo']}."
+        return (f"A chave da {p['nome']} começa com {p['prefixo']}. Se você não digitou nada no campo, "
+                "o navegador preencheu sozinho: apague o campo Nova chave e salve de novo.")
     if not _RE_CHAVE.match(chave):
         return f"A chave da {p['nome']} tem de 20 a 200 caracteres, sem espaço."
     return None

@@ -33,8 +33,10 @@
         </span>
       </div>
       <label for="chave_{{ p.id }}">Nova chave</label>
-      <input type="password" id="chave_{{ p.id }}" name="chave_{{ p.id }}" class="ia-input"
-             autocomplete="new-password" placeholder="{{ p.prefixo }}... (vazio mantém a atual)">
+      {# text mascarado e não password: o navegador não preenche senha guardada aqui #}
+      <input type="text" id="chave_{{ p.id }}" name="chave_{{ p.id }}" class="ia-input ia-segredo"
+             autocomplete="off" spellcheck="false" autocapitalize="off" data-lpignore="true" data-1p-ignore
+             placeholder="{{ p.prefixo }}... (vazio mantém a atual)">
       <label for="modelo_{{ p.id }}">Modelo</label>
       <input type="text" id="modelo_{{ p.id }}" name="modelo_{{ p.id }}" class="ia-input"
              value="{{ p.modelo }}" maxlength="80" spellcheck="false">
