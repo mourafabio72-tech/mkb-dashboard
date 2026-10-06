@@ -190,13 +190,19 @@ Toggle: tipo 2, duas opções
 
 ## Fase 6: Entrega
 
-- [ ] Provas novas e antigas verdes (saída colada no LOG)
+- [x] Provas novas e antigas verdes (saída colada no LOG)
+      EVIDÊNCIA: 8 provas rc=0 em 2026-10-06 antes do push (3 ia + 5 antigas)
 - [ ] Teste real no Mac: 1 pergunta OpenAI + 1 NVIDIA conferidas contra a tela do módulo
-- [ ] `graphify update .`
-- [ ] Um commit por fase no `master`; push
-- [ ] `curl -s https://dre.zoaria.com.br/health` com o carimbo do último commit
-- [ ] `curl -s -o /dev/null -w "%{http_code}" https://dre.zoaria.com.br/static/ia.js` = 200
-- [ ] Aviso ao Fábio: salvar a chave NVIDIA em `/config/ia` na produção
+- [x] `graphify update .`
+      EVIDÊNCIA: 'Code graph updated.' em 2026-10-06
+- [x] Um commit por fase no `master`; push
+      EVIDÊNCIA: 8bb7914 (F1), 4f83ee4 (F2), cb7a777 (F3), cf04157 (F4), dbbb3b3 (F5), 07ac8f6 (navbar); push 1346fd9..07ac8f6 master
+- [x] `curl -s https://dre.zoaria.com.br/health` com o carimbo do último commit
+      EVIDÊNCIA: {"build":"20261005-2130","status":"ok"} = carimbo do 07ac8f6
+- [x] `curl -s -o /dev/null -w "%{http_code}" https://dre.zoaria.com.br/static/ia.js` = 200
+      EVIDÊNCIA: 200; style.css em produção contém o bloco PERGUNTE À IA; /ia sem login -> 302 para o login do Hub
+- [x] Aviso ao Fábio: salvar a chave NVIDIA em `/config/ia` na produção
+      EVIDÊNCIA: avisado no chat em 2026-10-06
 - [ ] LOG `fase=6 acao=entrega resultado=ok`
 
 ---
