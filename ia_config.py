@@ -44,8 +44,14 @@ PROVEDORES = {
         "env": "NVIDIA_API_KEY",
         "arquivo": "nvidia_key.txt",
         "prefixo": "nvapi-",
-        "modelo_padrao": "meta/llama-3.3-70b-instruct",
+        "modelo_padrao": "nvidia/llama-3.1-nemotron-70b-instruct",
     },
+}
+
+# Modelo que o provedor tirou do catálogo (ele responde HTTP 410) -> substituto.
+# A config salva em produção guarda o nome antigo; ler_config troca sozinho.
+MODELOS_RETIRADOS = {
+    "meta/llama-3.3-70b-instruct": "nvidia/llama-3.1-nemotron-70b-instruct",   # 410 em 2026-10-06
 }
 PROVEDOR_PADRAO = "openai"
 ARQUIVO_CONFIG = "ia_config.json"
@@ -189,7 +195,7 @@ def ler_config() -> dict:
     modelos = dados.get("modelos")
     for k, m in (modelos.items() if isinstance(modelos, dict) else ()):
         if k in PROVEDORES and isinstance(m, str) and not validar_modelo(m):
-            cfg["modelos"][k] = m
+            cfg["modelos"][k] = MODELOS_RETIRADOS.get(m, m)
     return cfg
 
 
@@ -286,6 +292,9 @@ def chamar(mensagens: list[dict], provedor: str | None = None, *,
         status, bruto = _post_json(p["url"], corpo, cabecalhos, timeout)
     except Exception:
         raise ErroIA(f"Não consegui falar com a {p['nome']} agora.") from None
+    if status in (404, 410):
+        raise ErroIA(f"A {p['nome']} respondeu HTTP {status}: o modelo {corpo['model']} saiu do catálogo. "
+                     "Troque o modelo em Configuração da IA.")
     if status != 200:
         raise ErroIA(f"A {p['nome']} respondeu HTTP {status}.")
     try:

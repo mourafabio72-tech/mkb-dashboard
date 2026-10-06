@@ -110,7 +110,7 @@ ia_config._post_json = d
 ia_config.chamar([{"role": "user", "content": "x"}], "nvidia")
 check("chamada vai para a URL fixa da NVIDIA",
       d.chamadas[0]["url"] == "https://integrate.api.nvidia.com/v1/chat/completions")
-check("modelo padrão da NVIDIA", d.chamadas[0]["corpo"]["model"] == "meta/llama-3.3-70b-instruct")
+check("modelo padrão da NVIDIA", d.chamadas[0]["corpo"]["model"] == "nvidia/llama-3.1-nemotron-70b-instruct")
 check("json_mode não vai para a NVIDIA", "response_format" not in d.chamadas[0]["corpo"])
 ia_config.chamar([{"role": "user", "content": "x"}], "openai", json_mode=True)
 check("json_mode vai para a OpenAI", d.chamadas[1]["corpo"].get("response_format") == {"type": "json_object"})
@@ -149,7 +149,7 @@ check("salvar com token redireciona", r.status_code == 302)
 check("campo vazio mantém a chave", ia_config.ler_chave("openai") == CHAVE_OA and ia_config.ler_chave("nvidia") == CHAVE_NV)
 cfg = ia_config.ler_config()
 check("provedor ativo trocado", cfg["ativo"] == "openai")
-check("modelo trocado; vazio mantém o outro", cfg["modelos"] == {"openai": "gpt-4o", "nvidia": "meta/llama-3.3-70b-instruct"})
+check("modelo trocado; vazio mantém o outro", cfg["modelos"] == {"openai": "gpt-4o", "nvidia": "nvidia/llama-3.1-nemotron-70b-instruct"})
 adm.post("/config/ia/salvar", data={"csrf_token": "tok-prova", "chave_nvidia": "sk-trocadoDeProvedor1234567890"})
 check("chave com prefixo errado é recusada", ia_config.ler_chave("nvidia") == CHAVE_NV)
 adm.post("/config/ia/salvar", data={"csrf_token": "tok-prova", "chave_openai": "sk-com espaco 1234567890abcdef"})
@@ -182,6 +182,15 @@ r = adm.post("/config/ia/testar", json={"provedor": "http://169.254.169.254"}, h
 check("provedor fora da lista leva 400", r.status_code == 400)
 r = adm.post("/config/ia/testar", json={"provedor": "openai"})
 check("testar sem token CSRF leva 400", r.status_code == 400)
+
+import json as _j                                                    # noqa: E402
+(DADOS / "ia_config.json").write_text(_j.dumps({"ativo": "nvidia", "modelos": {"nvidia": "meta/llama-3.3-70b-instruct"}}))
+check("modelo retirado salvo na config vira o substituto", ia_config.ler_config()["modelos"]["nvidia"] == "nvidia/llama-3.1-nemotron-70b-instruct")
+ia_config._post_json = Duble(status=410, corpo={"detail": "gone " + NOVA})
+j = adm.post("/config/ia/testar", json={"provedor": "nvidia"}, headers={"X-CSRF-Token": "tok-prova"}).get_json()
+check("410 explica que o modelo saiu do catálogo", "saiu do catálogo" in j["mensagem"] and "HTTP 410" in j["mensagem"]
+      and NOVA not in j["mensagem"], f"({j})")
+ia_config.salvar_config(ativo="openai")
 
 print("\n=== 7b. a chamada HTTP real (servidor local, sem internet) ===")
 import http.server, threading                                       # noqa: E402

@@ -132,6 +132,7 @@ No modo Analisar, o FinHub recalcula o mesmo resultado e manda só os totais par
 
 ## Histórico de mudanças neste plano
 
+- 2026-10-06: NVIDIA respondeu HTTP 410: meta/llama-3.3-70b-instruct saiu do catálogo (ausente de /v1/models). Padrão passa a nvidia/llama-3.1-nemotron-70b-instruct, com troca automática do nome antigo na config salva.
 - 2026-10-06: cor de IA trocada de roxo para teal #3A7D76 da paleta Sage & Creme (decisão 10 do LASTRO).
 - 2026-10-06: escopo ampliado a pedido do Fábio ('conserta e dar o push'): navbar do base.html quebra em duas linhas no celular (até 700 px), sem impressão/PDF no celular. Afeta todas as telas.
 - 2026-10-05 22:30: Fase 3, decisões de execução registradas no LOG: valores com o sinal da tela do módulo (gasto negativo); recusa de empresa responde 404 genérico (Padrao_IDOR) em vez de 403; IRPJ é por empresa (consolidado mostra a MKB com aviso).
