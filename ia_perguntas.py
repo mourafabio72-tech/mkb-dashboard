@@ -51,7 +51,16 @@ INTENCOES = {
     "endividamento_tributario": {"empresa"},
     "endividamento_bancario":   {"empresa"},
     "irpj_csll":                {"empresa", "competencia"},
+    # Consulta flexível (2026-10-06, pedido do Fábio): a IA monta a consulta com
+    # peças fechadas e o FinHub executa sobre o razão. Nunca SQL vindo da IA.
+    "consulta": {"empresa", "base", "conta", "fornecedor", "cliente", "historico",
+                 "agrupar", "ordem", "limite", "inicio", "fim"},
 }
+BASES = {"despesa", "receita", "razao"}
+AGRUPAMENTOS = {"conta", "fornecedor", "cliente", "mes", "nenhum"}
+ORDENS = {"maiores", "menores"}
+PLURAL = {"conta": ("conta", "contas"), "fornecedor": ("fornecedor", "fornecedores"),
+          "cliente": ("cliente", "clientes"), "mes": ("mês", "meses")}
 
 NOME_EMPRESA = {"mkb": "MKB", "gnileb": "Gnileb", "consolidado": "o consolidado (MKB + Gnileb)"}
 
@@ -68,7 +77,17 @@ Campos:
   "folha" (salários, encargos e pró-labore),
   "endividamento_tributario", "endividamento_bancario",
   "irpj_csll" (apuração de IRPJ e CSLL de um mês),
-  ou "nao_entendi".
+  "consulta" (qualquer outra pergunta sobre lançamentos: filtrar por conta contábil, fornecedor,
+  cliente ou texto do histórico, agrupar, pegar os N maiores ou menores),
+  ou "nao_entendi" só se a pergunta não for sobre as finanças das empresas.
+- Para "consulta":
+  "base": "despesa" (custos e despesas por fornecedor), "receita" (receita bruta por cliente) ou
+  "razao" (qualquer conta do razão, ex.: juros, tarifas, impostos);
+  "conta", "fornecedor", "cliente", "historico": texto que o nome deve conter (até 80 caracteres);
+  "agrupar": "conta", "fornecedor", "cliente", "mes" ou "nenhum" (um total só);
+  "ordem": "maiores" ou "menores"; "limite": número de 1 a 10 ("top 5" = 5).
+  Ex.: "top 5 fornecedores da conta SERV DE INFORMATICA" =
+  {"intencao":"consulta","base":"despesa","conta":"SERV DE INFORMATICA","agrupar":"fornecedor","ordem":"maiores","limite":5}
 - "empresa": "mkb", "gnileb" ou "consolidado". Omita se a pergunta não disser.
 - "linha" (dre_linha e comparar_meses): ROB (faturamento, receita bruta), DED (deduções), ROL (receita líquida),
   CPV (custo), LB (lucro bruto), DADM (despesas administrativas), ENC_FIN (encargos financeiros),
@@ -181,6 +200,46 @@ def competencias_razao(emp: str) -> list:
     return [r[0] for r in rows]
 
 
+def _limite(v) -> int:
+    if isinstance(v, bool):
+        return MAX_LINHAS
+    try:
+        n = int(v)   # inf (o JSON aceita Infinity e 1e400) levanta OverflowError
+    except (TypeError, ValueError, OverflowError):
+        return MAX_LINHAS
+    return max(1, min(MAX_LINHAS, n))
+
+
+def _validar_consulta(f: dict, bruto: dict, emp: str) -> None:
+    for campo in ("conta", "fornecedor", "cliente", "historico"):
+        f[campo] = _texto(bruto.get(campo))
+    agrupar = bruto.get("agrupar")
+    agrupar = agrupar if isinstance(agrupar, str) and agrupar in AGRUPAMENTOS else None
+    base = bruto.get("base")
+    base = base if isinstance(base, str) and base in BASES else None
+    # quem decide a base é o que a pergunta cita: cliente só existe na receita,
+    # fornecedor só na despesa (é dali que sai o nome)
+    if f["cliente"] or agrupar == "cliente":
+        base = "receita"
+    elif f["fornecedor"] or agrupar == "fornecedor":
+        base = "despesa"
+    f["base"] = base or "razao"
+    if agrupar in ("fornecedor",) and f["base"] != "despesa":
+        agrupar = None
+    if agrupar == "cliente" and f["base"] != "receita":
+        agrupar = None
+    f["agrupar"] = agrupar or {"despesa": "fornecedor", "receita": "cliente", "razao": "conta"}[f["base"]]
+    ordem = bruto.get("ordem")
+    f["ordem"] = ordem if isinstance(ordem, str) and ordem in ORDENS else "maiores"
+    f["limite"] = _limite(bruto.get("limite"))
+    disp = competencias_razao(emp)
+    if not _comp(bruto.get("inicio")) and not _comp(bruto.get("fim")) and disp:
+        # sem período: o ano do último mês importado, de janeiro até ele
+        f["competencias"] = [c for c in disp if c[:4] == disp[-1][:4]]
+    else:
+        f["competencias"] = _periodo(bruto.get("inicio"), bruto.get("fim"), disp)
+
+
 def validar(bruto: dict | None, perm, disponiveis: list) -> dict:
     """Filtro validado. Levanta Recusa para empresa fora do escopo.
     Intenção desconhecida (ou de tipo errado) vira {"intencao": "nao_entendi"}."""
@@ -197,6 +256,9 @@ def validar(bruto: dict | None, perm, disponiveis: list) -> dict:
     except EmpresaDesconhecida:
         return {**nao, "ignorados": ignorados}
     f = {"intencao": intencao, "ignorados": ignorados, "empresa": emp}
+    if intencao == "consulta":
+        _validar_consulta(f, bruto, emp)
+        return f
     if intencao in ("receita_cliente", "despesa_fornecedor"):
         disponiveis = competencias_razao(emp)
     if "linha" in aceitos:
@@ -261,13 +323,13 @@ def _valor_linha(emp: str, linha: str, comps: list) -> dict:
     return {c: float(dres.get(c, {}).get(linha, 0.0)) for c in comps}
 
 
-def _top(linhas: list, rotulo_outros: str = "Outros") -> tuple[list, int]:
-    """Até MAX_LINHAS linhas, o resto somado em 'Outros'. Devolve (linhas, total de itens)."""
+def _top(linhas: list, rotulo_outros: str = "Outros", limite: int = MAX_LINHAS) -> tuple[list, int]:
+    """Até `limite` linhas, o resto somado em 'Outros'. Devolve (linhas, total de itens)."""
     n = len(linhas)
-    if n <= MAX_LINHAS:
+    if n <= limite:
         return linhas, n
-    resto = linhas[MAX_LINHAS:]
-    corte = linhas[:MAX_LINHAS] + [{"rotulo": f"{rotulo_outros} ({len(resto)})",
+    resto = linhas[limite:]
+    corte = linhas[:limite] + [{"rotulo": f"{rotulo_outros} ({len(resto)})",
                                     "valor": sum(x["valor"] for x in resto), "outros": True}]
     return corte, n
 
@@ -278,6 +340,109 @@ def _irpj_meses(conn, ids: list) -> list:
         "GROUP BY competencia HAVING SUM(CASE WHEN valor IS NOT NULL AND valor != 0 THEN 1 ELSE 0 END) >= ? "
         "ORDER BY competencia", (*ids, MIN_LINHAS_IRPJ)).fetchall()
     return [r[0] for r in rows]
+
+
+def _fatos_consulta(f: dict) -> list:
+    """Lançamentos do período como dicionários (conta, fornecedor, cliente, mes,
+    historico, valor), lidos pelas MESMAS funções das telas de Receita e Despesas,
+    ou pelo razão com SQL parametrizado. Nada do filtro entra no SQL."""
+    comps, fatos = f["competencias"], []
+    for eid in _empresas_ids(f["empresa"]):
+        if f["base"] == "despesa":
+            for g in analisar_despesas_fornecedores(eid, comps)["por_grupo"]:
+                for forn in g["fornecedores"]:
+                    for lc in forn["lancamentos"]:
+                        for comp, v in lc["totais"].items():
+                            fatos.append({"conta": g["label"], "fornecedor": forn["nome"], "cliente": "",
+                                          "mes": comp, "historico": lc.get("historico") or "", "valor": v})
+        elif f["base"] == "receita":
+            for c in analisar_receita_clientes(eid, comps)["clientes"]:
+                for nota in c["notas"]:
+                    for comp, v in nota["totais"].items():
+                        fatos.append({"conta": "Receita bruta", "fornecedor": "", "cliente": c["nome"],
+                                      "mes": comp, "historico": "", "valor": v})
+        else:
+            # Sem filtro de histórico, o banco já soma por conta e mês (não traz
+            # 1 milhão de linhas para a memória). Com filtro, o banco pré-filtra
+            # por LIKE ? (parâmetro) e o Python confirma sem acento.
+            marc = ",".join("?" * len(comps))
+            conn = get_conn()
+            try:
+                if f.get("historico"):
+                    rows = conn.execute(
+                        "SELECT r.conta_cod, c.descricao, r.historico, r.competencia, r.valor FROM razao r "
+                        "LEFT JOIN contas c ON c.cod = r.conta_cod AND c.empresa_id = r.empresa_id "
+                        "WHERE r.empresa_id = ? AND r.competencia IN (" + marc + ") AND r.historico LIKE ?",
+                        (eid, *comps, "%" + f["historico"].split()[0] + "%")).fetchall()
+                else:
+                    rows = conn.execute(
+                        "SELECT r.conta_cod, c.descricao, '', r.competencia, SUM(r.valor) FROM razao r "
+                        "LEFT JOIN contas c ON c.cod = r.conta_cod AND c.empresa_id = r.empresa_id "
+                        "WHERE r.empresa_id = ? AND r.competencia IN (" + marc + ") "
+                        "GROUP BY r.conta_cod, c.descricao, r.competencia",
+                        (eid, *comps)).fetchall()
+            finally:
+                conn.close()
+            for cod, desc, hist, comp, v in rows:
+                fatos.append({"conta": f"{cod} {desc or ''}".strip(), "fornecedor": "", "cliente": "",
+                              "mes": comp, "historico": hist or "", "valor": v or 0.0})
+    for campo in ("conta", "fornecedor", "cliente", "historico"):
+        if f.get(campo):
+            alvo = _norm(f[campo])
+            fatos = [x for x in fatos if alvo in _norm(x[campo])]
+    return fatos
+
+
+def _executar_consulta(f: dict, r: dict, url) -> dict:
+    emp, comps, ag = f["empresa"], f["competencias"], f["agrupar"]
+    nome_emp = NOME_EMPRESA.get(emp, "")
+    oque = {"despesa": "despesa", "receita": "receita bruta", "razao": "lançamentos do razão"}[f["base"]]
+    filtros = [f'{c} com "{f[c]}"' for c in ("conta", "fornecedor", "cliente", "historico") if f.get(c)]
+    por = "" if ag == "nenhum" else f", por {PLURAL[ag][0]}"
+    adj = "maior" if f["ordem"] == "maiores" else "menor"
+    top = f"o {adj}" if f["limite"] == 1 else f'os {f["limite"]} {f["ordem"]}'
+    qtd = "" if ag in ("nenhum", "mes") else f", {top}"
+    r["entendi"] = (f"Entendi: {oque}" + (" (" + ", ".join(filtros) + ")" if filtros else "")
+                    + f"{por}{qtd}, {nome_emp}, {_periodo_label(comps)}.")
+    # assunto do Analisar sem texto livre da pergunta: a conta entra pelo nome do
+    # plano que casou (preenchido abaixo, depois de ler os lançamentos)
+    assunto_base = f"{por}, {nome_emp}, {_periodo_label(comps)}"
+    r["assunto_analise"] = f"{oque}{assunto_base}"
+    if ag in ("fornecedor", "cliente"):
+        r["anonimizar"] = "Fornecedor" if ag == "fornecedor" else "Cliente"
+    if f["base"] == "despesa":
+        r["aviso"] = "Despesa de competência (quando a nota foi lançada), não pagamento. Despesa aparece negativa, como na DRE."
+    if emp in EMPRESAS and f["base"] in ("despesa", "receita"):
+        r["ver_tudo"] = url("despesas_fornecedores" if f["base"] == "despesa" else "receita_clientes",
+                            empresa=emp, de=comps[0], ate=comps[-1])
+    fatos = _fatos_consulta(f)
+    if f.get("conta") and fatos:
+        contas = sorted({x["conta"] for x in fatos})
+        nomes = "; ".join(c[:60] for c in contas[:3]) + (f" e mais {len(contas) - 3}" if len(contas) > 3 else "")
+        r["assunto_analise"] = f"{oque} das contas: {nomes}{assunto_base}"
+    if not fatos:
+        r.update(tipo="vazio", mensagem="Nenhum lançamento atende à pergunta nesse período.")
+        return r
+    total = sum(x["valor"] for x in fatos)
+    if ag == "nenhum":
+        r.update(tipo="numero", rotulo=oque.capitalize(), valor=total)
+        return _fmt(r)
+    soma: dict = {}
+    for x in fatos:
+        soma[x[ag]] = soma.get(x[ag], 0.0) + x["valor"]
+    if ag == "mes":
+        linhas = [{"rotulo": mes_label(k), "valor": v} for k, v in sorted(soma.items())]
+    else:
+        linhas = [{"rotulo": k or "(sem nome no histórico)", "valor": v} for k, v in soma.items()]
+        linhas.sort(key=lambda x: abs(x["valor"]), reverse=(f["ordem"] == "maiores"))
+    corte, n = _top(linhas, limite=MAX_LINHAS if ag == "mes" else f["limite"])
+    sing, plur = PLURAL[ag]
+    rotulo_qtd = f"{n} {sing if n == 1 else plur}"
+    if ag != "mes" and n > f["limite"]:
+        rotulo_qtd += f", {top}"
+    r.update(tipo="tabela", colunas=[sing.capitalize(), "Valor"], contagem=n, contagem_rotulo=rotulo_qtd,
+             linhas=corte, total=total, total_fmt=fmt_brl(total))
+    return _fmt(r)
 
 
 def _juntar_por_nome(itens: list) -> list:
@@ -310,6 +475,9 @@ def executar(f: dict, url=lambda endpoint, **kw: "") -> dict:
         r.update(tipo="vazio", entendi=f"Entendi: {_descricao(f, nome_emp)}.",
                  mensagem="Não há lançamentos importados nesse período.")
         return r
+
+    if it == "consulta":
+        return _executar_consulta(f, r, url)
 
     if it == "dre_linha":
         vals = _valor_linha(emp, f["linha"], comps)
@@ -452,7 +620,7 @@ def _descricao(f: dict, nome_emp: str) -> str:
             "comparar_meses": LINHAS.get(f.get("linha", ""), "DRE"),
             "receita_cliente": "receita bruta por cliente",
             "despesa_fornecedor": "despesa por fornecedor",
-            "folha": "folha"}.get(it, it)
+            "folha": "folha", "consulta": "lançamentos"}.get(it, it)
     return f"{base} de {nome_emp}"
 
 
@@ -498,7 +666,7 @@ MAX_ROTULO_ANALISE = 60
 
 def pacote_analise(resp: dict) -> dict:
     """Só totais. Recebe a resposta já calculada pelo FinHub."""
-    anonimo = {"receita_cliente": "Cliente", "despesa_fornecedor": "Fornecedor"}.get(resp.get("intencao"))
+    anonimo = resp.get("anonimizar") or {"receita_cliente": "Cliente", "despesa_fornecedor": "Fornecedor"}.get(resp.get("intencao"))
     itens = []
     for i, x in enumerate(resp.get("linhas") or [], 1):
         rot = x["rotulo"]
@@ -507,7 +675,7 @@ def pacote_analise(resp: dict) -> dict:
         # rótulo de planilha (IRPJ) é texto livre: corta e tira aspas
         rot = str(rot).replace('"', "")[:MAX_ROTULO_ANALISE]
         itens.append({"rotulo": rot, "valor": round(float(x["valor"]), 2)})
-    p = {"assunto": resp.get("entendi", "").replace("Entendi: ", ""), "itens": itens}
+    p = {"assunto": resp.get("assunto_analise") or resp.get("entendi", "").replace("Entendi: ", ""), "itens": itens}
     if anonimo:
         # o termo buscado é nome de pessoa em potencial: sai inteiro, com ou sem aspas
         p["assunto"] = re.sub(r" com .* no nome", "", p["assunto"])

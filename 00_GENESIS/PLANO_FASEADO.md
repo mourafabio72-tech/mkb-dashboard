@@ -132,6 +132,7 @@ No modo Analisar, o FinHub recalcula o mesmo resultado e manda só os totais par
 
 ## Histórico de mudanças neste plano
 
+- 2026-10-06: ESCOPO AMPLIADO a pedido do Fábio ('quero que amplie, e não limite as opções de perguntas'). Escolhida a consulta flexível (não SQL pela IA): 9a intenção `consulta` com base (despesa, receita, razão), filtros por texto (conta, fornecedor, cliente, histórico), agrupar (conta, fornecedor, cliente, mês, nenhum), ordem e limite 1 a 10, sobre as mesmas funções das telas e o razão com SQL parametrizado. 'IA gerando SQL' segue proibido por desenho.
 - 2026-10-06: NVIDIA respondeu HTTP 410: meta/llama-3.3-70b-instruct saiu do catálogo (ausente de /v1/models). Padrão passa a nvidia/llama-3.1-nemotron-70b-instruct, com troca automática do nome antigo na config salva.
 - 2026-10-06: cor de IA trocada de roxo para teal #3A7D76 da paleta Sage & Creme (decisão 10 do LASTRO).
 - 2026-10-06: escopo ampliado a pedido do Fábio ('conserta e dar o push'): navbar do base.html quebra em duas linhas no celular (até 700 px), sem impressão/PDF no celular. Afeta todas as telas.

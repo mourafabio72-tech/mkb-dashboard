@@ -163,6 +163,23 @@ r = adm.post("/ia/analisar", json={"pergunta": "a"}, headers={"X-CSRF-Token": "t
 check("content que não é texto vira 502, não 500", r.status_code == 502, f"({r.status_code})")
 ia_config._post_json = ia
 
+r = analisar(adm, {"intencao": "consulta", "base": "despesa", "fornecedor": "pedro", "historico": "NF 901",
+                   "agrupar": "fornecedor", "inicio": "2026-08", "empresa": "mkb"})
+env = json.dumps(ia.payloads[-1], ensure_ascii=False).upper()
+check("consulta no Analisar: nome e texto do histórico não vão", r.status_code == 200 and len(ia.payloads) == 2
+      and "PEDRO" not in env and "NF 901" not in env and "FORNECEDOR 1" in env, f"({r.status_code} {env[-200:]})")
+
+r = analisar(adm, {"intencao": "consulta", "base": "razao", "conta": "Maria Silva CPF 123", "agrupar": "mes",
+                   "inicio": "2026-08", "empresa": "mkb"})
+check("texto de conta digitado não vai no assunto (sem conta que case, nem chama a IA)",
+      "Maria" not in json.dumps(ia.payloads, ensure_ascii=False))
+conn = get_conn()
+conn.execute("INSERT OR REPLACE INTO contas (cod, empresa_id, descricao) VALUES ('3.1.1.01.01.001', 1, 'VENDA DE SERVICOS')")
+conn.commit(); conn.close()
+r = analisar(adm, {"intencao": "consulta", "base": "razao", "conta": "venda de serv", "agrupar": "mes", "inicio": "2026-08", "empresa": "mkb"})
+pac = json.loads(ia.payloads[-1]["messages"][1]["content"].strip('"'))
+check("assunto usa o nome da conta do plano, não o texto digitado", "VENDA DE SERVICOS" in pac["assunto"] and "venda de serv" not in pac["assunto"], f"({pac['assunto']})")
+
 print("\n=== 4. sem resultado, não chama a IA de novo ===")
 j = analisar(adm, {"intencao": "dre_linha", "empresa": "mkb", "inicio": "2019-01", "fim": "2019-01"}).get_json()
 check("vazio: uma chamada só, sem análise", j["tipo"] == "vazio" and len(ia.payloads) == 1 and "analise" not in j)
