@@ -11,8 +11,9 @@ Só marcar `[x]` com EVIDÊNCIA apontável (arquivo:linha ou saída de prova). F
 
 ```
 Cor de marca: tokens do FinHub (--primary, --accent, --card, --border, --text, --muted), tema Sage & Creme
-Token de IA: --roxo #7C3AED, --roxo-escuro #6D28D9, --roxo-claro #A78BFA, --roxo-texto #5B21B6,
-             --roxo-borda #C4B5FD, --roxo-pastel-1 #FAF5FF, --roxo-pastel-2 #EDE9FE, --roxo-suave #F3EEFF
+Token de IA (desde 2026-10-06): --ia-cor #3A7D76, --ia-cor-escura #2C6560, --ia-cor-clara #7FB3AD,
+             --ia-cor-texto #24524D, --ia-cor-borda #A9D0CB, --ia-pastel-1 #F1F8F7, --ia-pastel-2/--ia-suave #DCEFED
+             (era família roxa --roxo*; trocada a pedido do Fábio, decisão 10 do LASTRO)
 Arquivo do token: static/style.css (bloco :root e [data-theme="light"])
 PROIBIDO: hex de qualquer cor dentro de template
 Tema: claro (padrão) e escuro, com o alternador que já existe

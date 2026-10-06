@@ -1012,34 +1012,36 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 
 
 /* ══ PERGUNTE À IA ═══════════════════════════════════════════════════════════
-   Marca de IA (Padrao_Marca_IA): ph-sparkle e família roxa, nunca a cor da
-   empresa. Tokens aqui; template não escreve cor nem style=. Escuro é o
-   :root deste app; o claro (Sage & Creme) sobrescreve em [data-theme="light"]. */
+   Sinal de IA dentro da paleta Sage & Creme: teal (mesmo da Conciliação
+   Contábil), ícone ph-sparkle. Decisão do Fábio em 2026-10-06, que vence a
+   família roxa de Padrao_Marca_IA (ver 00_GENESIS/LASTRO.md, decisão 10).
+   Tokens aqui; template não escreve cor nem style=. Escuro é o :root deste
+   app; o claro (Sage & Creme) sobrescreve em [data-theme="light"]. */
 :root {
-  --roxo:          #7C3AED;
-  --roxo-escuro:   #6D28D9;
-  --roxo-claro:    #A78BFA;
-  --roxo-texto:    #5B21B6;
-  --roxo-borda:    #C4B5FD;
-  --roxo-pastel-1: #FAF5FF;
-  --roxo-pastel-2: #EDE9FE;
-  --roxo-suave:    #F3EEFF;
-  --roxo-contraste: #FFFFFF;
-  /* escuro: a nota não define, decisão do CHECKLIST: corpo do card, borda lavanda */
+  --ia-cor:         #3A7D76;
+  --ia-cor-escura:  #2C6560;
+  --ia-cor-clara:   #7FB3AD;
+  --ia-cor-texto:   #24524D;
+  --ia-cor-borda:   #A9D0CB;
+  --ia-pastel-1:    #F1F8F7;
+  --ia-pastel-2:    #DCEFED;
+  --ia-suave:       #DCEFED;
+  --ia-contraste:   #FFFFFF;
+  /* escuro: corpo do card, borda e texto em teal claro */
   --ia-fundo:      var(--card2);
-  --ia-borda:      var(--roxo-claro);
-  --ia-texto:      var(--roxo-borda);
-  --ia-tag-fundo:  rgba(167,139,250,.14);
-  --ia-tag-texto:  var(--roxo-borda);
+  --ia-borda:      #4F9A92;
+  --ia-texto:      #8FC9C2;
+  --ia-tag-fundo:  rgba(58,125,118,.18);
+  --ia-tag-texto:  #8FC9C2;
   --ia-campo:      var(--card);
-  --ia-neutro-on:  var(--roxo-escuro);
+  --ia-neutro-on:  var(--ia-cor-escura);
 }
 [data-theme="light"] {
-  --ia-fundo:      linear-gradient(135deg, var(--roxo-pastel-1), var(--roxo-pastel-2));
-  --ia-borda:      var(--roxo-borda);
-  --ia-texto:      var(--roxo-texto);
-  --ia-tag-fundo:  var(--roxo-suave);
-  --ia-tag-texto:  var(--roxo);
+  --ia-fundo:      linear-gradient(135deg, var(--ia-pastel-1), var(--ia-pastel-2));
+  --ia-borda:      var(--ia-cor-borda);
+  --ia-texto:      var(--ia-cor-texto);
+  --ia-tag-fundo:  var(--ia-suave);
+  --ia-tag-texto:  var(--ia-cor-texto);
   --ia-campo:      #fffdf9;
   --ia-neutro-on:  var(--primary);
 }
@@ -1059,17 +1061,17 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 }
 .bloco-ia .ia-desc { margin: 0; font-size: 13px; color: var(--ia-texto); line-height: 1.5; }
 .btn-ia {
-  background: var(--roxo); color: var(--roxo-contraste); border: 0; border-radius: 8px;
+  background: var(--ia-cor); color: var(--ia-contraste); border: 0; border-radius: 8px;
   padding: 0 18px; height: 40px; box-sizing: border-box; font-size: 13px; font-weight: 700;
   font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
   white-space: nowrap; transition: background .15s;
 }
-.btn-ia:hover    { background: var(--roxo-escuro); }
-.btn-ia:disabled { background: var(--roxo-claro); cursor: wait; }
+.btn-ia:hover    { background: var(--ia-cor-escura); }
+.btn-ia:disabled { background: var(--ia-cor-clara); cursor: wait; }
 .tag-ia {
   display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
   background: var(--ia-tag-fundo); color: var(--ia-tag-texto);
-  border: 1px solid var(--roxo-borda); border-radius: 999px; padding: 2px 8px;
+  border: 1px solid var(--ia-cor-borda); border-radius: 999px; padding: 2px 8px;
   font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
 }
 .tag-ia i { font-size: 11px; }
@@ -1085,7 +1087,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
   border: 1px solid var(--ia-borda); border-radius: 8px; background: var(--ia-campo);
   color: var(--text); font-size: 14px; font-family: inherit;
 }
-.ia-input:focus { outline: 2px solid var(--roxo); outline-offset: 1px; }
+.ia-input:focus { outline: 2px solid var(--ia-cor); outline-offset: 1px; }
 .ia-contador { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 /* ── Toggle tipo 2 (Padrao_Toggle_Tipos): sólido invertido no ativo ── */
@@ -1100,9 +1102,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
   display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
 }
 .ia-fonte button + button { border-left: 1px solid var(--border); }
-.ia-fonte button.on { background: var(--roxo); color: var(--roxo-contraste); }
-.ia-fonte.ia-fonte-neutra button.on { background: var(--ia-neutro-on); color: var(--roxo-contraste); }
-.ia-fonte button:focus-visible { outline: 2px solid var(--roxo); outline-offset: -2px; }
+.ia-fonte button.on { background: var(--ia-cor); color: var(--ia-contraste); }
+.ia-fonte.ia-fonte-neutra button.on { background: var(--ia-neutro-on); color: var(--ia-contraste); }
+.ia-fonte button:focus-visible { outline: 2px solid var(--ia-cor); outline-offset: -2px; }
 .ia-modo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .ia-aviso {
   margin: 0; font-size: 12.5px; color: var(--ia-texto); display: flex; align-items: center; gap: 6px;
@@ -1115,7 +1117,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
   border: 1px solid var(--ia-borda); background: transparent; color: var(--ia-texto);
   border-radius: 999px; padding: 0 14px; min-height: 40px; font-size: 12.5px; font-family: inherit; cursor: pointer;
 }
-.ia-exemplo:hover { border-color: var(--roxo); color: var(--roxo); }
+.ia-exemplo:hover { border-color: var(--ia-cor); color: var(--ia-cor); }
 
 /* ── Resultado ── */
 .ia-resultado { display: flex; flex-direction: column; gap: 14px; min-height: 120px; }
@@ -1158,7 +1160,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
   align-items: center; gap: 14px;
 }
 .loading-inline .spinner-circle {
-  width: 44px; height: 44px; border: 4px solid var(--border); border-top-color: var(--roxo);
+  width: 44px; height: 44px; border: 4px solid var(--border); border-top-color: var(--ia-cor);
   border-radius: 50%; animation: ia-gira .8s linear infinite;
 }
 .loading-inline .loading-text { font-size: 14px; font-weight: 600; color: var(--ia-texto); }
@@ -1195,7 +1197,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .ia-config-teste { font-size: 12.5px; color: var(--muted); margin-right: auto; min-height: 1em; }
 .ia-config-teste.ok   { color: var(--success); }
 .ia-config-teste.erro { color: var(--danger); }
-.ia-config-teste .ph-spinner-gap { display: inline-block; margin-right: 5px; color: var(--roxo); animation: ia-gira .8s linear infinite; }
+.ia-config-teste .ph-spinner-gap { display: inline-block; margin-right: 5px; color: var(--ia-cor); animation: ia-gira .8s linear infinite; }
 .ia-config-rodape { display: flex; justify-content: flex-end; }
 .btn-neutro {
   height: 40px; box-sizing: border-box; padding: 0 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
@@ -1207,7 +1209,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .btn-acao {
   height: 40px; box-sizing: border-box; padding: 0 18px; border-radius: 8px; font-size: 13px; font-weight: 700;
   font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
-  background: var(--ia-neutro-on); color: var(--roxo-contraste); border: 0;
+  background: var(--ia-neutro-on); color: var(--ia-contraste); border: 0;
 }
 .btn-acao:hover { opacity: .9; }
 

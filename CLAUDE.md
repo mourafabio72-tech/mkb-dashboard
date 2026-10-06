@@ -120,7 +120,8 @@ admin, sem valor padrão), `ZOARIA_SECRET_KEY`, `ZOARIA_COOKIE_DOMAIN`, `ZOARIA_
 - **Provas:** scripts em `provas/` apontam `DB_PATH` para um arquivo temporário ANTES de
   importar `app`. Rodar com `uv run --python 3.12 python provas/<arquivo>.py`.
 - **Visual Sage & Creme** com alternador claro/escuro. Tokens do FinHub: `--primary`,
-  `--accent`, `--card`, `--border`, `--text`, `--muted`. IA usa `--roxo*`.
+  `--accent`, `--card`, `--border`, `--text`, `--muted`. IA usa `--ia-*` em teal
+  `#3A7D76` (sinal de IA da paleta, o mesmo da Conciliação), nunca roxo.
 - **Ajuste de saldo exige aprovação humana:** o app nunca lança `AJUSTE-SALDO` sozinho.
 - **Protheus lança retroativo:** o delator é o "Saldo anterior" do balancete; excluir o razão
   do mês antes de reimportar.

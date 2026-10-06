@@ -84,6 +84,12 @@ Caminhos relativos a `/Users/fabiomoura/ObsidianJovi/01_SISTEMAS/`.
 9. **URL do provedor é fixa no código** (allowlist de duas URLs). Diferente do Tareffas, que deixa a
    URL editável: aqui não, para fechar SSRF.
 
+10. **Cor de IA: teal da paleta, não roxo** (2026-10-06, Fábio: "a cor está fora da paleta de cores").
+   Conflito com `Padrao_Marca_IA` ("Cor de IA é SEMPRE roxa") decidido pelo dono: vale o sinal de IA
+   que a casa já usa na Conciliação Contábil, teal `#3A7D76` (fundo `#DCEFED`), tokens `--ia-*` em
+   `static/style.css`. Continua valendo da nota: ícone `ph-sparkle`, cor exclusiva de IA (nunca o
+   oliva `--accent`), texto descritivo, `.tag-ia` no resultado.
+
 ## Regras locais do projeto (quirks)
 
 - Publica do branch **`master`**, não `main`.
