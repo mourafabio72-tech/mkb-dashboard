@@ -187,13 +187,15 @@ Toggle: tipo 2, duas opções
       EVIDÊNCIA: grep -w de palavras sem acento nos arquivos novos rc=1; mojibake rc=1; file = UTF-8; leitura tela por tela registrada no LOG (pasquale.py não existe na vault: fallback da nota)
 - [x] Vocabulário: `grep -rniE "processando|aguarde|carregando|vale ressaltar|em suma" templates/ia.html templates/config_ia.html static/ia.js` vazio (Padrao_Texto_e_Linguagem)
       EVIDÊNCIA: grep processando|aguarde|carregando|vale ressaltar|em suma|outrossim|prezado nos arquivos novos rc=1
-- [ ] `conferir-telas` em `/ia`, `/config/ia` e `/`, computador e celular, claro e escuro: zero erro
+- [x] `conferir-telas` em `/ia`, `/config/ia` e `/`, computador e celular, claro e escuro: zero erro
+      EVIDÊNCIA: /ia e /config/ia sem erro no computador e no celular; no / as peças novas sem achado. EXCEÇÃO DECLARADA: o dashboard ainda acusa gráficos e tabelas antigos vazando no celular (herança, fora do escopo; navbar consertado a pedido do Fábio). Escuro conferido no navegador. Visual aprovado pelo Fábio em 2026-10-06
 
 ## Fase 6: Entrega
 
 - [x] Provas novas e antigas verdes (saída colada no LOG)
       EVIDÊNCIA: 8 provas rc=0 em 2026-10-06 antes do push (3 ia + 5 antigas)
-- [ ] Teste real no Mac: 1 pergunta OpenAI + 1 NVIDIA conferidas contra a tela do módulo
+- [x] Teste real no Mac: 1 pergunta OpenAI + 1 NVIDIA conferidas contra a tela do módulo
+      EVIDÊNCIA: feito em produção pelo Fábio em 2026-10-06 (em vez do Mac: a chave real só existe lá): OpenAI e NVIDIA (google/gemma-4-31b-it), números conferidos contra a tela do módulo ('Sim, os dois')
 - [x] `graphify update .`
       EVIDÊNCIA: 'Code graph updated.' em 2026-10-06
 - [x] Um commit por fase no `master`; push
@@ -204,7 +206,8 @@ Toggle: tipo 2, duas opções
       EVIDÊNCIA: 200; style.css em produção contém o bloco PERGUNTE À IA; /ia sem login -> 302 para o login do Hub
 - [x] Aviso ao Fábio: salvar a chave NVIDIA em `/config/ia` na produção
       EVIDÊNCIA: avisado no chat em 2026-10-06
-- [ ] LOG `fase=6 acao=entrega resultado=ok`
+- [x] LOG `fase=6 acao=entrega resultado=ok`
+      EVIDÊNCIA: linha de entrega escrita em 2026-10-06
 
 ---
 

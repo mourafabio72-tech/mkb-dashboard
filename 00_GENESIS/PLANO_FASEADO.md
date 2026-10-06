@@ -2,7 +2,7 @@
 tipo: plano
 projeto: FinHub (_deploy_mkb)
 gerado_em: 2026-10-05 20:10
-status_geral: in_progress
+status_geral: done
 aprovado_por_usuario: true (2026-10-05)
 trabalho: Pergunte à IA (OpenAI + NVIDIA)
 modo: autonomo (escolhido em 2026-10-05)
@@ -73,7 +73,7 @@ No modo Analisar, o FinHub recalcula o mesmo resultado e manda só os totais par
 
 ## Fase 4: Modo Analisar (backend + prova)
 
-- **Status:** done no backend (2026-10-05); o item 'front usa textContent' fecha no gate da Fase 5
+- **Status:** done (2026-10-06)
 - **Duração estimada:** 1h30
 - **Critério de aceite** (prova `provas/prova_ia_analisar.py`):
   - `POST /ia/analisar` recebe a pergunta de novo, **recalcula no servidor** (não aceita números vindos do navegador) e monta o pacote só com totais: rótulo, competência, valor. Prova: o pacote enviado ao dublê não contém `historico`, `documento`, número de NF nem linha de `razao`.
@@ -86,7 +86,7 @@ No modo Analisar, o FinHub recalcula o mesmo resultado e manda só os totais par
 
 ## Fase 5: Telas
 
-- **Status:** blocked (2026-10-05): tudo feito e medido; falta a conferência visual do Fábio e a decisão sobre o navbar herdado que estoura a largura no celular
+- **Status:** done (2026-10-06, visual aprovado pelo Fábio; exceção declarada: herança do dashboard no celular)
 - **Duração estimada:** 4h
 - **Critério de aceite:**
   - Pílula "pergunte à IA" (ícone `ph-sparkle`) na lista `itens` de `templates/dashboard.html`, levando a `GET /ia` (`templates/ia.html`).
@@ -103,7 +103,7 @@ No modo Analisar, o FinHub recalcula o mesmo resultado e manda só os totais par
 
 ## Fase 6: Entrega e validação
 
-- **Status:** pending
+- **Status:** done (2026-10-06)
 - **Duração estimada:** 45 min
 - **Critério de aceite:**
   - As provas das Fases 2, 3 e 4 rodam verdes juntas; as provas antigas de `provas/` continuam verdes.
