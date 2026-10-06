@@ -37,6 +37,7 @@ PROVEDORES = {
         "arquivo": "openai_key.txt",
         "prefixo": "sk-",
         "modelo_padrao": "gpt-4o-mini",
+        "candidatos": ["gpt-4o-mini", "gpt-4.1-mini"],
     },
     "nvidia": {
         "nome": "NVIDIA",
@@ -45,6 +46,12 @@ PROVEDORES = {
         "arquivo": "nvidia_key.txt",
         "prefixo": "nvapi-",
         "modelo_padrao": "nvidia/llama-3.1-nemotron-70b-instruct",
+        # Vivos no catálogo em 2026-10-06 (POST sem chave dá 401, não 404/410),
+        # sem raciocínio, bons em português. Cada conta libera um subconjunto:
+        # testar() percorre a lista e fica com o primeiro que responde.
+        "candidatos": ["nvidia/llama-3.1-nemotron-70b-instruct", "mistralai/mistral-large-2-instruct",
+                       "google/gemma-4-31b-it", "z-ai/glm-5.3-flash", "deepseek-ai/deepseek-v4.1-flash",
+                       "mistralai/mistral-large"],
     },
 }
 
@@ -62,6 +69,9 @@ _RE_MODELO = re.compile(r"^[A-Za-z0-9._/:-]{1,80}$")
 
 class ErroIA(Exception):
     """Falha ao falar com o provedor. A mensagem já é segura para a tela."""
+    def __init__(self, msg: str, status: int | None = None):
+        super().__init__(msg)
+        self.status = status
 
 
 def _dir_dados() -> Path:
@@ -265,7 +275,7 @@ def _post_json(url: str, corpo: dict, cabecalhos: dict, timeout: float) -> tuple
 
 def chamar(mensagens: list[dict], provedor: str | None = None, *,
            max_tokens: int = 300, temperature: float = 0,
-           json_mode: bool = False, timeout: float = 30) -> str:
+           json_mode: bool = False, timeout: float = 30, modelo: str | None = None) -> str:
     """Chat completion no provedor (o ativo, se nenhum for dado). Devolve o texto.
 
     Levanta ErroIA com mensagem pronta para a tela; nunca carrega corpo da
@@ -276,7 +286,7 @@ def chamar(mensagens: list[dict], provedor: str | None = None, *,
     if not chave:
         raise ErroIA(f"Nenhuma chave da {p['nome']} configurada.")
     corpo = {
-        "model": ler_config()["modelos"][provedor],
+        "model": modelo or ler_config()["modelos"][provedor],
         "messages": mensagens,
         "temperature": temperature,
         "max_tokens": max_tokens,
@@ -292,11 +302,14 @@ def chamar(mensagens: list[dict], provedor: str | None = None, *,
         status, bruto = _post_json(p["url"], corpo, cabecalhos, timeout)
     except Exception:
         raise ErroIA(f"Não consegui falar com a {p['nome']} agora.") from None
-    if status in (404, 410):
-        raise ErroIA(f"A {p['nome']} respondeu HTTP {status}: o modelo {corpo['model']} saiu do catálogo. "
-                     "Troque o modelo em Configuração da IA.")
+    if status == 410:
+        raise ErroIA(f"A {p['nome']} respondeu HTTP 410: o modelo {corpo['model']} saiu do catálogo. "
+                     "Clique em Testar na Configuração da IA para o FinHub achar outro.", status)
+    if status == 404:
+        raise ErroIA(f"A {p['nome']} respondeu HTTP 404: o modelo {corpo['model']} não está liberado para "
+                     "esta chave. Clique em Testar na Configuração da IA para o FinHub achar outro.", status)
     if status != 200:
-        raise ErroIA(f"A {p['nome']} respondeu HTTP {status}.")
+        raise ErroIA(f"A {p['nome']} respondeu HTTP {status}.", status)
     try:
         texto = json.loads(bruto)["choices"][0]["message"]["content"]
         if texto is None:
@@ -312,9 +325,31 @@ def testar(provedor: str) -> tuple[bool, str]:
     nome = PROVEDORES[provedor]["nome"]
     if not ler_chave(provedor):
         return False, f"Nenhuma chave da {nome} configurada."
+    atual = ler_config()["modelos"][provedor]
     try:
-        chamar([{"role": "user", "content": "Responda só: ok"}], provedor,
-               max_tokens=5, timeout=20)
+        _ping(provedor, atual)
+        return True, f"A {nome} respondeu. Chave e modelo funcionando."
     except ErroIA as e:
-        return False, str(e)
-    return True, f"A {nome} respondeu. Chave e modelo funcionando."
+        if e.status not in (404, 410):
+            return False, str(e)
+    # modelo atual retirado ou não liberado para a chave: procura um que responda
+    for m in PROVEDORES[provedor].get("candidatos", []):
+        if m == atual:
+            continue
+        try:
+            _ping(provedor, m)
+        except ErroIA as e:
+            if e.status in (404, 410):
+                continue
+            return False, str(e)
+        salvar_config(modelos={provedor: m})
+        return True, (f"O modelo {atual} não responde para esta chave. "
+                      f"Passei a usar {m}, que respondeu.")
+    return False, (f"Nenhum dos modelos conhecidos respondeu para esta chave da {nome}. "
+                   "Veja na conta quais modelos estão liberados e digite o nome em Modelo.")
+
+
+def _ping(provedor: str, modelo: str) -> None:
+    """Chamada mínima com um modelo específico, sem mudar a config."""
+    chamar([{"role": "user", "content": "Responda só: ok"}], provedor,
+           max_tokens=5, timeout=20, modelo=modelo)

@@ -186,10 +186,47 @@ check("testar sem token CSRF leva 400", r.status_code == 400)
 import json as _j                                                    # noqa: E402
 (DADOS / "ia_config.json").write_text(_j.dumps({"ativo": "nvidia", "modelos": {"nvidia": "meta/llama-3.3-70b-instruct"}}))
 check("modelo retirado salvo na config vira o substituto", ia_config.ler_config()["modelos"]["nvidia"] == "nvidia/llama-3.1-nemotron-70b-instruct")
-ia_config._post_json = Duble(status=410, corpo={"detail": "gone " + NOVA})
+try:
+    ia_config._post_json = Duble(status=410, corpo={"detail": "gone " + NOVA})
+    ia_config.chamar([{"role": "user", "content": "x"}], "nvidia")
+except ia_config.ErroIA as e:
+    check("410 na pergunta explica que o modelo saiu do catálogo", "saiu do catálogo" in str(e) and e.status == 410 and NOVA not in str(e))
+try:
+    ia_config._post_json = Duble(status=404, corpo={"detail": "nope"})
+    ia_config.chamar([{"role": "user", "content": "x"}], "nvidia")
+except ia_config.ErroIA as e:
+    check("404 na pergunta diz que o modelo não está liberado para a chave", "não está liberado" in str(e) and e.status == 404)
+
+
+class DubleModelos(Duble):
+    """404 para quem não está liberado, 200 para o liberado."""
+    def __init__(self, liberado):
+        super().__init__()
+        self.liberado = liberado
+
+    def __call__(self, url, corpo, cab, timeout):
+        self.chamadas.append({"model": corpo["model"]})
+        if corpo["model"] != self.liberado:
+            return 404, b""
+        return 200, json.dumps(resposta_ok()).encode()
+
+
+ia_config.salvar_config(modelos={"nvidia": "nvidia/llama-3.1-nemotron-70b-instruct"})
+dm = DubleModelos("google/gemma-4-31b-it")
+ia_config._post_json = dm
 j = adm.post("/config/ia/testar", json={"provedor": "nvidia"}, headers={"X-CSRF-Token": "tok-prova"}).get_json()
-check("410 explica que o modelo saiu do catálogo", "saiu do catálogo" in j["mensagem"] and "HTTP 410" in j["mensagem"]
-      and NOVA not in j["mensagem"], f"({j})")
+check("Testar acha o modelo liberado e grava", j["ok"] and "google/gemma-4-31b-it" in j["mensagem"]
+      and ia_config.ler_config()["modelos"]["nvidia"] == "google/gemma-4-31b-it", f"({j})")
+check("tentou na ordem e parou no primeiro que respondeu",
+      [c["model"] for c in dm.chamadas] == ["nvidia/llama-3.1-nemotron-70b-instruct", "mistralai/mistral-large-2-instruct", "google/gemma-4-31b-it"])
+ia_config._post_json = DubleModelos("nenhum")
+j = adm.post("/config/ia/testar", json={"provedor": "nvidia"}, headers={"X-CSRF-Token": "tok-prova"}).get_json()
+check("nenhum liberado: avisa e não grava", not j["ok"] and "Nenhum dos modelos" in j["mensagem"]
+      and ia_config.ler_config()["modelos"]["nvidia"] == "google/gemma-4-31b-it", f"({j})")
+ia_config._post_json = Duble(status=401)
+j = adm.post("/config/ia/testar", json={"provedor": "nvidia"}, headers={"X-CSRF-Token": "tok-prova"}).get_json()
+check("chave errada (401) não sai procurando modelo", j["mensagem"] == "A NVIDIA respondeu HTTP 401." and ia_config.ler_config()["modelos"]["nvidia"] == "google/gemma-4-31b-it")
+ia_config.salvar_config(modelos={"nvidia": "nvidia/llama-3.1-nemotron-70b-instruct"})
 ia_config.salvar_config(ativo="openai")
 
 print("\n=== 7b. a chamada HTTP real (servidor local, sem internet) ===")
