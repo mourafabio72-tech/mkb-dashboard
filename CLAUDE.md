@@ -67,7 +67,7 @@ Convenções gerais da vault (01_SISTEMAS/)
         >>>
 Convenções do workspace Zoaria (/Users/fabiomoura/CLAUDE_FABIO/CLAUDE.md)
         >>>
-Quirks deste projeto (descritos NESTE arquivo abaixo, e no 00_GENESIS/LASTRO.md)
+Quirks deste projeto (descritos NESTE arquivo abaixo; decisões do Pergunte à IA no zip do 00_GENESIS)
         >>>
 Pedido específico desta sessão
 ```
