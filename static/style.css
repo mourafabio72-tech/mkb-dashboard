@@ -807,6 +807,16 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
   .table-dre .pct-col { display: none; }
   .col-acum, .col-media { display: none; }
 }
+/* Navbar no celular: antes forçava 749 px de largura em toda tela do app.
+   Quebra em duas linhas: marca + botões em cima, links embaixo, com rolagem
+   própria se não couberem (a página não rola para o lado). */
+@media (max-width: 700px) {
+  .navbar { flex-wrap: wrap; height: auto; padding: 8px 12px; row-gap: 6px; }
+  .nav-divider, .nav-sub, .nav-user-nome, .navbar .btn-print { display: none; }   /* imprimir/PDF fica no computador */
+  .nav-links { order: 10; flex-basis: 100%; overflow-x: auto; padding: 0; margin: 0; }
+  .nav-links a { display: inline-flex; align-items: center; min-height: 40px; padding: 0 12px; white-space: nowrap; }
+  .nav-user { margin-left: 4px; padding-left: 8px; }
+}
 
 /* ══════════════════════════════════════════════════════════════════════════ */
 /* MINIMALISTA — Dashboard Início                                           */
@@ -1206,6 +1216,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 
 @media (max-width: 600px) {
   .ia-form .campo-acao { margin-left: 0; width: 100%; }
+  .ia-form .campo-acao label { display: none; }   /* o &nbsp; só alinha a base no computador */
   .ia-form .campo-acao .btn-ia { width: 100%; justify-content: center; }
   .ia-numero { font-size: 22px; }
   .bloco-ia { padding: 14px; }
