@@ -7,7 +7,6 @@
 {% macro hub_cards(c, compact=false) %}
 {% set uc = c or '2026-04' %}
 {% set itens = [
-  {'endpoint': 'ia_tela',                      'params': {},                              'cor': 'var(--ia-cor)', 'txt': 'var(--ia-contraste)', 'icone': 'ph-sparkle', 'label': 'pergunte à IA',          'sub': 'Pergunta em português, números do FinHub'},
   {'endpoint': 'dre_resumida',                 'params': {'competencia': uc},            'cor': '#6e7f63', 'txt': '#ffffff', 'icone': 'ph-trend-up',       'label': 'DRE Gerencial',           'sub': 'Resultado mensal e acumulado'},
   {'endpoint': 'balanco',                      'params': {'competencia': uc},            'cor': '#55684d', 'txt': '#ffffff', 'icone': 'ph-scales',         'label': 'Balanço',                 'sub': 'Patrimonial · Ativo × Passivo'},
   {'endpoint': 'irpj',                         'params': {'empresa': 'mkb', 'competencia': uc}, 'cor': '#c9a77f', 'txt': '#2f3b2f', 'icone': 'ph-calculator',     'label': 'IRPJ / CSLL',             'sub': 'Apuração fiscal trimestral'},
@@ -91,6 +90,9 @@
     </span>
   </div>
   <div class="min-header-right">
+    <a href="{{ url_for('ia_tela') }}" class="min-btn-ia" aria-label="Abrir o Pergunte à IA">
+      <i class="ph ph-sparkle" aria-hidden="true"></i> Pergunte à IA
+    </a>
     <a href="{{ url_for('dre_resumida', competencia=ultima, modo='meses') }}" class="min-btn-ghost">
       <i class="ph ph-calendar-dots"></i> Meses
     </a>

@@ -1214,6 +1214,15 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 }
 .btn-acao:hover { opacity: .9; }
 
+/* ── Botão no cabeçalho do dashboard (mesma medida de Meses e Ver DRE) ── */
+.min-btn-ia {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 7px 16px; border-radius: 7px;
+  font-size: 12px; font-weight: 700; color: var(--ia-contraste);
+  background: var(--ia-cor); border: none; text-decoration: none; transition: background .15s;
+}
+.min-btn-ia:hover { background: var(--ia-cor-escura); }
+
 /* ── Caixa no topo do dashboard ── */
 .bloco-ia-dash { margin: 0 0 16px; }
 
