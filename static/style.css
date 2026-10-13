@@ -1224,7 +1224,6 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .min-btn-ia:hover { background: var(--ia-cor-escura); }
 
 /* ── Caixa no topo do dashboard ── */
-.bloco-ia-dash { margin: 0 0 16px; }
 
 @media (max-width: 600px) {
   .ia-form .campo-acao { margin-left: 0; width: 100%; }

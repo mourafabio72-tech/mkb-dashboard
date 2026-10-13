@@ -56,6 +56,16 @@ check("o CSS e o JS dele entram com versão na URL",
 canto = html.split("data-ia-mascote", 1)[1].split("</div>", 1)[0]
 check("nenhuma imagem de fora no desenho", "http" not in canto and "<img" not in canto)
 
+print("\n1b. A janela de conversa (2026-10-13)")
+check("a janela vem na página, fechada", "data-ia-janela hidden" in html)
+# O dashboard só se desenha com dados importados; aqui vale o template.
+dash = (RAIZ / "templates" / "dashboard.html").read_text()
+check("o quadro azul do dashboard saiu", "iaDashPergunta" not in dash and "bloco-ia-dash" not in dash)
+check("o botão Pergunte à IA do topo abre a janela", 'class="min-btn-ia" data-ia-abrir' in dash)
+js = (RAIZ / "static" / "mascote.js").read_text()
+check("o JS da janela nunca usa innerHTML", "innerHTML" not in js.replace("Nada de innerHTML", ""))
+check("e pergunta em /ia/perguntar", "fetch('/ia/perguntar'" in js)
+
 print("\n2. Onde ele não aparece")
 r = adm.get("/ia")
 check("na própria /ia, não (já está nela)", r.status_code == 200 and "data-ia-mascote" not in r.get_data(as_text=True))

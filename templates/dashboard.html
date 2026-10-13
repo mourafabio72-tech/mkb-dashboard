@@ -90,7 +90,7 @@
     </span>
   </div>
   <div class="min-header-right">
-    <a href="{{ url_for('ia_tela') }}" class="min-btn-ia" aria-label="Abrir o Pergunte à IA">
+    <a href="{{ url_for('ia_tela') }}" class="min-btn-ia" data-ia-abrir aria-label="Abrir o Pergunte à IA">
       <i class="ph ph-sparkle" aria-hidden="true"></i> Pergunte à IA
     </a>
     <a href="{{ url_for('dre_resumida', competencia=ultima, modo='meses') }}" class="min-btn-ghost">
@@ -101,25 +101,6 @@
     </a>
   </div>
 </div>
-
-{# ── Pergunte à IA (caixa no topo; a pergunta roda na tela /ia) ─────────── #}
-<form method="GET" action="{{ url_for('ia_tela') }}" class="bloco-ia bloco-ia-dash" aria-labelledby="iaDashTitulo">
-  <h2 id="iaDashTitulo"><i class="ph ph-sparkle" aria-hidden="true"></i> Pergunte à IA</h2>
-  <p class="ia-desc">A IA lê sua pergunta e diz ao FinHub o que buscar. Os números vêm do FinHub.</p>
-  <div class="ia-form">
-    <div class="campo campo-principal">
-      <label for="iaDashPergunta">Sua pergunta</label>
-      <input type="text" id="iaDashPergunta" name="q" class="ia-input" maxlength="300" required
-             placeholder="Ex.: salários de julho contra agosto">
-    </div>
-    <div class="campo campo-acao">
-      <label aria-hidden="true">&nbsp;</label>
-      <button type="submit" class="btn-ia" aria-label="Perguntar à inteligência artificial">
-        <i class="ph ph-sparkle" aria-hidden="true"></i> Perguntar
-      </button>
-    </div>
-  </div>
-</form>
 
 {# ── Filtro de período ───────────────────────────────────────────────────── #}
 <form method="GET" action="{{ url_for('index') }}" id="form-meses-dash" class="min-period-bar">
