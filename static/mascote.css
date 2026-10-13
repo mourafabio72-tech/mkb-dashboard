@@ -1,0 +1,59 @@
+/* mascote.css: o robô do Pergunte à IA (2026-10-13), o mesmo do TeamHub.
+   As cores do robô são fixas, e não os tokens do tema: no tema escuro o
+   --accent do FinHub é roxo, e a IA aqui nunca é roxa. O balão segue o tema
+   (--card, --text, --border). Movimento desligado com prefers-reduced-motion. */
+:root {
+  --mascote-cor: #6e7f63;
+  --mascote-cor-escura: #414b3b;
+  --mascote-sombra: rgba(110, 127, 99, .28);
+}
+
+.rb { display: block; overflow: visible; }
+.rb-cabeca { fill: var(--mascote-cor); }
+.rb-orelha, .rb-visor, .rb-braco, .rb-pescoco { fill: var(--mascote-cor-escura); }
+.rb-haste { stroke: var(--mascote-cor-escura); stroke-width: 2.5; stroke-linecap: round; }
+.rb-luz { fill: #c9a77f; }
+.rb-brilho { fill: #fff; opacity: .35; }
+.rb-olho { fill: #f4f7f2; }
+.rb-boca { fill: none; stroke: #f4f7f2; stroke-width: 2.2; stroke-linecap: round; }
+.rb-bochecha { fill: #e8a6a0; opacity: .7; }
+.rb-peito { fill: #f6f3ea; }
+.rb-chao { fill: #000; opacity: .12; }
+
+.rb-olhos { transform-box: fill-box; transform-origin: center; animation: rb-piscar 4.5s infinite; }
+@keyframes rb-piscar { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+.rb-luz { animation: rb-luz 2.4s ease-in-out infinite; }
+@keyframes rb-luz { 50% { opacity: .45; } }
+.rb-braco-d { transform-box: fill-box; transform-origin: 50% 10%; animation: rb-acena 6s ease-in-out infinite; }
+@keyframes rb-acena { 0%, 80%, 100% { transform: rotate(0); } 85%, 95% { transform: rotate(-28deg); } 90% { transform: rotate(-12deg); } }
+.rb-flutua .rb-todo { animation: rb-flutua 3.2s ease-in-out infinite; }
+.rb-flutua .rb-chao { transform-box: fill-box; transform-origin: center; animation: rb-sombra 3.2s ease-in-out infinite; }
+@keyframes rb-flutua { 50% { transform: translateY(-4px); } }
+@keyframes rb-sombra { 50% { transform: scaleX(.8); opacity: .07; } }
+
+.ia-mascote { position: fixed; right: 22px; bottom: 22px; z-index: 900;
+  display: flex; align-items: flex-end; gap: 10px; }
+.ia-mascote-botao { display: block; width: 92px; height: 141px;
+  filter: drop-shadow(0 8px 10px var(--mascote-sombra)) drop-shadow(0 2px 3px rgba(0, 0, 0, .18));
+  transition: transform .2s ease; }
+.ia-mascote-botao:hover { transform: translateY(-3px) scale(1.04); }
+.ia-mascote-botao:focus-visible { outline: 3px solid var(--mascote-cor); outline-offset: 4px; border-radius: 16px; }
+.ia-mascote-botao .rb { width: 100%; height: 100%; }
+
+.ia-saudacao { position: relative; margin-bottom: 70px; max-width: 220px; padding: 10px 14px;
+  border: 1px solid var(--border); border-radius: 14px 14px 4px 14px;
+  background: var(--card); color: var(--text); font-size: 13.5px; line-height: 1.4; text-decoration: none;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .14); animation: ia-entra .35s ease-out; }
+.ia-saudacao:hover { border-color: var(--mascote-cor); }
+.ia-saudacao[hidden] { display: none; }
+@keyframes ia-entra { from { opacity: 0; transform: translateY(8px) scale(.96); } }
+
+@media (max-width: 640px) {
+  .ia-mascote { right: 10px; bottom: 10px; }
+  .ia-mascote-botao { width: 68px; height: 104px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rb-olhos, .rb-luz, .rb-flutua, .rb-flutua *, .rb-braco-d, .ia-saudacao { animation: none !important; }
+  .ia-mascote-botao { transition: none; }
+}
+@media print { .ia-mascote { display: none !important; } }

@@ -46,6 +46,7 @@
 
   <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('mkb-theme') || 'light');</script>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260804">
+  <link rel="stylesheet" href="{{ url_for('static', filename='mascote.css') }}?v=20261013">
   <style>
     /* ── Navbar · ícones Phosphor ─────────────────────────────────────────── */
     .nav-links a {
@@ -247,6 +248,11 @@
   {% block content %}{% endblock %}
 </main>
 
+{% if mostra_mascote %}
+{% import "_mascote.html" as mascote %}
+{{ mascote.canto() }}
+{% endif %}
+
 <footer class="footer">
   <span>BPS4 Contabilidade · MKB-Dashboard · {{ now }}</span>
 </footer>
@@ -271,6 +277,7 @@
 })();
 </script>
 <script src="{{ url_for('static', filename='main.js') }}"></script>
+{% if mostra_mascote %}<script src="{{ url_for('static', filename='mascote.js') }}?v=20261013"></script>{% endif %}
 {% block scripts %}{% endblock %}
 </body>
 </html>

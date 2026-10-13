@@ -19,7 +19,7 @@ from versao import VERSAO_COMPLETA, BUILD
 import ia_config
 import ia_perguntas
 from auth import (login_required, admin_required, verificar_credenciais,
-                  rate_limit_login, empresas_permitidas)
+                  rate_limit_login, empresas_permitidas, usuario_logado)
 from ingestion import get_conn, criar_schema, seed_empresas, importar, ler_template_dre, salvar_lancamentos
 from importar_mes import importar_mes_completo
 from razao_parser import importar_razao
@@ -165,6 +165,16 @@ def inject_versao():
     # Carimbo de build na tela publica de login: e assim que se pergunta a
     # producao o que ela esta servindo, sem login e sem abrir o painel.
     return {"versao_build": VERSAO_COMPLETA}
+
+
+# O mascote do Pergunte à IA (2026-10-13, o mesmo robô do TeamHub): aparece em
+# toda tela de quem está logado, menos na própria /ia, e leva até ela.
+TELAS_SEM_MASCOTE = {"ia_tela", "login"}
+
+
+@app.context_processor
+def inject_mascote():
+    return {"mostra_mascote": bool(usuario_logado()) and request.endpoint not in TELAS_SEM_MASCOTE}
 
 
 @app.context_processor

@@ -1,0 +1,49 @@
+{# O MASCOTE DO PERGUNTE À IA (2026-10-13). O mesmo robô do TeamHub, pela nota
+   "Mascote do assistente - robo com logo BPS4" (B03 Resources, CLAUDE_FABIO).
+   Nenhuma cor mora aqui: cada peça tem uma classe `rb-*`, colorida no
+   static/mascote.css. O logo é o static/bps4-logo.png que o app já tem. #}
+{% macro robo(classe='', corpo=false) -%}
+<svg class="rb {{ classe }}" viewBox="0 0 64 {{ 98 if corpo else 58 }}" aria-hidden="true" focusable="false">
+  {% if corpo %}
+  <ellipse class="rb-chao" cx="32" cy="95" rx="20" ry="3"/>
+  <g class="rb-todo">
+  <g class="rb-corpo">
+    <rect class="rb-braco rb-braco-e" x="1" y="63" width="9" height="22" rx="4.5"/>
+    <rect class="rb-braco rb-braco-d" x="54" y="63" width="9" height="22" rx="4.5"/>
+    <rect class="rb-pescoco" x="26" y="53" width="12" height="7" rx="2"/>
+    <rect class="rb-cabeca" x="9" y="58" width="46" height="33" rx="13"/>
+    <ellipse class="rb-brilho" cx="20" cy="62.5" rx="6" ry="2"/>
+    <rect class="rb-peito" x="14" y="64" width="36" height="22" rx="8"/>
+    <image class="rb-logo" href="{{ url_for('static', filename='bps4-logo.png') }}" x="17" y="67" width="30" height="16.8"
+           preserveAspectRatio="xMidYMid meet"/>
+  </g>
+  {% endif %}
+  <g class="rb-cabeca-toda">
+  <line class="rb-haste" x1="32" y1="5" x2="32" y2="15"/>
+  <circle class="rb-luz" cx="32" cy="5" r="4"/>
+  <rect class="rb-orelha" x="4" y="29" width="7" height="13" rx="3.5"/>
+  <rect class="rb-orelha" x="53" y="29" width="7" height="13" rx="3.5"/>
+  <rect class="rb-cabeca" x="9" y="14" width="46" height="42" rx="20"/>
+  <ellipse class="rb-brilho" cx="22" cy="20" rx="8" ry="3"/>
+  <rect class="rb-visor" x="15" y="24" width="34" height="23" rx="11.5"/>
+  <g class="rb-olhos">
+    <circle class="rb-olho" cx="25" cy="33.5" r="3.6"/>
+    <circle class="rb-olho" cx="39" cy="33.5" r="3.6"/>
+  </g>
+  <path class="rb-boca" d="M27 40.5 Q32 44 37 40.5"/>
+  <circle class="rb-bochecha" cx="18.5" cy="43" r="2.2"/>
+  <circle class="rb-bochecha" cx="45.5" cy="43" r="2.2"/>
+  </g>
+  {% if corpo %}</g>{% endif %}
+</svg>
+{%- endmacro %}
+
+{# O canto: um link (ele leva a outra tela), não um botão. O balão diz oi uma
+   vez por sessão do navegador (static/mascote.js). #}
+{% macro canto() -%}
+<div class="ia-mascote" data-ia-mascote>
+  <a href="{{ url_for('ia_tela') }}" class="ia-saudacao" data-ia-saudacao hidden>Oi! Quer saber algo da DRE?</a>
+  <a href="{{ url_for('ia_tela') }}" class="ia-mascote-botao" aria-label="Pergunte à IA"
+     title="Pergunte à IA sobre os números do FinHub">{{ robo('rb-flutua', corpo=true) }}</a>
+</div>
+{%- endmacro %}
