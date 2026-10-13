@@ -125,6 +125,7 @@ admin, sem valor padrão), `ZOARIA_SECRET_KEY`, `ZOARIA_COOKIE_DOMAIN`, `ZOARIA_
 - **Ajuste de saldo exige aprovação humana:** o app nunca lança `AJUSTE-SALDO` sozinho.
 - **Protheus lança retroativo:** o delator é o "Saldo anterior" do balancete; excluir o razão
   do mês antes de reimportar.
+- **Janela do mascote em texto (2026-10-14):** `/ia/conversar` (`ia_conversa.py`) manda à IA a DRE mensal, a receita por cliente e a despesa por fornecedor do escopo da sessão, com cliente e fornecedor em código neutro X01 (nunca o nome, o histórico do razão nem a NF), modelo `gpt-4.1-mini` (ou `OPENAI_MODEL`), temperatura 0. O `/ia/perguntar` e a tela `/ia` seguem como estavam. Prova: `provas/prova_ia_conversa.py`.
 - **Chave de IA:** variável de ambiente vence o arquivo no diretório do banco
   (`/data/openai_key.txt`, `/data/nvidia_key.txt`). A chave nunca volta ao navegador nem ao log.
 - **Isolamento por empresa:** toda rota com `<empresa>` ou `?empresa=` passa por

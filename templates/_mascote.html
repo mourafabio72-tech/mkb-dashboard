@@ -41,9 +41,9 @@
 {# O canto e a janela de conversa (2026-10-13, pedido do Fábio: "ao clicar no
    assistente, abrir uma janela como o TeamHub"). O robô e o balão continuam
    sendo links para a /ia: sem JS, levam à tela; com JS, o static/mascote.js
-   abre a janela no lugar. A janela usa o mesmo /ia/perguntar da tela, com o
-   mesmo escopo de empresa da sessão, e mostra a resposta com as mesmas peças
-   (número, tabela, comparativo). Todo texto entra por textContent. #}
+   abre a janela no lugar. Desde 2026-10-14 a janela conversa em texto pelo
+   /ia/conversar (ia_conversa.py), com o escopo de empresa da sessão e os nomes
+   em código. Todo texto entra por textContent. #}
 {% macro canto() -%}
 <div class="ia-mascote" data-ia-mascote>
   <a href="{{ url_for('ia_tela') }}" class="ia-saudacao" data-ia-saudacao data-ia-abrir hidden>Oi! Quer saber algo da DRE?</a>
@@ -54,7 +54,7 @@
   <div class="ia-janela-cab">
     <div>
       <h3 id="iaJanelaTitulo">{{ robo('rb-cab') }} Pergunte à IA</h3>
-      <span class="ia-janela-sub">A IA lê sua pergunta e diz ao FinHub o que buscar. Os números vêm do FinHub.</span>
+      <span class="ia-janela-sub">Pergunte sobre DRE, receita por cliente e despesa por fornecedor.</span>
     </div>
     <button type="button" class="ia-janela-x" aria-label="Fechar" data-ia-fechar><i class="ph ph-x" aria-hidden="true"></i></button>
   </div>
@@ -69,6 +69,6 @@
     <textarea rows="2" maxlength="300" placeholder="Escreva sua pergunta" data-ia-texto aria-label="Sua pergunta"></textarea>
     <button type="submit" class="ia-janela-enviar" data-ia-enviar aria-label="Enviar"><i class="ph-bold ph-paper-plane-right" aria-hidden="true"></i></button>
   </form>
-  <p class="ia-janela-nota">Para a análise escrita da IA, use a <a href="{{ url_for('ia_tela') }}">tela completa</a> no modo Analisar.</p>
+  <p class="ia-janela-nota">Clientes e fornecedores vão para a IA como código (X01), nunca pelo nome, e o histórico do razão não vai. Os números são contábeis; recebimentos e pagamentos ficam no FinControl. As respostas podem errar; confira nas telas.</p>
 </aside>
 {%- endmacro %}

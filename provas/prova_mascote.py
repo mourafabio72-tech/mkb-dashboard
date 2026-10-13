@@ -64,7 +64,7 @@ check("o quadro azul do dashboard saiu", "iaDashPergunta" not in dash and "bloco
 check("nem o botão Pergunte à IA do topo (a entrada é só o mascote)", "min-btn-ia" not in dash)
 js = (RAIZ / "static" / "mascote.js").read_text()
 check("o JS da janela nunca usa innerHTML", "innerHTML" not in js.replace("Nada de innerHTML", ""))
-check("e pergunta em /ia/perguntar", "fetch('/ia/perguntar'" in js)
+check("e conversa em /ia/conversar (texto, desde 2026-10-14)", "fetch('/ia/conversar'" in js)
 
 print("\n2. Onde ele não aparece")
 r = adm.get("/ia")

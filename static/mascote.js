@@ -1,8 +1,9 @@
 /* mascote.js: o robô do Pergunte à IA e a janela de conversa (2026-10-13).
    O "Oi!" aparece uma vez por sessão do navegador e some sozinho em 9 s. Sem
    sessionStorage (aba anônima, bloqueio), ele só cumprimenta toda vez.
-   A janela pergunta ao mesmo /ia/perguntar da tela /ia (o CSRF entra sozinho
-   pelo patch de fetch do base.html) e desenha a resposta com as mesmas peças.
+   A janela conversa pelo /ia/conversar (2026-10-14, o modelo do FinControl): a
+   IA responde em texto, com o histórico desta página (nada fica gravado). O CSRF
+   entra sozinho pelo patch de fetch do base.html.
    Regra de saída (a mesma do ia.js): texto vindo da IA ou do servidor entra
    SEMPRE por textContent. Nada de innerHTML neste arquivo. */
 (function () {
@@ -64,78 +65,13 @@
   }
   function limpar(no) { while (no.firstChild) { no.removeChild(no.firstChild); } }
 
-  function tabela(colunas, linhas, total) {
-    var wrap = el('div', 'ia-tabela-wrap');
-    var t = el('table', 'ia-tabela');
-    var trh = el('tr');
-    colunas.forEach(function (c, i) {
-      var th = el('th', i === colunas.length - 1 ? 'ia-num' : null, c);
-      th.setAttribute('scope', 'col');
-      trh.appendChild(th);
-    });
-    var thead = el('thead');
-    thead.appendChild(trh);
-    t.appendChild(thead);
-    var tb = el('tbody');
-    linhas.forEach(function (l) {
-      var tr = el('tr', l.outros ? 'ia-outros' : null);
-      tr.appendChild(el('td', null, l.rotulo));
-      tr.appendChild(el('td', 'ia-num', brl(l.valor_fmt)));
-      tb.appendChild(tr);
-    });
-    if (total) {
-      var tt = el('tr', 'ia-total');
-      tt.appendChild(el('td', null, 'Total'));
-      tt.appendChild(el('td', 'ia-num', brl(total)));
-      tb.appendChild(tt);
-    }
-    t.appendChild(tb);
-    wrap.appendChild(t);
-    return wrap;
-  }
-
-  function entendi(b, frase) {
-    var p = el('p', 'ia-entendi');
-    var tag = el('span', 'tag-ia');
-    tag.appendChild(icone('ph-sparkle'));
-    tag.appendChild(document.createTextNode(' IA'));
-    p.appendChild(tag);
-    p.appendChild(el('span', null, frase || ''));
-    b.appendChild(p);
-  }
-
-  function desenhar(b, r) {
+  /* A resposta da IA, em texto, linha a linha. */
+  function escrever(b, texto) {
     limpar(b);
-    if (r.tipo === 'nao_entendi') {
-      b.appendChild(el('p', null, 'Não entendi a pergunta. Reescreva citando o que quer ver e o mês.'));
-      return;
-    }
-    entendi(b, r.entendi);
-    if (r.tipo === 'vazio') {
-      b.appendChild(el('p', 'ia-msg-sub', r.mensagem || 'Nenhum lançamento atende à pergunta.'));
-      return;
-    }
-    if (r.tipo === 'numero') {
-      b.appendChild(el('div', 'ia-numero-rotulo', r.rotulo || ''));
-      b.appendChild(el('div', 'ia-numero', brl(r.valor_fmt)));
-    } else if (r.tipo === 'tabela') {
-      if (r.contagem_rotulo) { b.appendChild(el('div', 'ia-numero-rotulo', r.contagem_rotulo)); }
-      b.appendChild(tabela(r.colunas || ['Item', 'Valor'], r.linhas || [], r.total_fmt));
-    } else if (r.tipo === 'comparativo') {
-      var linhas = (r.linhas || []).slice();
-      var pct = r.variacao_pct === null || r.variacao_pct === undefined ? '' :
-        ' (' + String(r.variacao_pct).replace('.', ',') + '%)';
-      linhas.push({ rotulo: 'Variação' + pct, valor_fmt: r.variacao_fmt });
-      b.appendChild(el('div', 'ia-numero-rotulo', r.rotulo || ''));
-      b.appendChild(tabela(['Mês', 'Valor'], linhas, null));
-    }
-    if (r.aviso) { b.appendChild(el('p', 'ia-obs', r.aviso)); }
-    if (r.ver_tudo) {
-      var a = el('a', 'ia-msg-link', 'Ver tudo na tela do módulo ');
-      a.setAttribute('href', r.ver_tudo);
-      a.appendChild(icone('ph-arrow-right'));
-      b.appendChild(a);
-    }
+    String(texto).split('\n').forEach(function (linha, i) {
+      if (i) { b.appendChild(document.createElement('br')); }
+      b.appendChild(document.createTextNode(linha));
+    });
   }
 
   function erro(b, msg) {
@@ -144,7 +80,8 @@
     b.appendChild(el('span', null, msg));
   }
 
-  var ESPERA_MAX = 45000;
+  var historico = [];
+  var ESPERA_MAX = 60000;
   function perguntar() {
     var pergunta = texto.value.trim();
     if (!pergunta || ocupado) { return; }
@@ -158,11 +95,11 @@
     b.textContent = 'Lendo sua pergunta...';
     var ctrl = window.AbortController ? new AbortController() : null;
     var corte = ctrl ? setTimeout(function () { ctrl.abort(); }, ESPERA_MAX) : null;
-    fetch('/ia/perguntar', {
+    fetch('/ia/conversar', {
       method: 'POST',
       signal: ctrl ? ctrl.signal : undefined,
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({ pergunta: pergunta })
+      body: JSON.stringify({ pergunta: pergunta, historico: historico })
     }).then(function (resp) {
       return resp.json().then(function (j) { return { status: resp.status, j: j }; },
         function () { return { status: resp.status, j: null }; });
@@ -176,7 +113,9 @@
       }
       if (x.status === 409) { erro(b, 'A IA não está configurada. Peça a um administrador para salvar a chave em Configuração da IA.'); return; }
       if (x.status !== 200) { erro(b, x.j.erro || 'Não consegui responder agora. Tente de novo.'); return; }
-      desenhar(b, x.j);
+      escrever(b, x.j.resposta);
+      historico.push({ papel: 'usuario', texto: pergunta }, { papel: 'assistente', texto: x.j.resposta });
+      historico = historico.slice(-4);
     }).catch(function (e) {
       b.classList.remove('ia-msg-pensando');
       erro(b, e && e.name === 'AbortError'

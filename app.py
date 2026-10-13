@@ -18,6 +18,7 @@ from config import (
 from versao import VERSAO_COMPLETA, BUILD
 import ia_config
 import ia_perguntas
+import ia_conversa
 from auth import (login_required, admin_required, verificar_credenciais,
                   rate_limit_login, empresas_permitidas, usuario_logado)
 from ingestion import get_conn, criar_schema, seed_empresas, importar, ler_template_dre, salvar_lancamentos
@@ -2319,6 +2320,31 @@ def ia_perguntar():
     ia_config.registrar("IA_PERGUNTA", intencao=resp.get("intencao"), tipo=resp.get("tipo"), ms=ms,
                         campos_ignorados=resp.get("ignorados") or [], **log)
     return jsonify(resp)
+
+
+@app.route("/ia/conversar", methods=["POST"])
+@login_required
+def ia_conversar():
+    """A janela do mascote (2026-10-14): a IA responde em texto, com os números
+    do escopo da sessão e os nomes de cliente e fornecedor em código (ver
+    ia_conversa.py). Mesmo balde de limite e mesma checagem de chave do Perguntar."""
+    pergunta, erro = _ia_ler_pergunta()
+    if erro:
+        return erro
+    dados = request.get_json(silent=True) or {}
+    historico = [h for h in (dados.get("historico") or []) if isinstance(h, dict)][-ia_conversa.MAX_HISTORICO:]
+    t0 = datetime.now()
+    log = {"user_id": _ia_quem(), "ip": _ip_cliente(), "provedor": ia_config.ler_config()["ativo"]}
+    try:
+        texto = ia_conversa.conversar(pergunta, historico, empresas_permitidas(), _competencias_disponiveis(),
+                                      datetime.now().strftime("%Y-%m-%d"))
+    except ia_conversa.ErroConversa as e:
+        return jsonify({"erro": str(e)}), 404
+    except ia_config.ErroIA as e:
+        ia_config.registrar("IA_ERRO", level="WARN", **log)
+        return jsonify({"erro": str(e)}), 502
+    ia_config.registrar("IA_CONVERSA", ms=int((datetime.now() - t0).total_seconds() * 1000), **log)
+    return jsonify({"resposta": texto})
 
 
 @app.route("/ia/analisar", methods=["POST"])
