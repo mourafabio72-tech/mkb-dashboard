@@ -16,3 +16,10 @@ openai_key.txt
 nvidia_key.txt
 ia_config.json
 *.db
+.env
+.env.*
+.venv
+data
+provas
+z_Versoes
+gerar_versao.command
