@@ -293,3 +293,42 @@ CREATE TABLE IF NOT EXISTS balanco_map_custom (
     linha       TEXT NOT NULL,
     criado_em   TEXT DEFAULT (datetime('now','localtime'))
 );
+
+-- ─── ORÇAMENTO (Orçado x Realizado, 2026-10-20) ─────────────────────────────
+-- Orçado do Rel_OrcRel do Protheus (aba DADOS, CQ2_TPSALD = 0), por empresa,
+-- mês, conta e centro. Casa com a `razao` por conta + centro (sem ponto) + mês.
+-- valor segue o sinal do razao.valor: crédito menos débito (receita positiva).
+CREATE TABLE IF NOT EXISTS orcamento_lotes (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    empresa_id  INTEGER NOT NULL,
+    ano         INTEGER NOT NULL,
+    usuario     TEXT NOT NULL,
+    arquivo     TEXT,                -- nome original, só para o histórico
+    linhas      INTEGER NOT NULL,
+    total       REAL NOT NULL,
+    criado_em   TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS orcamento (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    empresa_id    INTEGER NOT NULL,
+    competencia   TEXT NOT NULL,       -- 'YYYY-MM'
+    conta_cod     TEXT NOT NULL,       -- sem espaço no fim
+    centro_custo  TEXT NOT NULL,       -- só dígitos, sem ponto ('010206911')
+    valor         REAL NOT NULL,
+    lote_id       INTEGER NOT NULL REFERENCES orcamento_lotes(id),
+    UNIQUE (empresa_id, competencia, conta_cod, centro_custo)
+);
+
+CREATE INDEX IF NOT EXISTS idx_orcamento_emp_comp ON orcamento (empresa_id, competencia);
+
+CREATE TABLE IF NOT EXISTS centros_custo (
+    empresa_id   INTEGER NOT NULL,
+    codigo       TEXT NOT NULL,        -- só dígitos, sem ponto
+    descricao    TEXT NOT NULL,
+    servico      TEXT NOT NULL DEFAULT '',
+    coordenador  TEXT NOT NULL DEFAULT '',
+    filial       TEXT NOT NULL DEFAULT '',
+    tipo         TEXT NOT NULL DEFAULT '',
+    UNIQUE (empresa_id, codigo)
+);
