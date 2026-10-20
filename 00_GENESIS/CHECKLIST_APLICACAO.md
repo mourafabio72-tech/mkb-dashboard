@@ -64,13 +64,20 @@ Só marcar `[x]` com evidência apontável (arquivo:linha ou saída de prova).
   EVIDENCIA: 52 ok, 'tudo ok', exit 0; as 12 provas de provas/ verdes
 
 ## Fase 3: cálculo
-- [ ] realizado lido da `razao` por empresa, competência, conta 3/4 e `replace(centro_custo,'.','')`; nunca da `v_lancamentos`
-- [ ] linhas pela `classificar_conta` do `dre_engine` (reuso, sem motor novo de classificação) (Escada degrau 2)
-- [ ] mês sem razão marcado "sem realizado", não zero
-- [ ] Abrir por linha, serviço, coordenador, filial, centro; valor desconhecido dá 400
-- [ ] toda consulta tem `empresa_id = ?` (Padrao_IDOR)
-- [ ] `provas/prova_orcamento_calculo.py` verde (totais batem em toda abertura; acumulado = soma dos meses)
-- [ ] `provas/conferir_orcamento_real.py` com caminhos por argumento, sem dado no git
+- [x] realizado lido da `razao` por empresa, competência, conta 3/4 e `replace(centro_custo,'.','')`; nunca da `v_lancamentos`
+  EVIDENCIA: orcamento_engine.py:129-132 (razao, contas 3 e 4 depois do trim, centro com trim e sem ponto, sem centro = ''), e o orçado pela mesma regra em :125-128; nenhuma leitura da v_lancamentos. Mutação sem o replace: prova cai (3 FALHA). Dado real: 29.395 de 29.398 células iguais ao REALIZADO do Rel_OrcRel (as 3 são retroativo de julho)
+- [x] linhas pela `classificar_conta` do `dre_engine` (reuso, sem motor novo de classificação) (Escada degrau 2)
+  EVIDENCIA: orcamento_engine.py:41 linha_da_conta usa classificar_conta e o mesmo agrupamento de calcular_dre_gerencial; :170 subtotais pelo _aplicar_calc_ger do dre_engine. Cruzamento real, versionado: `provas/conferir_orcamento_real.py ... --razao-gnileb ...` chama o motor e a calcular_todas_empresas_gerencial: 231 células, 0 diferenças (7 meses, MKB, Gnileb e consolidado, 11 linhas)
+- [x] mês sem razão marcado "sem realizado", não zero
+  EVIDENCIA: orcamento_engine.py:153 meses_sem_realizado (no consolidado, basta faltar o razão de uma das empresas; sem_razao_por_empresa diz qual). Prova passo 4: março sem razão = ['2026-03'] no mês e no acumulado, com o orçado de março somado. A tela (Fase 4) mostra o aviso
+- [x] Abrir por linha, serviço, coordenador, filial, centro; valor desconhecido dá 400
+  EVIDENCIA: orcamento_engine.py:25 DIMENSOES e :59 ValueError para abertura fora da lista (a rota da Fase 4 converte ValueError em 400). Prova passos 2 e 6: as 5 aberturas somam o mesmo total; 16 parâmetros inválidos (empresa, ano, mês, modo, abertura, linha e filtros, inclusive lista e texto no lugar de dicionário) recusados com ValueError. Filtro com valor que não existe devolve total zero, coerente, e não é erro (link salvo com um centro que saiu do cadastro continua abrindo)
+- [x] toda consulta tem `empresa_id = ?` (Padrao_IDOR)
+  EVIDENCIA: as 4 consultas do motor (:114, :126, :130, :156) e a de centros (:75) filtram por empresa_id IN (?...), com os ids saídos da chave validada; a chave chega já conferida contra empresas_permitidas() na rota (Fase 4, prova da tela). DESVIO DECLARADO: o IN leva 1 ou 2 marcadores montados por f-string ({marcas} é só '?' ou '?,?'); valor nunca entra no texto do SQL; a prova lê a árvore do código e confere que as 4 f-strings de SQL só interpolam `marcas` e que `marcas` só nasce de '?' repetido (antes a checagem passava sem olhar o SQL, achado do verificador)
+- [x] `provas/prova_orcamento_calculo.py` verde (totais batem em toda abertura; acumulado = soma dos meses)
+  EVIDENCIA: 49 ok, exit 0, conta à mão no docstring (refeita pelo verificador); mutações da equivalência (4 FALHA) e do ponto (3 FALHA) revertidas; 9 casos dos furos do verificador
+- [x] `provas/conferir_orcamento_real.py` com caminhos por argumento, sem dado no git
+  EVIDENCIA: provas/conferir_orcamento_real.py com --orcrel, --ano, --empresa e --razao; banco em tempfile apagado no finally; saída só com contagem, mês, conta e centro. Rodado nos 7 razões reais da MKB e nos 8 da Gnileb: 29.398 células com 3 diferenças listadas (julho, centro 010120301) e DRE x motor com 231 células, 0 diferenças. Ressalva do verificador aceita: a comparação célula a célula repete a consulta do razão (prova a regra); quem prova o motor é o cruzamento com a DRE
 
 ## Fase 4: tela
 - [ ] card novo no hub do `dashboard.html` sem hex: cor por classe com token

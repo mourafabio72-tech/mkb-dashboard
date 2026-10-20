@@ -20,9 +20,13 @@ Decisões fechadas na Fase 0 (Fábio respondeu "aprovado" sem alterar os padrõe
 - D6 Consolidado: vendas entre MKB e Gnileb são eliminadas, no orçado e no realizado (Fábio, 2026-10-20).
   ABERTO: como reconhecer a venda entre elas no razão e no Rel_OrcRel (conta própria ou outra marca). O consolidado da DRE
   de hoje (`dre_engine.calcular_consolidado`) elimina só a Equivalência Patrimonial, não venda entre as empresas.
-  Encaminhamento (aprovado sem resposta às 3 perguntas): a Fase 3 mede no razão e no Rel_OrcRel como a venda entre elas
-  aparece (conta, cliente no histórico) e PARA para o Fábio confirmar a regra antes de eliminar. A DRE consolidada que
-  está no ar não muda neste trabalho; a tela do orçamento avisa que o consolidado dela elimina a venda e a DRE não.
+  Medido na Fase 3 (razão 2026) e confirmado pelo Fábio em 2026-10-20: não há venda entre MKB e Gnileb; o único lançamento
+  entre elas é a Equivalência Patrimonial (CONTAS_EP do dre_engine). Regra: o consolidado do orçamento elimina só a
+  Equivalência Patrimonial, igual à DRE consolidada; as duas telas dão o mesmo número. Volta se surgir conta própria de
+  venda entre elas. A receita da Gnileb é de terceiros (Fábio).
+- D7 Gnileb (Fábio, 2026-10-20): não existe orçamento da Gnileb neste momento. A Gnileb entra com orçado zero e
+  realizado do razão, que não tem centro de custo: na Gnileb só se abre por linha da DRE; no consolidado, o realizado
+  dela vai para "Sem centro de custo".
 - D3 Linhas do quadro = DRE gerencial do FinHub, as mesmas linhas da tela DRE (3a).
 - D4 Estilo dos seletores = Abrir por: multi opções; No mês/Acumulado: duas opções (4a).
 
@@ -70,7 +74,7 @@ Decisões fechadas na Fase 0 (Fábio respondeu "aprovado" sem alterar os padrõe
 
 ## Fase 3: Cálculo do Orçado x Realizado
 
-- **Status:** pending
+- **Status:** done (2026-10-20)
 - **Duração estimada:** 4h
 - **O que entra:** `orcamento_engine.py`, motor nosso. Realizado direto da `razao` (contas 3 e 4, centro sem ponto),
   orçado da `orcamento`, linhas pela DRE gerencial do FinHub (`classificar_conta`, o mesmo mapa das telas DRE),
@@ -79,8 +83,9 @@ Decisões fechadas na Fase 0 (Fábio respondeu "aprovado" sem alterar os padrõe
   Visão Consolidado: soma MKB + Gnileb por conta + centro + mês (D5), elimina a Equivalência Patrimonial como a DRE já faz
   e as vendas entre as duas pela regra de D6, com a eliminação numa linha própria (Ajuste), como na DRE consolidada.
 - **Critério de aceite:** `provas/prova_orcamento_calculo.py` com base sintética: total do quadro = soma do orçado e do
-  realizado; Abrir por qualquer dimensão soma o mesmo total; acumulado = soma dos meses; consolidado = MKB + Gnileb + Ajuste,
-  com venda entre elas zerada no consolidado e mantida em cada empresa. Mais um comparador versionado
+  realizado; Abrir por qualquer dimensão soma o mesmo total; acumulado = soma dos meses; consolidado = MKB + Gnileb menos a
+  equivalência patrimonial (D6), com o valor eliminado devolvido à parte (eliminado_equivalencia) para a tela mostrar a linha
+  de Ajuste na Fase 4. Realizado do motor = DRE gerencial do FinHub, mês a mês, nas três visões. Mais um comparador versionado
   (`provas/conferir_orcamento_real.py`, recebe os caminhos dos arquivos por argumento e não guarda dado) que reproduz a
   conferência do app de origem: REALIZADO da aba DADOS x realizado do FinHub, célula a célula. Já medido em maio/2026: 4.180 de 4.180.
 - **Notas:** Escada_Preguica_de_Codigo (reusar `dre_engine`), Padrao_IDOR (toda consulta filtra empresa).
@@ -143,3 +148,5 @@ Decisões fechadas na Fase 0 (Fábio respondeu "aprovado" sem alterar os padrõe
 - 2026-10-20: aprovado pelo Fábio ("aprovado"), D1 a D4 nos padrões 1a, 2b, 3a, 4a.
 - 2026-10-20: D2 trocado para 2c (consolidado entra), com D5 (mesmo código de centro = mesmo centro) e D6 (eliminar venda
   entre MKB e Gnileb). Fases 3 e 4 ampliadas. Reaprovado pelo Fábio ("aprovado"); regra da D6 medida e confirmada na Fase 3.
+- 2026-10-20 (Fase 3): D6 fechada (elimina só a equivalência patrimonial) e D7 (Gnileb sem orçamento, razão sem centro).
+- 2026-10-20 (Fase 3): critério do consolidado reescrito pela D6 (não há venda entre as empresas; elimina só a equivalência) e cruzamento com a DRE gerencial acrescentado ao aceite.
