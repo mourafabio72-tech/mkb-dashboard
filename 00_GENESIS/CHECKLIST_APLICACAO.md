@@ -36,19 +36,32 @@ Só marcar `[x]` com evidência apontável (arquivo:linha ou saída de prova).
   EVIDENCIA: `python orcamento_parser.py ~/Downloads/Rel_OrcRel_2026.xlsx 2026` = linhas_orcado 45335, chaves_orcado 45335 (nenhuma chave repetida), 394 centros, 12 meses, chaves_realizado 32486, em ~2 s. Só contagens na saída
 
 ## Fase 2: importar
-- [ ] rota com `@login_required` + `@admin_required`, nessa ordem, como `/ingest` (app.py)
-- [ ] form com `<input type="hidden" name="csrf_token">`; fetch com `X-CSRF-Token`. PROVA: POST sem token dá 400 (CSRF_Cookies_Headers)
-- [ ] `MAX_CONTENT_LENGTH` definido; arquivo começa com `50 4B 03 04` ou é recusado; nome trocado por `uuid.uuid4().hex`, fora de `static/`, apagado no `finally` (Padrao_Validacao_de_Input)
-- [ ] empresa do POST validada contra `empresas_permitidas()`; fora do escopo dá 404 (Padrao_IDOR)
-- [ ] `request.form.get(...)`, nunca `request.form["x"]`. PROVA: `grep -n 'request.form\["' app.py` não cresce
-- [ ] evento de log `ORCAMENTO_IMPORTADO` com usuário, empresa, ano, linhas e total; sem conteúdo de linha (Padrao_Logging_Estruturado)
-- [ ] prévia antes de gravar; confirmar substitui o ano numa transação; reimportar não duplica
-- [ ] upload: `<label for="..." class="im-drop">`, input fora da tela, ícones `ph-file-arrow-up` e `ph-check-circle`, `<span class="im-msg">` ANTES do botão, botão `disabled` até ter arquivo (Padrao_Upload_Arquivo)
-- [ ] mensagem por classe `.im-msg.ok` / `.im-msg.erro`; PROIBIDO `style.color` e `alert(`. PROVA: `grep -rn "alert(\|confirm(\|prompt(" templates/orcamento* static/orcamento*` vazio (Sem_Popup_Nativo)
-- [ ] loading com texto no gerúndio ("Lendo o orçamento de 2026..."); PROIBIDO "Carregando...", "Aguarde...", "Processando..." (Padrao_Loading_Estado)
-- [ ] SelectBusca: `<div class="selectbusca" data-name="...">` + `input type="hidden"` + `.sb-display` + `.sb-panel` com `.sb-search`; JS em `static/selectbusca.js`. PROIBIDO `<select`. PROVA: `grep -rn "<select" templates/orcamento*` vazio (Componente_SelectBusca)
-- [ ] bateria de tela zerada no template novo: `<style`, `style="`, hex, emoji, travessão, `unpkg.com` (Verificacoes_Mecanicas_de_Tela)
-- [ ] `provas/prova_orcamento_importar.py` verde
+- [x] rota com `@login_required` + `@admin_required`, nessa ordem, como `/ingest` (app.py)
+  EVIDENCIA: orcamento_rotas.py:152-154, :159-161 e :176-178 (as 3 rotas, nessa ordem); blueprint em app.py:4026. Prova passos 1: anônimo e perfil leitura = 302 na tela e no POST, nada gravado. Verificador de ataque: usuário do hub com leitura ou gestor = 403 e 0 linhas
+- [x] form com `<input type="hidden" name="csrf_token">`; fetch com `X-CSRF-Token`. PROVA: POST sem token dá 400 (CSRF_Cookies_Headers)
+  EVIDENCIA: a tela não tem form: os dois POST saem por fetch (static/orcamento.js, enviar), e o patch de fetch do base.html:16-27 põe o X-CSRF-Token em todo POST same-origin; a checagem é a global do app.py (_csrf_protect). Prova passo 2: sem token = 400, token errado = 400; verificador: token não ASCII = 400 sem 500. DESVIO DECLARADO: sem campo hidden csrf_token porque não há form
+- [x] `MAX_CONTENT_LENGTH` definido; arquivo começa com `50 4B 03 04` ou é recusado; nome trocado por `uuid.uuid4().hex`, fora de `static/`, apagado no `finally` (Padrao_Validacao_de_Input)
+  EVIDENCIA: limite por pedido no blueprint (orcamento_rotas.py:62-70: sem Content-Length = 411, acima de 30 MB = 413, e request.max_content_length para o Werkzeug cortar na leitura), sem mexer no MAX_CONTENT_LENGTH global, que cortaria os uploads antigos do /ingest; leitura com teto (:96); magic bytes e zip bomb por conferir_xlsx (:100); temporário por mkstemp (nome sorteado, 0600, no tmp do sistema, fora de static/) em :103, apagado no finally (:112). Prova: 31 MB = 413, chunked sem tamanho = 411, .exe renomeado = 400, nenhum orc_ sobrando no tmp. DESVIO DECLARADO: mkstemp no lugar de uuid4().hex (mesmo efeito, com permissão só do dono)
+- [x] empresa do POST validada contra `empresas_permitidas()`; fora do escopo dá 404 (Padrao_IDOR)
+  EVIDENCIA: orcamento_rotas.py:74 _empresa_do_pedido (chave em EMPRESAS e em empresas_permitidas(), senão 404 e ACESSO_NEGADO_IDOR em :79); toda consulta e gravação usa o empresa_id que sai dali. Prova passo 3: xyz e vazio = 404 com o evento no log; passo 5: outra empresa intacta
+- [x] `request.form.get(...)`, nunca `request.form["x"]`. PROVA: `grep -n 'request.form\["' app.py` não cresce
+  EVIDENCIA: orcamento_rotas.py:76 e :85 com request.form.get; `grep -n 'request.form\["' orcamento_rotas.py` vazio; o app.py ganhou só as 3 linhas do registro do blueprint (git diff)
+- [x] evento de log `ORCAMENTO_IMPORTADO` com usuário, empresa, ano, linhas e total; sem conteúdo de linha (Padrao_Logging_Estruturado)
+  EVIDENCIA: orcamento_rotas.py:44 log_evento (JSON com timestamp, level, event, user_id, ip, path, method, request_id), :214 ORCAMENTO_IMPORTADO com empresa, ano, lote, linhas, substituídas, centros e total; ORCAMENTO_IMPORTACAO_FALHOU só com a classe do erro. Prova passo 6: 4 eventos com os campos fixos e request_id diferente por pedido, sem conta, centro nem descrição no log. Ressalva do verificador: o ip é o remote_addr, que atrás do Traefik tende a ser o do proxy (o resto do FinHub não loga ip nenhum)
+- [x] prévia antes de gravar; confirmar substitui o ano numa transação; reimportar não duplica
+  EVIDENCIA: /previa não grava (prova passo 4: 0 linhas e 0 lotes depois); /confirmar com BEGIN IMMEDIATE (:189), DELETE do ano (:190), lote, orçado e centros, commit ou rollback inteiro. Prova passo 5: reimportar = 4 linhas, 4 substituídas, outro ano intacto; mutação sem o DELETE derruba a prova (2 FALHA), revertida. Verificador: falha forçada no meio (trigger) = 500 genérico e banco intacto; 6 importações simultâneas = 0 duplicata
+- [x] upload: `<label for="..." class="im-drop">`, input fora da tela, ícones `ph-file-arrow-up` e `ph-check-circle`, `<span class="im-msg">` ANTES do botão, botão `disabled` até ter arquivo (Padrao_Upload_Arquivo)
+  EVIDENCIA: templates/orcamento_importar.html:42 label.im-drop, :47 input.im-inp (orcamento.css, left -9999px), static/orcamento.js:41 e :46 trocam ph-check-circle e ph-file-arrow-up, html:51 im-msg antes do botão :52 (disabled), orcamento.js:28 habilita só com arquivo, empresa e ano. Arrastar arquivo que não é .xlsx avisa e não habilita (achado do verificador, corrigido; roteiro no Chrome com PDF). Conferência no Chrome em 1366, 375 e escuro: botão à direita, mensagem à esquerda
+- [x] mensagem por classe `.im-msg.ok` / `.im-msg.erro`; PROIBIDO `style.color` e `alert(`. PROVA: `grep -rn "alert(\|confirm(\|prompt(" templates/orcamento* static/orcamento*` vazio (Sem_Popup_Nativo)
+  EVIDENCIA: static/orcamento.css:39-40 .im-msg.ok/.erro; orcamento.js troca só className (função aviso); grep de alert/confirm/prompt e de style.color nos arquivos novos vazio
+- [x] loading com texto no gerúndio ("Lendo o orçamento de 2026..."); PROIBIDO "Carregando...", "Aguarde...", "Processando..." (Padrao_Loading_Estado)
+  EVIDENCIA: static/orcamento.js:121 'Lendo o orçamento de <ano>...' e :139 'Gravando o orçamento de <ano>...' em .loading-inline com .spinner-circle 44px (orcamento.css), na área de resultado e não no botão; botões e campos travados durante a espera e destravados no finally; grep dos textos genéricos vazio
+- [x] SelectBusca: `<div class="selectbusca" data-name="...">` + `input type="hidden"` + `.sb-display` + `.sb-panel` com `.sb-search`; JS em `static/selectbusca.js`. PROIBIDO `<select`. PROVA: `grep -rn "<select" templates/orcamento*` vazio (Componente_SelectBusca)
+  EVIDENCIA: templates/orcamento_importar.html:21-28 (div.selectbusca data-name, hidden, sb-display, sb-panel, sb-search, sb-opt); static/selectbusca.js (filtro sem acento, Enter escolhe a primeira, Esc e clique fora fecham, change no hidden, textContent); grep de <select em templates/orcamento* e static/selectbusca.js vazio. DESVIOS DECLARADOS: sb-display é button (foco de teclado e aria-expanded) e não div; JS e CSS carregados pela tela e não pelo base.html, porque só as telas do módulo usam (quando outra tela usar, sobe para o base)
+- [x] bateria de tela zerada no template novo: `<style`, `style="`, hex, emoji, travessão, `unpkg.com` (Verificacoes_Mecanicas_de_Tela)
+  EVIDENCIA: greps vazios em templates/orcamento*.html, static/orcamento* e static/selectbusca.js (hex, style, <style, emoji, travessão, select, popup, loading genérico); unpkg vazio; prova passo 7 repete os greps; verificador de conformidade: toda classe usada tem regra (só ph-* vêm do Phosphor por CDN, herança). conferir-telas: 0 erro em /orcamento/importar e /cadastro
+- [x] `provas/prova_orcamento_importar.py` verde
+  EVIDENCIA: 52 ok, 'tudo ok', exit 0; as 12 provas de provas/ verdes
 
 ## Fase 3: cálculo
 - [ ] realizado lido da `razao` por empresa, competência, conta 3/4 e `replace(centro_custo,'.','')`; nunca da `v_lancamentos`

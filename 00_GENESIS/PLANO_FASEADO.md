@@ -52,7 +52,7 @@ Decisões fechadas na Fase 0 (Fábio respondeu "aprovado" sem alterar os padrõe
 
 ## Fase 2: Tela Importar orçamento (com a segurança do upload)
 
-- **Status:** pending
+- **Status:** done (2026-10-20)
 - **Duração estimada:** 4h
 - **O que entra:** rota `/orcamento/importar` (GET e POST, `@login_required` + `@admin_required`), escolha de empresa e ano,
   upload no padrão `im-drop`, **prévia** (linhas, total por mês, centros novos, contas sem grupo na DRE) antes de gravar,

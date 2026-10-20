@@ -198,7 +198,7 @@
     {% if session.usuario_logado and session.usuario_logado.role == 'admin' %}
     <li>
       <a href="{{ url_for('cadastro') }}"
-         {% if request.endpoint in ['cadastro','ingest','de_para'] %}class="active"{% endif %}>
+         {% if request.endpoint in ['cadastro','ingest','de_para','orcamento.importar'] %}class="active"{% endif %}>
         <i class="ph-bold ph-folder"></i> Cadastro
       </a>
     </li>

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Importar orçamento{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='orcamento.css') }}?v=20261020">
+
+<div class="orc-pagina">
+<div class="page-header">
+  <h1><i class="ph-bold ph-upload-simple"></i> Importar orçamento</h1>
+  <p class="subtitle">Relatório Orçado x Realizado (Rel_OrcRel) exportado do Protheus. Importar de novo substitui o ano daquela empresa.</p>
+</div>
+
+<div class="section-card im-card" id="orcImportar"
+     data-url-previa="{{ url_for('orcamento.previa') }}"
+     data-url-confirmar="{{ url_for('orcamento.confirmar') }}">
+  <h3><span><i class="ph ph-file-xls"></i> Arquivo do orçamento</span></h3>
+
+  <div class="orc-campos">
+    <div class="orc-campo">
+      <span class="im-lbl" id="lblEmpresa">Empresa</span>
+      <div class="selectbusca" data-name="empresa" aria-labelledby="lblEmpresa">
+        <input type="hidden" name="empresa" value="" id="orcEmpresa">
+        <button type="button" class="sb-display" aria-haspopup="listbox" aria-labelledby="lblEmpresa">
+          <span class="sb-label">Escolha a empresa</span>
+          <i class="ph ph-caret-down"></i>
+        </button>
+        <div class="sb-panel" role="listbox">
+          <input class="sb-search" placeholder="Buscar..." aria-label="Buscar empresa">
+          {% for chave, emp in EMPRESAS.items() %}
+          <div class="sb-opt" role="option" data-value="{{ chave }}">{{ emp.sigla }} · {{ emp.nome }}</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="orc-campo">
+      <label class="im-lbl" for="orcAno">Ano do orçamento</label>
+      <input type="number" id="orcAno" name="ano" class="orc-input" min="2000" max="2100" step="1" value="{{ ano_padrao }}">
+    </div>
+  </div>
+
+  <span class="im-lbl">Arquivo (.xlsx)</span>
+  <label for="orcArquivo" class="im-drop" id="orcDrop">
+    <i class="ph ph-file-arrow-up" id="orcIcone"></i>
+    <span class="im-drop-txt" id="orcDropTxt">Clique ou arraste o Rel_OrcRel aqui</span>
+    <small class="im-arq" id="orcArq"></small>
+  </label>
+  <input type="file" id="orcArquivo" class="im-inp"
+         accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+
+  <div class="im-acao">
+    <span class="im-msg" id="orcMsg" role="status"></span>
+    <button type="button" class="btn btn-primary" id="orcLer" disabled>
+      <i class="ph ph-magnifying-glass"></i> Conferir arquivo
+    </button>
+  </div>
+</div>
+
+<div id="orcResultado" aria-live="polite"></div>
+</div>
+
+<template id="orcPreviaModelo">
+  <div class="section-card orc-previa">
+    <h3><span><i class="ph ph-list-checks"></i> Conferência antes de gravar</span></h3>
+    <div class="orc-numeros">
+      <div><span class="orc-n-lbl">Empresa</span><strong data-campo="empresa"></strong></div>
+      <div><span class="orc-n-lbl">Ano</span><strong data-campo="ano"></strong></div>
+      <div><span class="orc-n-lbl">Linhas de orçado</span><strong data-campo="linhas"></strong></div>
+      <div><span class="orc-n-lbl">Centros de custo</span><strong data-campo="centros"></strong></div>
+      <div><span class="orc-n-lbl">Resultado orçado no ano</span><strong data-campo="total"></strong></div>
+    </div>
+    <p class="orc-aviso" data-campo="substituir" hidden></p>
+
+    <div class="orc-tabela-wrap">
+      <table class="orc-tabela">
+        <thead><tr><th>Mês</th><th class="num">Resultado orçado</th></tr></thead>
+        <tbody data-campo="meses"></tbody>
+      </table>
+    </div>
+
+    <div class="orc-lista" data-campo="bloco-contas" hidden>
+      <span class="im-lbl">Contas sem linha na DRE gerencial (<span data-campo="qtd-contas"></span>)</span>
+      <p class="orc-lista-sub">Entram no orçamento, mas não aparecem nas linhas da DRE até ganharem grupo no De-para.</p>
+      <ul data-campo="contas"></ul>
+    </div>
+
+    <div class="orc-lista" data-campo="bloco-centros" hidden>
+      <span class="im-lbl">Centros de custo novos (<span data-campo="qtd-centros"></span>)</span>
+      <ul data-campo="centros-novos"></ul>
+    </div>
+
+    <div class="im-acao">
+      <span class="im-msg" id="orcMsgGravar" role="status"></span>
+      <button type="button" class="btn btn-secondary" id="orcCancelar">
+        <i class="ph ph-x"></i> Escolher outro arquivo
+      </button>
+      <button type="button" class="btn btn-primary" id="orcGravar">
+        <i class="ph ph-check"></i> Gravar orçamento
+      </button>
+    </div>
+  </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='selectbusca.js') }}?v=20261020"></script>
+<script src="{{ url_for('static', filename='orcamento.js') }}?v=20261020"></script>
+{% endblock %}

@@ -4021,6 +4021,11 @@ def endividamento_bancario(empresa):
     )
 
 
+# --- ORÇAMENTO (Orçado x Realizado, 2026-10-20) ------------------------------
+from orcamento_rotas import bp as orcamento_bp  # noqa: E402
+app.register_blueprint(orcamento_bp)
+
+
 # --- MAIN --------------------------------------------------------------------
 
 if __name__ == "__main__":

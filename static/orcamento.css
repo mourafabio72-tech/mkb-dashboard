@@ -1,0 +1,137 @@
+/* ── Orçamento (Orçado x Realizado), 2026-10-20 ─────────────────────────────
+   Só tokens do FinHub (--card, --card2, --border, --text, --muted, --accent,
+   --primary, --success, --danger, --warning), que já trocam com o tema.
+   Fundo suave por color-mix: nenhum hex nem rgba solto neste arquivo. */
+
+/* Card de importação (Padrao_Upload_Arquivo) */
+.im-card { margin-bottom: 20px; }
+.im-card h3 {
+  margin: 0 0 14px; font-size: 14px; font-weight: 700; color: var(--primary);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.im-card h3 span, .orc-previa h3 span { display: inline-flex; align-items: center; gap: 6px; }
+.im-lbl {
+  display: block; margin-bottom: 8px; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+}
+.im-drop {
+  display: block; margin-top: 4px; padding: 32px; text-align: center; cursor: pointer;
+  border: 2px dashed var(--border); border-radius: 12px; color: var(--muted);
+  transition: .15s; user-select: none;
+}
+.im-drop:hover, .im-drop.over {
+  border-style: solid; border-color: var(--accent); color: var(--primary);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.im-drop.loaded {
+  border-style: solid; border-color: var(--success); color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+.im-drop i { display: block; margin-bottom: 6px; font-size: 36px; }
+.im-drop-txt { display: block; }
+.im-arq { display: block; margin-top: 6px; font-weight: 600; }
+.im-inp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.im-acao {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end;
+  gap: 10px; margin-top: 14px;
+}
+.im-acao .im-msg { margin-right: auto; font-size: 12.5px; color: var(--muted); }
+.im-acao .im-msg.ok   { color: var(--success); font-weight: 600; }
+.im-acao .im-msg.erro { color: var(--danger); font-weight: 600; }
+.im-acao .btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; }
+/* letra branca sobre o --accent dá 4,3:1 (claro) e 4,2:1 (escuro); 15% mais escuro passa de 5:1 nos dois */
+.im-acao .btn-primary { background: color-mix(in srgb, var(--accent) 85%, black); }
+/* o .subtitle do FinHub usa --muted (2,8:1 no creme); aqui a frase é lida, então vai em --text */
+.orc-pagina .page-header .subtitle { color: var(--text); }
+.im-acao .btn:disabled { opacity: .45; cursor: not-allowed; }
+.im-card.ocupado .im-drop { pointer-events: none; opacity: .6; }
+
+/* Empresa e ano lado a lado; empilha no celular */
+.orc-campos { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 16px; }
+.orc-campo { flex: 1 1 220px; min-width: 0; }
+.orc-input, .selectbusca .sb-display {
+  box-sizing: border-box; width: 100%; height: 40px; padding: 0 12px;
+  font: inherit; font-size: 13px; color: var(--text); background: var(--card);
+  border: 1px solid var(--border); border-radius: 8px;
+}
+.orc-input:focus, .selectbusca .sb-display:focus-visible, .sb-opt:focus-visible, .sb-search:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
+
+/* SelectBusca (Componente_SelectBusca) */
+.selectbusca { position: relative; min-width: 200px; }
+.selectbusca .sb-display {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  cursor: pointer; text-align: left;
+}
+.selectbusca .sb-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.selectbusca.tem-valor .sb-label { color: var(--text); }
+.selectbusca .sb-panel {
+  display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+  margin-top: 4px; max-height: 280px; overflow-y: auto;
+  background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 18%, transparent);
+}
+.selectbusca.open .sb-panel { display: block; }
+.selectbusca .sb-search {
+  box-sizing: border-box; width: 100%; padding: 10px 12px; font: inherit; font-size: 13px;
+  color: var(--text); background: var(--card2); border: none; border-bottom: 1px solid var(--border);
+}
+.selectbusca .sb-opt { padding: 10px 12px; font-size: 13px; color: var(--text); cursor: pointer; }
+.selectbusca .sb-opt:hover, .selectbusca .sb-opt[aria-selected="true"] {
+  color: var(--primary); background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* Loading (Padrao_Loading_Estado) */
+.loading-inline {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 48px 20px; text-align: center;
+}
+.spinner-circle {
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 4px solid var(--border); border-top-color: var(--accent);
+  animation: orc-gira .8s linear infinite;
+}
+.loading-text { font-size: 14px; font-weight: 600; color: var(--text); }
+@keyframes orc-gira { to { transform: rotate(360deg); } }
+
+/* Prévia antes de gravar */
+.orc-previa { margin-bottom: 20px; }
+.orc-previa h3 { margin: 0 0 14px; font-size: 14px; font-weight: 700; color: var(--primary); }
+.orc-numeros { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.orc-numeros > div {
+  padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+}
+.orc-n-lbl { display: block; font-size: 11px; color: var(--muted); }
+.orc-numeros strong { font-size: 16px; color: var(--text); font-variant-numeric: tabular-nums; }
+.orc-aviso {
+  margin: 0 0 14px; padding: 10px 14px; font-size: 13px; color: var(--text); border-radius: 8px;
+  border-left: 4px solid var(--warning); background: color-mix(in srgb, var(--warning) 14%, transparent);
+}
+.orc-tabela-wrap { max-width: 560px; overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 14px; }
+.orc-tabela { width: 100%; border-collapse: collapse; font-size: 13px; }
+.orc-tabela th {
+  padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase;
+  color: var(--muted); background: var(--card); border-bottom: 1px solid var(--border);
+}
+.orc-tabela td { padding: 7px 12px; color: var(--text); border-bottom: 1px solid var(--border); }
+.orc-tabela tr:last-child td { border-bottom: none; }
+.orc-tabela .num { text-align: right; font-variant-numeric: tabular-nums; }
+.orc-tabela .neg { color: var(--danger); }
+.orc-lista { margin-bottom: 14px; }
+.orc-lista-sub { margin: -4px 0 8px; font-size: 12px; color: var(--muted); }
+.orc-lista ul {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none;
+}
+.orc-lista li {
+  padding: 3px 9px; font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--card);
+}
+.orc-lista li.orc-mais { color: var(--muted); border-style: dashed; }
+.orc-previa .loading-inline { padding: 24px 20px 8px; }
+
+@media (max-width: 600px) {
+  .im-drop { padding: 24px 12px; }
+  .im-acao .btn { flex: 1 1 auto; justify-content: center; min-height: 44px; }
+  .im-acao .im-msg { flex-basis: 100%; }
+}
