@@ -110,7 +110,7 @@ Decisões fechadas na Fase 0 (Fábio respondeu "aprovado" sem alterar os padrõe
 
 ## Fase 5: Conferência com dado real, publicação e entrega
 
-- **Status:** pending
+- **Status:** done (fechada pela Fase 9)
 - **Duração estimada:** 2h
 - **Critério de aceite:**
   - Banco local de teste com os razões reais da MKB (jan a ago/2026, em `~/Downloads`, fora do git) e o Rel_OrcRel 2026:
