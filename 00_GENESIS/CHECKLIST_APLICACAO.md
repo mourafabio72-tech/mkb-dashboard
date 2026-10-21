@@ -152,3 +152,19 @@ Só marcar `[x]` com evidência apontável (arquivo:linha ou saída de prova).
   EVIDENCIA: prova_orcamento_calculo 5c e 5d e prova_orcamento_tela 4c verdes; 6 mutantes que sobreviviam ao ataque agora morrem (DADM, startswith, acento, cortado, teto, calcular sem filtro); conferir_orcamento_real.py --fase7: 155 checagens, 0 diferença; 14 provas da pasta verdes
 - [x] bateria de tela zerada; conferir-telas sem erro; Chrome em 1366, 375 e escuro
   EVIDENCIA: grep de hex, style, <style, select, travessão, popup, innerHTML, toISOString, .style., rgba e 6e7f63 vazio nos 3 arquivos; conferir-telas 0 erro em /orcamento, /orcamento/importar e /cadastro; Chrome em 1366, 800, 375 e escuro sem rolagem lateral e sem erro de JS
+
+## Fase 8: Dashboard do Orçamento
+- [x] Tabela | Dashboard dentro do Orçamento, com os mesmos filtros e o mesmo período (painel Filtro)
+  EVIDENCIA: templates/orcamento.html seletor #orcVisao (tipo 2, radiogroup), data-url-painel; orcamento_tela.js aplicarVisao (esconde Exibição, Abrir por, ÷ 1.000, centavos e etiquetas) e consultar() usa /orcamento/painel com os mesmos parâmetros; preferência no navegador, drilldown volta para Tabela. DESVIO EM ABERTO (Padrao_Toggle_Tipos, 'toggle não é tab'): ficou seletor tipo 2; perguntado ao Fábio se prefere abas
+- [x] indicadores Receita, Custo e despesa, MC, MC % e Resultado, cada um com realizado, orçado e variação (sinal, seta e palavra, não só cor), no modelo do início do FinHub (min-kpi)
+  EVIDENCIA: orcamento_engine.py painel (indicadores de por_dimensao e da árvore); desenharPainel em min-kpi-row/min-kpi do início do FinHub, MC com min-kpi-hl; variação com seta, sinal e 'melhor/pior'; 'sem dado' sem razão. Contraste medido pelo verificador: 5,84 a 13,84
+- [x] Resultado por mês e MC por mês, orçado x realizado; mês sem razão aparece "sem dado"
+  EVIDENCIA: graficoMensal (barra = realizado, traço = orçado); mensal.resultado = meses da árvore, mensal.mc = blocos Receita + Custos + Despesas; mês sem razão 'sem dado' ('s/d' quando a banda é estreita); prova 5e
+- [x] maiores desvios por centro (MC) e por conta; clique leva à DRE do centro e aos lançamentos da conta
+  EVIDENCIA: graficoDesvios (barra divergente, sinal no valor, legenda melhor/pior); centro abre a árvore filtrada (abrirNaDre com campo centro), conta abre os lançamentos; corte declarado 'Mostrando os 10 maiores de N'; verificador: drilldown igual ao desvio em 15 centros e 65 contas
+- [x] gráfico em SVG desenhado no app, sem biblioteca nem CDN (D10); legenda, tooltip, foco de teclado; cor só por token
+  EVIDENCIA: createElementNS no orcamento_tela.js, sem canvas, Chart.js nem CDN (prova tela); tooltip em SVG com pointer-events none, foco de teclado, Enter e Espaço; cor só por token; barra até 24px com raio só na ponta; traço do orçado sem contorno, escurecido no claro. DESVIO DECLARADO (skill dataviz): croma baixo da paleta Sage & Creme; a forma (barra x traço) separa as séries
+- [x] prova: números do dashboard = números da tabela para o mesmo filtro (motor, rota e dado real)
+  EVIDENCIA: prova_orcamento_calculo 5e (4 recortes, sinal, ordem, corte, filtro no mensal) e tela (rota = motor, isolamento, anônimo, entradas, rótulo do período); dado real 171 checagens, 0 diferença; verificador: fuzz de 891 combinações e oráculo SQL, 0 divergência; 25 de 26 mutantes pegos
+- [x] bateria de tela zerada; Chrome em 1366, 375 e escuro sem rolagem lateral nem erro de JS
+  EVIDENCIA: grep vazio nos 3 arquivos; Chrome em 1366, 900, 375 e escuro sem rolagem lateral e sem erro de JS, inclusive ao reduzir a janela (SVG redesenha: 810 e 285px); estado vazio igual ao da tabela

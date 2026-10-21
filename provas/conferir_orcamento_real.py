@@ -145,6 +145,12 @@ def conferir_fase7(a, meses):
                 for l in r["linhas"]:
                     so = oe.por_dimensao(conn, a.empresa, a.ano, de, ate, d, {d: [l["chave"]]})["total"]["mc"]
                     confere(all(abs((so[i] or 0) - (l["mc"][i] or 0)) <= TOL for i in (0, 1)), f"{de}-{ate} {d} {l['chave']}: filtro {so} x linha {l['mc']}")
+        pn = oe.painel(conn, a.empresa, a.ano, de, ate)
+        ind = pn["indicadores"]
+        confere([ind["mc"]["orcado"], ind["mc"]["realizado"]] == totais["servico"], f"{de}-{ate}: dashboard MC {ind['mc']} x tabela {totais['servico']}")
+        arv_p = oe.arvore(conn, a.empresa, a.ano, de, ate)["total"]
+        confere(ind["resultado"]["realizado"] == arv_p["acumulado"][1] and pn["mensal"]["resultado"] == arv_p["meses"],
+                f"{de}-{ate}: dashboard Resultado x árvore")
         base = totais["servico"]
         confere(all(all(abs((t[i] or 0) - (base[i] or 0)) <= 0.05 for i in (0, 1)) for t in totais.values()),
                 f"{de}-{ate}: MC difere entre as aberturas {totais}")

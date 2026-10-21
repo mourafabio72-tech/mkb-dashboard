@@ -485,3 +485,57 @@ def lancamentos(conn, empresa: str, ano: int, mes_ini: int, mes_fim: int, conta:
     return dict(conta=conta, descricao=descr, linhas=linhas, total=round(total, 2), quantidade=n,
                 cortado=n > len(linhas), limite=MAX_LANCAMENTOS)
 
+
+
+# ─── Fase 8: dashboard do Orçamento ─────────────────────────────────────────
+MC_BLOCOS = ("RECEITA", "CUSTOS", "DESPESAS")  # = Receita + Custo e despesa da abertura (D8)
+MAX_DESVIOS = 10
+
+
+def painel(conn, empresa: str, ano: int, mes_ini: int, mes_fim: int, filtros: dict | None = None) -> dict:
+    """Números do dashboard, todos tirados da árvore e da abertura por centro, para baterem com as tabelas:
+    indicadores (Receita, Custo e despesa, MC, MC %, Resultado) contra o orçado dos meses com razão,
+    Resultado e MC por mês, e os maiores desvios por centro (MC) e por conta analítica."""
+    arv = arvore(conn, empresa, ano, mes_ini, mes_fim, filtros)
+    dim = por_dimensao(conn, empresa, ano, mes_ini, mes_fim, "centro", filtros)
+    blocos = {l["id"]: l for l in arv["linhas"] if l["nivel"] == 1}
+    total = arv["total"]
+    vazio = [[0.0, None if r is None else 0.0] for _o, r in total["meses"]]
+
+    def soma_meses(ids):
+        saida = [list(c) for c in vazio]
+        for bid in ids:
+            for i, (o, r) in enumerate(blocos[bid]["meses"] if bid in blocos else vazio):
+                saida[i][0] = round(saida[i][0] + o, 2)
+                if r is not None:
+                    saida[i][1] = round(saida[i][1] + r, 2)
+        return saida
+
+    def indicador(orc, real):
+        return dict(orcado=orc, realizado=real, variacao=None if real is None else round(real - orc, 2))
+
+    t = dim["total"]
+    real = total["acumulado"][1]
+    indicadores = dict(
+        receita=indicador(t["receita"][0], t["receita"][1]),
+        custo_despesa=indicador(t["custo_despesa"][0], t["custo_despesa"][1]),
+        mc=indicador(t["mc"][0], t["mc"][1]),
+        mc_pct=dict(orcado=t["mc_pct"][0], realizado=t["mc_pct"][1],
+                    variacao=None if None in t["mc_pct"] else round(t["mc_pct"][1] - t["mc_pct"][0], 1)),
+        resultado=indicador(total["orcado_comparavel"], real))
+    por_centro = sorted((l for l in dim["linhas"] if l["variacao"]), key=lambda l: -abs(l["variacao"]))[:MAX_DESVIOS]
+    contas = []
+    for l in arv["linhas"]:
+        if l["nivel"] == 3 and l["acumulado"][1] is not None:
+            desvio = round(l["acumulado"][1] - l["orcado_comparavel"], 2)
+            if desvio:
+                contas.append(dict(codigo=l["codigo"], rotulo=l["rotulo"], orcado=l["orcado_comparavel"],
+                                   realizado=l["acumulado"][1], variacao=desvio))
+    contas.sort(key=lambda c: -abs(c["variacao"]))
+    meta = {k: arv[k] for k in arv if k not in ("linhas", "total", "competencias")}
+    return dict(meta, competencias=arv["competencias"], indicadores=indicadores, orcado_periodo=total["acumulado"][0],
+                mensal=dict(resultado=total["meses"], mc=soma_meses(MC_BLOCOS)),
+                desvios_centro=[dict(rotulo=l["rotulo"], chave=l["chave"], orcado=l["mc"][0], realizado=l["mc"][1],
+                                     variacao=l["variacao"]) for l in por_centro],
+                desvios_conta=contas[:MAX_DESVIOS], meses_considerados=dim["meses_considerados"],
+                total_desvios_centro=sum(1 for l in dim["linhas"] if l["variacao"]), total_desvios_conta=len(contas))

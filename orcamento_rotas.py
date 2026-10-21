@@ -376,6 +376,27 @@ def lancamentos():
     return jsonify(ok=True, dados=resultado)
 
 
+@bp.route("/orcamento/painel")
+@login_required
+def painel():
+    """Dashboard do Orçamento (Fase 8): indicadores, Resultado e MC por mês e maiores desvios."""
+    try:
+        empresa, ano, de, ate = _periodo_do_pedido()
+        conn = get_conn()
+        try:
+            resultado = oe.painel(conn, empresa, ano, de, ate, _filtros_do_pedido())
+        finally:
+            conn.close()
+    except ErroPedido as erro:
+        return _resposta_erro(erro)
+    except ValueError as erro:
+        return jsonify(erro=str(erro)), 400
+    resultado["rotulo_empresa"] = dict(_visoes_permitidas())[empresa]
+    resultado["rotulo_periodo"] = (f"{MESES_LONGOS[de]} de {ano}" if de == ate
+                                   else f"{MESES_LONGOS[de]} a {MESES_LONGOS[ate]} de {ano}")
+    return jsonify(ok=True, dados=resultado)
+
+
 @bp.route("/orcamento/arvore")
 @login_required
 def arvore():

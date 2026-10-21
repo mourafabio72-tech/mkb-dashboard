@@ -82,6 +82,8 @@ def dados(**p):
 # 1. acesso
 sessao()
 confere(cli.get("/orcamento").status_code == 302 and dados().status_code == 302, "acesso: anônimo vai para o login")
+confere(all(cli.get(r, query_string=dict(empresa="mkb", ano="2026", de="1", ate="1", abrir_por="servico", conta_lanc="3.1")).status_code == 302
+            for r in ("/orcamento/painel", "/orcamento/dimensao", "/orcamento/lancamentos", "/orcamento/arvore")), "acesso: anônimo não lê painel, abertura, lançamentos nem árvore")
 sessao(LEITURA)
 r = cli.get("/orcamento")
 confere(r.status_code == 200 and 'id="orcTela"' in r.get_data(as_text=True), "acesso: perfil leitura abre a tela")
@@ -157,6 +159,16 @@ for c in (dict(abrir_por="linha"), dict(abrir_por="conta"), dict(abrir_por="serv
           dict(abrir_por="servico", descricao="a" * 81), dict(abrir_por="servico", de="3", ate="1"),
           dict(abrir_por="servico", servico="x" * 200)):
     confere(rota_get("/orcamento/dimensao", **c).status_code == 400, f"dimensão: entrada {c} recusada")
+sessao(LEITURA)
+conn = get_conn()
+r = rota_get("/orcamento/painel", de="1", ate="2")
+confere(r.get_json()["dados"]["rotulo_periodo"] == "Janeiro a Fevereiro de 2026" and
+        rota_get("/orcamento/painel", de="2", ate="2").get_json()["dados"]["rotulo_periodo"] == "Fevereiro de 2026", "painel: rótulo do período")
+confere(r.status_code == 200 and r.get_json()["dados"]["indicadores"] == oe.painel(conn, "mkb", 2026, 1, 2)["indicadores"],
+        "painel: leitura consulta e tela = motor")
+conn.close()
+for c in (dict(de="3", ate="1"), dict(ate="13"), dict(conta="x"), dict(descricao="<b>"), dict(servico="x" * 200)):
+    confere(rota_get("/orcamento/painel", **c).status_code == 400, f"painel: entrada {c} recusada")
 for c in (dict(abrir_por="servico", descricao="日本"), dict(abrir_por="servico", descricao="ß")):
     confere(rota_get("/orcamento/dimensao", **c).status_code == 400, f"dimensão: descrição que some sem acento ({c['descricao']}) recusada")
 for c in (dict(), dict(conta_lanc=""), dict(conta_lanc="abc"), dict(conta_lanc="1" * 41), dict(conta_lanc=ROB, ate="13"),
@@ -166,6 +178,8 @@ sessao(HUB_MKB)
 for rota, extra in (("/orcamento/dimensao", dict(abrir_por="centro")), ("/orcamento/lancamentos", dict(conta_lanc=ROB))):
     confere(rota_get(rota, empresa="gnileb", **extra).status_code in (403, 404) and
             rota_get(rota, empresa="consolidado", **extra).status_code == 404, f"isolamento: {rota} sem Gnileb nem consolidado")
+confere(rota_get("/orcamento/painel", empresa="gnileb").status_code in (403, 404) and rota_get("/orcamento/painel", empresa="consolidado").status_code == 404,
+        "isolamento: /orcamento/painel sem Gnileb nem consolidado")
 j = rota_get("/orcamento/lancamentos", conta_lanc=ROB).get_json()["dados"]
 confere(j["linhas"] and all(l["empresa"] == "MKB" for l in j["linhas"]), "isolamento: lançamentos do cliente da MKB só da MKB")
 sessao(ADMIN)
@@ -224,8 +238,14 @@ confere(fecha and all("fecharTudo" in f and "fecharPainel" not in f and "fecharC
 confere(re.search(r"\.orc-drawer \{[^}]*transition: transform \.2s", css) and "translateX(100%)" in css and
         "prefers-reduced-motion" in css and "setTimeout(function () { if (!caixa.classList.contains('aberto'))" in js,
         "painel e modal: saem pelo mesmo caminho em 200 ms, esperando a saída antes de esconder")
+confere(tpl.count('role="radiogroup"') == 3 and 'data-url-painel=' in tpl and all(i in tpl for i in ("orcGrafResultado", "orcGrafMc", "orcGrafCentro", "orcGrafConta")),
+        "dashboard: Tabela | Dashboard e os 4 gráficos")
+confere(not re.search(r"chart\.js|<canvas|<script src=\"https?:", tpl + js, re.I) and "createElementNS(SVGNS" in js,
+        "dashboard: gráfico em SVG desenhado no app, sem biblioteca nem CDN (D10)")
+confere(".orc-g-tip { pointer-events: none; }" in css and "setAttribute('tabindex', '0')" in js and "'aria-label'" in js,
+        "dashboard: tooltip não rouba o clique; barra com foco de teclado e rótulo")
 confere("body.drawer-aberto { overflow: hidden; }" in css and "classList.add('drawer-aberto')" in js, "painel: página atrás não rola")
-confere(tpl.count('role="radiogroup"') == 2, "tela: os dois toggles com radiogroup")
+confere(tpl.count('role="radiogroup"') == 3, "tela: os três toggles com radiogroup")
 confere(tpl.count('class="cv-sw"') == 2 and re.search(r"\.cv-sw input\s*\{\s*display:\s*none", css), "tela: liga/desliga ÷ 1.000 e centavos no padrão cv-sw")
 confere(not re.search(r"\.tabela-wrap\s*\{[^}]*overflow\s*:\s*hidden", css), "tela: .tabela-wrap sem overflow hidden")
 confere("tabular-nums" in css and "min-height: 25px" in css, "tela: KPI com tabular-nums e lbl de 25px")

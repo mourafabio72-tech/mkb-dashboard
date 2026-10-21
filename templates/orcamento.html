@@ -20,9 +20,9 @@
 {% endmacro %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='orcamento.css') }}?v=20261021b">
+<link rel="stylesheet" href="{{ url_for('static', filename='orcamento.css') }}?v=20261021c">
 
-<div class="orc-pagina" id="orcTela" data-url-dimensao="{{ url_for('orcamento.dimensao') }}" data-url-arvore="{{ url_for('orcamento.arvore') }}"
+<div class="orc-pagina" id="orcTela" data-url-dimensao="{{ url_for('orcamento.dimensao') }}" data-url-arvore="{{ url_for('orcamento.arvore') }}" data-url-painel="{{ url_for('orcamento.painel') }}"
      data-url-lancamentos="{{ url_for('orcamento.lancamentos') }}" data-url-exportar="{{ url_for('orcamento.exportar') }}">
 <div class="page-header">
   <h1><i class="ph-bold ph-target"></i> Orçado x Realizado</h1>
@@ -45,6 +45,13 @@
     </div>
   </div>
   <div class="g">
+    <span class="fu-lbl" id="lblVisao">Visão</span>
+    <div class="orc-fonte" id="orcVisao" role="radiogroup" aria-labelledby="lblVisao">
+      <button type="button" class="on" data-valor="tabela" role="radio" aria-checked="true"><i class="ph ph-table"></i> Tabela</button>
+      <button type="button" data-valor="painel" role="radio" aria-checked="false"><i class="ph ph-chart-bar"></i> Dashboard</button>
+    </div>
+  </div>
+  <div class="g orc-so-tabela">
     <span class="fu-lbl" id="lblModo">Exibição</span>
     <div class="orc-fonte" id="orcModo" role="radiogroup" aria-labelledby="lblModo">
       <button type="button" data-valor="periodo" role="radio" aria-checked="false"><i class="ph ph-table"></i> Do período</button>
@@ -60,7 +67,7 @@
 </div>
 
 <div class="fu-bar fu-bar-2">
-  <div class="g">
+  <div class="g orc-so-tabela">
     <span class="fu-lbl" id="lblAbrir">Abrir por</span>
     <div class="orc-presets" id="orcAbrir" role="radiogroup" aria-labelledby="lblAbrir">
       {% for chave, rotulo in dimensoes %}
@@ -72,17 +79,17 @@
 </div>
 
 <div class="orc-legenda">
-  <span class="orc-chip orc-chip-orc">Orçado</span>
-  <span class="orc-chip orc-chip-real">Realizado</span>
+  <span class="orc-chip orc-chip-orc orc-so-tabela">Orçado</span>
+  <span class="orc-chip orc-chip-real orc-so-tabela">Realizado</span>
   <span class="orc-ate" id="orcAte"></span>
-  <span class="orc-opcao">
+  <span class="orc-opcao orc-so-tabela">
     <span class="orc-opcao-lbl" id="lblMil">÷ 1.000</span>
     <span class="cv-sw" title="Mostrar os valores em milhares">
       <input type="checkbox" id="orcMil" aria-labelledby="lblMil">
       <label for="orcMil"></label>
     </span>
   </span>
-  <span class="orc-opcao">
+  <span class="orc-opcao orc-so-tabela">
     <span class="orc-opcao-lbl" id="lblCent">Centavos</span>
     <span class="cv-sw" title="Mostrar os centavos">
       <input type="checkbox" id="orcCent" aria-labelledby="lblCent">
@@ -115,6 +122,31 @@
 <div class="empty-state" id="orcVazio" hidden>
   <h2>Nenhum valor no recorte</h2>
   <p>Não há orçamento nem realizado para esta empresa, período e filtros. Importe o orçamento em Cadastro ou mude o filtro.</p>
+</div>
+
+<div class="orc-dash" id="orcDash" hidden>
+  <div class="min-kpi-row" id="orcDashKpis"></div>
+  <div class="min-grid-2">
+    {% for id, titulo, sub in [('orcGrafResultado', 'Resultado por mês', 'Barra: realizado. Traço: orçado.'),
+                               ('orcGrafMc', 'Margem de contribuição por mês', 'Receita líquida + custos + despesas operacionais.')] %}
+    <div class="min-chart-card">
+      <span class="min-chart-title">{{ titulo }}</span>
+      <div class="orc-g-legenda"><span class="orc-sw orc-sw-real"></span> Realizado <span class="orc-sw orc-sw-orc"></span> Orçado <span class="orc-g-sub">{{ sub }}</span></div>
+      <div class="orc-g" id="{{ id }}"></div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="min-grid-2">
+    {% for id, titulo, sub in [('orcGrafCentro', 'Maiores desvios por centro de custo', 'MC realizada menos orçada. Clique abre a DRE do centro.'),
+                               ('orcGrafConta', 'Maiores desvios por conta', 'Realizado menos orçado. Clique abre os lançamentos.')] %}
+    <div class="min-chart-card">
+      <span class="min-chart-title">{{ titulo }}</span>
+      <div class="orc-g-legenda"><span class="orc-sw orc-sw-pos"></span> Melhor que o orçado <span class="orc-sw orc-sw-neg"></span> Pior <span class="orc-g-sub">{{ sub }}</span></div>
+      <div class="orc-g" id="{{ id }}"></div>
+      <span class="orc-g-corte" aria-live="polite"></span>
+    </div>
+    {% endfor %}
+  </div>
 </div>
 
 <div class="tabela-wrap" id="orcArvoreWrap" hidden>
@@ -253,5 +285,5 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='selectbusca.js') }}?v=20261021"></script>
-<script src="{{ url_for('static', filename='orcamento_tela.js') }}?v=20261021"></script>
+<script src="{{ url_for('static', filename='orcamento_tela.js') }}?v=20261021c"></script>
 {% endblock %}

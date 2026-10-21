@@ -160,7 +160,7 @@ Aprovado pelo Fábio em 2026-10-21 ("aprovado tudo"), com as três definições 
 
 ## Fase 8: Dashboard do Orçamento
 
-- **Status:** pending
+- **Status:** done
 - **Duração estimada:** 5h
 - **O que entra:** item Dashboard dentro do Orçamento (Tabela | Dashboard), no modelo do início do FinHub e com os
   mesmos filtros: indicadores (Receita, Custo e Despesa, MC, MC %, Resultado, cada um orçado x realizado),

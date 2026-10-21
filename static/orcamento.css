@@ -531,3 +531,49 @@ body.drawer-aberto { overflow: hidden; }
   .orc-modal-rodape { flex-wrap: wrap; }
   .orc-par { grid-template-columns: 1fr; }
 }
+
+/* ── Fase 8: dashboard (cards e cartões do início do FinHub; gráficos em SVG, cor só por token) ── */
+.orc-dash .min-kpi-label { font-size: 10px; color: color-mix(in srgb, var(--muted) 45%, var(--text)); }
+.orc-dash .min-kpi-sub { font-size: 11px; color: color-mix(in srgb, var(--muted) 45%, var(--text)); }
+.orc-dash .min-kpi-value { font-size: 17px; }
+@media (max-width: 600px) { .orc-dash .min-kpi-row { grid-template-columns: 1fr 1fr; } }
+.orc-dk-var { display: inline-flex; align-items: center; gap: 2px; color: color-mix(in srgb, var(--muted) 45%, var(--text)); }
+.orc-dk-var.pos { color: color-mix(in srgb, var(--success) 58%, var(--text)); }
+.orc-dk-var.neg { color: color-mix(in srgb, var(--danger) 65%, var(--text)); }
+.orc-g-legenda { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: -4px 0 8px; font-size: 12px; color: var(--text); }
+.orc-g-sub { flex-basis: 100%; font-size: 11.5px; color: color-mix(in srgb, var(--muted) 45%, var(--text)); }
+.orc-sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-left: 6px; }
+.orc-sw:first-child { margin-left: 0; }
+.orc-sw-real { background: color-mix(in srgb, var(--accent) 85%, black); }
+.orc-sw-orc { height: 3px; border-radius: 2px; background: var(--warning); }
+/* no claro o âmbar puro dá 2:1 no creme; 55% com preto passa de 3:1 sem contorno (a forma de traço separa do realizado) */
+[data-theme="light"] .orc-sw-orc { background: color-mix(in srgb, var(--warning) 55%, black); }
+[data-theme="light"] .orc-g-orc { stroke: color-mix(in srgb, var(--warning) 55%, black); }
+.orc-sw-pos { background: color-mix(in srgb, var(--success) 75%, black); }
+.orc-sw-neg { background: color-mix(in srgb, var(--danger) 85%, black); }
+.orc-g { width: 100%; min-width: 0; min-height: 60px; overflow: hidden; }
+.orc-dash .min-chart-card, .orc-dash .min-grid-2 > * { min-width: 0; }
+.orc-g svg { display: block; }
+.orc-g text { font-family: var(--font); font-size: 11px; }
+.orc-g .orc-g-eixo { fill: color-mix(in srgb, var(--muted) 45%, var(--text)); }
+.orc-g .orc-g-rot, .orc-g .orc-g-val { fill: var(--text); font-size: 12px; }
+.orc-g .orc-g-val { font-weight: 700; font-variant-numeric: tabular-nums; }
+.orc-g .orc-g-nd { fill: color-mix(in srgb, var(--muted) 45%, var(--text)); font-size: 10.5px; }
+.orc-g-grade { stroke: var(--border); stroke-width: 1; }
+.orc-g-zero { stroke: color-mix(in srgb, var(--text) 40%, var(--border)); stroke-width: 1; }
+.orc-g-real { fill: color-mix(in srgb, var(--accent) 85%, black); }
+.orc-g-orc { stroke: var(--warning); stroke-width: 3; stroke-linecap: round; }
+.orc-g-corte { display: block; margin-top: 6px; font-size: 11.5px; color: color-mix(in srgb, var(--muted) 45%, var(--text)); }
+@media (max-width: 720px) { .orc-fonte button { min-height: 44px; } }
+.orc-g-pos { fill: color-mix(in srgb, var(--success) 75%, black); }
+.orc-g-neg { fill: color-mix(in srgb, var(--danger) 85%, black); }
+.orc-g-fundo { fill: transparent; }
+.orc-g-col { outline: none; }
+.orc-g-col:hover .orc-g-fundo, .orc-g-col:focus .orc-g-fundo { fill: color-mix(in srgb, var(--accent) 10%, transparent); }
+.orc-g-col:focus-visible .orc-g-fundo { stroke: var(--accent); stroke-width: 2; }
+.orc-g-clica { cursor: pointer; }
+.orc-g-tip { pointer-events: none; }
+.orc-g-tip rect { fill: var(--card); stroke: var(--border); }
+.orc-g-tip text { fill: var(--text); font-size: 12px; font-variant-numeric: tabular-nums; }
+.orc-g-tip .orc-g-tip-tit { font-weight: 700; }
+.orc-g-vazio { margin: 12px 0; font-size: 13px; color: var(--text); }

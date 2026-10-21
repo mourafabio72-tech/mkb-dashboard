@@ -296,6 +296,55 @@ for conta in ("1.1.1", "2.1"):
     except ValueError:
         confere(True, f"lançamentos: conta {conta} fora do resultado recusada")
 
+# 5e. Fase 8: dashboard = tabelas (indicadores, mensal e desvios saem da árvore e da abertura)
+for emp, de, ate in (("mkb", 1, 2), ("mkb", 1, 3), ("consolidado", 1, 1), ("mkb", 1, 6)):
+    pn = oe.painel(conn, emp, 2026, de, ate)
+    tab = oe.por_dimensao(conn, emp, 2026, de, ate, "servico")["total"]
+    arv_t = oe.arvore(conn, emp, 2026, de, ate)["total"]
+    ind = pn["indicadores"]
+    confere([ind["mc"]["orcado"], ind["mc"]["realizado"]] == tab["mc"] and [ind["receita"]["orcado"], ind["receita"]["realizado"]] == tab["receita"]
+            and [ind["custo_despesa"]["orcado"], ind["custo_despesa"]["realizado"]] == tab["custo_despesa"]
+            and [ind["mc_pct"]["orcado"], ind["mc_pct"]["realizado"]] == tab["mc_pct"],
+            f"painel {emp} {de}-{ate}: Receita, Custo e despesa, MC e MC % = tabela por dimensão")
+    confere(ind["resultado"]["realizado"] == arv_t["acumulado"][1] and ind["resultado"]["orcado"] == arv_t["orcado_comparavel"]
+            and pn["mensal"]["resultado"] == arv_t["meses"], f"painel {emp} {de}-{ate}: Resultado e Resultado por mês = árvore")
+    com = [i for i, c in enumerate(pn["competencias"]) if c in pn["meses_considerados"]]
+    confere(round(sum(pn["mensal"]["mc"][i][0] for i in com), 2) == ind["mc"]["orcado"] and
+            (ind["mc"]["realizado"] is None or round(sum(pn["mensal"]["mc"][i][1] for i in com), 2) == ind["mc"]["realizado"]),
+            f"painel {emp} {de}-{ate}: MC por mês soma a MC do período (meses com razão)")
+    dc = [abs(d["variacao"]) for d in pn["desvios_centro"]]
+    confere(dc == sorted(dc, reverse=True) and len(dc) <= oe.MAX_DESVIOS and
+            all(d["variacao"] == round(d["realizado"] - d["orcado"], 2) for d in pn["desvios_conta"]),
+            f"painel {emp} {de}-{ate}: desvios do maior para o menor, variação = realizado - orçado")
+pn = oe.painel(conn, "mkb", 2026, 1, 3)
+confere(pn["mensal"]["mc"][2][1] is None and pn["mensal"]["resultado"][2][1] is None, "painel: mês sem razão sai sem dado no gráfico, não zero")
+semr = oe.painel(conn, "mkb", 2026, 3, 3)["indicadores"]
+confere(semr["mc"]["realizado"] is None and semr["mc"]["variacao"] is None and semr["resultado"]["variacao"] is None,
+        "painel: período sem razão = realizado e variação sem dado")
+pn = oe.painel(conn, "mkb", 2026, 1, 6)
+ind = pn["indicadores"]
+confere(all(ind[k]["variacao"] == round(ind[k]["realizado"] - ind[k]["orcado"], 2) for k in ("receita", "custo_despesa", "mc", "resultado"))
+        and ind["mc_pct"]["variacao"] == round(ind["mc_pct"]["realizado"] - ind["mc_pct"]["orcado"], 1), "painel: variação = realizado - orçado (sinal)")
+dk = [abs(d["variacao"]) for d in pn["desvios_conta"]]
+confere(dk == sorted(dk, reverse=True) and all(d["variacao"] for d in pn["desvios_conta"]) and all(d["codigo"].count(".") >= 5 for d in pn["desvios_conta"])
+        and pn["total_desvios_conta"] == len(pn["desvios_conta"]), "painel: desvios por conta da analítica, maior primeiro, sem desvio zero")
+confere(pn["orcado_periodo"] == oe.arvore(conn, "mkb", 2026, 1, 6)["total"]["acumulado"][0], "painel: orçado do período inteiro = árvore")
+teto = oe.MAX_DESVIOS
+oe.MAX_DESVIOS = 1
+try:
+    corte = oe.painel(conn, "mkb", 2026, 1, 6)
+finally:
+    oe.MAX_DESVIOS = teto
+confere(len(corte["desvios_conta"]) == 1 and corte["total_desvios_conta"] > 1 and len(corte["desvios_centro"]) == 1,
+        "painel: corte nos maiores desvios, com o total para declarar")
+f = {"servico": ["ASSESSORIA"]}
+pf, af = oe.painel(conn, "mkb", 2026, 1, 2, f), oe.arvore(conn, "mkb", 2026, 1, 2, f)["total"]
+confere(pf["mensal"]["resultado"] == af["meses"] and pf["indicadores"]["resultado"]["realizado"] == af["acumulado"][1]
+        and af["acumulado"] != oe.arvore(conn, "mkb", 2026, 1, 2)["total"]["acumulado"], "painel: filtro vale no Resultado e no mensal")
+confere(oe.painel(conn, "mkb", 2026, 3, 3)["indicadores"]["receita"]["realizado"] is None, "painel: receita sem razão = sem dado, não zero")
+confere(oe.painel(conn, "mkb", 2026, 1, 1, {"servico": ["ASSESSORIA"]})["indicadores"]["mc"]["realizado"] ==
+        oe.por_dimensao(conn, "mkb", 2026, 1, 1, "servico", {"servico": ["ASSESSORIA"]})["total"]["mc"][1], "painel: filtros valem")
+
 conn.close()
 print()
 print(f"{len(falhas)} falha(s)" if falhas else "prova_orcamento_calculo: tudo ok")

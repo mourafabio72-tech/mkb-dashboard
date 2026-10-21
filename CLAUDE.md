@@ -102,7 +102,7 @@ balanço e validação DRE x balancete. Em produção em `dre.zoaria.com.br`, en
 | `config.py` | env vars, empresas, caminhos |
 | `versao.py` | carimbo do `/health` |
 | `orcamento_parser.py` | leitor do Rel_OrcRel do Protheus (abas DADOS e CTT), por nome de coluna |
-| `orcamento_rotas.py` | blueprint do Orçamento: `/orcamento/importar` (admin), `/orcamento`, `/orcamento/arvore` (DRE em árvore por mês), `/orcamento/dimensao` (Receita, Custo e despesa, MC por serviço, coordenador, filial ou centro), `/orcamento/lancamentos` (razão de uma conta), `/orcamento/dados`, `/orcamento/exportar` |
+| `orcamento_rotas.py` | blueprint do Orçamento: `/orcamento/importar` (admin), `/orcamento`, `/orcamento/arvore` (DRE em árvore por mês), `/orcamento/dimensao` (Receita, Custo e despesa, MC por serviço, coordenador, filial ou centro), `/orcamento/lancamentos` (razão de uma conta), `/orcamento/painel` (dashboard: indicadores, Resultado e MC por mês, maiores desvios), `/orcamento/dados`, `/orcamento/exportar` |
 | `orcamento_engine.py` | cálculo do Orçado x Realizado nas linhas da DRE gerencial (reusa `classificar_conta` e `_aplicar_calc_ger`) |
 | `provas/` | provas executáveis, uma por lógica não trivial |
 | `templates/`, `static/style.css` | telas (Jinja) e o tema Sage & Creme |

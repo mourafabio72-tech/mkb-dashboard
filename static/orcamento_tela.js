@@ -26,7 +26,10 @@
   // escada: colunas escondidas guardadas no navegador (localStorage); o FinHub não tem tabela de
   // preferência por usuário. Subir para o banco quando outra tela do FinHub precisar de preferência.
   var escondidas = lerPref();
-  var linhas = [], totalDim = null, ordem = null, ocupado = false, estado = { modo: 'evolucao', abrir: 'linha' };
+  var PREF_VISAO = 'orcamento_visao';
+  var linhas = [], totalDim = null, ordem = null, ocupado = false, estado = { modo: 'evolucao', abrir: 'linha', visao: 'tabela' };
+  try { if (localStorage.getItem(PREF_VISAO) === 'painel') estado.visao = 'painel'; } catch (e) { /* sem armazenamento */ }
+  var rotuloAtual = '', dash = null;  // empresa e período da última consulta; dados do dashboard para redesenhar
   var arv = null, abertos = {}, filtroArv = '', consultado = null;  // parâmetros da última consulta
 
   function el(tag, classe, texto) {
@@ -79,6 +82,17 @@
   }
   grupo('orcModo', 'modo', function () { if (arv && estado.abrir === 'linha') desenharArvore(); });
   grupo('orcAbrir', 'abrir', function () { consultar(); });
+  // Fase 8: Tabela ou Dashboard, com os mesmos filtros; a escolha fica no navegador
+  function aplicarVisao() {
+    marcar('orcVisao', estado.visao);
+    document.querySelectorAll('.orc-so-tabela').forEach(function (n) { n.hidden = estado.visao === 'painel'; });
+  }
+  grupo('orcVisao', 'visao', function () {
+    try { localStorage.setItem(PREF_VISAO, estado.visao); } catch (e) { /* sem armazenamento */ }
+    aplicarVisao();
+    consultar();
+  });
+  aplicarVisao();
 
   /* ── campos do painel de filtros ── */
   var CAMPOS = [['servico', 'Serviço'], ['coordenador', 'Coordenador'], ['filial', 'Filial'], ['centro', 'Centro'],
@@ -153,16 +167,20 @@
     travar(true);
     $('orcTabelaWrap').hidden = true;
     $('orcArvoreWrap').hidden = true;
+    $('orcDash').hidden = true;
     $('orcVazio').hidden = true;
     $('orcKpis').hidden = true;
     $('orcCarregando').hidden = false;
-    var naArvore = estado.abrir === 'linha';
+    var naArvore = estado.abrir === 'linha', noPainel = estado.visao === 'painel';
     consultado = parametros();
-    fetch((naArvore ? tela.dataset.urlArvore : tela.dataset.urlDimensao) + '?' + parametros().toString()).then(function (r) {
+    var url = noPainel ? tela.dataset.urlPainel : (naArvore ? tela.dataset.urlArvore : tela.dataset.urlDimensao);
+    fetch(url + '?' + parametros().toString()).then(function (r) {
       return r.json().catch(function () { return { erro: 'Não foi possível buscar agora. Tente de novo.' }; });
     }).then(function (j) {
       if (!j.ok) { aviso(j.erro || 'Não foi possível calcular.', 'erro'); return; }
-      if (naArvore) receberArvore(j.dados); else desenharDimensao(j.dados);
+      rotuloAtual = j.dados.rotulo_empresa + ' · ' + j.dados.rotulo_periodo;
+      if (noPainel) desenharPainel(j.dados);
+      else if (naArvore) receberArvore(j.dados); else desenharDimensao(j.dados);
     }).catch(function () {
       aviso('Sem conexão. Tente de novo.', 'erro');
     }).finally(function () {
@@ -250,9 +268,12 @@
   // drilldown: a linha vira filtro e a tela abre a DRE em árvore só dela (grupo e conta)
   function abrirNaDre(l) {
     if (ocupado || !l.chave) return;
-    definir(estado.abrir, l.chave, l.rotulo);
+    definir(l.campo || estado.abrir, l.chave, l.rotulo);
     estado.abrir = 'linha';
     marcar('orcAbrir', 'linha');
+    estado.visao = 'tabela';
+    try { localStorage.setItem(PREF_VISAO, 'tabela'); } catch (e) { /* sem armazenamento */ }
+    aplicarVisao();
     consultar();
   }
 
@@ -586,7 +607,7 @@
   function abrirLancamentos(l) {
     lanc = null;
     $('orcLancTit').textContent = l.codigo + ' · ' + l.rotulo;
-    $('orcLancSub').textContent = arv.rotulo_empresa + ' · ' + arv.rotulo_periodo;
+    $('orcLancSub').textContent = rotuloAtual;
     $('orcLancCorpo').replaceChildren();
     $('orcLancRodape').replaceChildren();
     $('orcLancAviso').hidden = true;
@@ -845,6 +866,194 @@
       .then(function (b) { baixar(b, arquivo + '.xlsx'); })
       .catch(function () { aviso('Não foi possível gerar o Excel. Tente o CSV, ou exporte menos meses.', 'erro'); });
   }
+
+  /* ── Fase 8: dashboard (D10: SVG desenhado aqui, sem biblioteca). Realizado em barra cheia, orçado em traço
+        de meta: a forma separa as séries além da cor (a paleta Sage & Creme é de croma baixo de propósito).
+        Tooltip dentro do próprio SVG, por atributo, e alvo com foco de teclado. ── */
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  function sv(tag, attrs, classe, texto) {
+    var n = document.createElementNS(SVGNS, tag);
+    Object.keys(attrs || {}).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+    if (classe) n.setAttribute('class', classe);
+    if (texto !== undefined) n.textContent = texto;
+    return n;
+  }
+  function curto(v) {
+    var a = Math.abs(v), s = v < 0 ? '-' : '';
+    if (a >= 1e6) return s + 'R$ ' + (a / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mi';
+    if (a >= 1e3) return s + 'R$ ' + Math.round(a / 1e3).toLocaleString('pt-BR') + ' mil';
+    return s + 'R$ ' + Math.round(a).toLocaleString('pt-BR');
+  }
+  function sinal(v) { return (v > 0 ? '+' : '') + reais.format(v); }
+  function passo(bruto) {  // 1, 2 ou 5 vezes potência de 10
+    var p = Math.pow(10, Math.floor(Math.log10(bruto || 1))), r = bruto / p;
+    return (r <= 1 ? 1 : r <= 2 ? 2 : r <= 5 ? 5 : 10) * p;
+  }
+  function dica(svg, W) {
+    var g = sv('g', {}, 'orc-g-tip'), caixa = sv('rect', { rx: 6 });
+    g.appendChild(caixa);
+    g.setAttribute('visibility', 'hidden');
+    svg.appendChild(g);
+    return {
+      mostrar: function (x, y, linhasTxt) {
+        while (g.childNodes.length > 1) g.removeChild(g.lastChild);
+        var larg = Math.min(W - 8, 16 + 6.8 * Math.max.apply(null, linhasTxt.map(function (t) { return t.length; }))), alt = 10 + 17 * linhasTxt.length;
+        var px = Math.max(4, Math.min(W - larg - 4, x - larg / 2)), py = Math.max(4, y - alt - 10);
+        caixa.setAttribute('x', px); caixa.setAttribute('y', py); caixa.setAttribute('width', larg); caixa.setAttribute('height', alt);
+        linhasTxt.forEach(function (t, i) { g.appendChild(sv('text', { x: px + 8, y: py + 19 + 17 * i }, i ? '' : 'orc-g-tip-tit', t)); });
+        g.setAttribute('visibility', 'visible');
+        g.parentNode.appendChild(g);  // por cima das barras
+      },
+      esconder: function () { g.setAttribute('visibility', 'hidden'); }
+    };
+  }
+  function alvo(no, rotulo, aoMostrar, tip, aoClicar) {
+    no.setAttribute('tabindex', '0');
+    no.setAttribute('aria-label', rotulo);
+    ['mouseenter', 'focus'].forEach(function (ev) { no.addEventListener(ev, aoMostrar); });
+    ['mouseleave', 'blur'].forEach(function (ev) { no.addEventListener(ev, tip.esconder); });
+    if (aoClicar) {
+      no.setAttribute('role', 'button');
+      no.classList.add('orc-g-clica');
+      no.addEventListener('click', aoClicar);
+      no.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); aoClicar(); } });
+    }
+  }
+
+  // barra com raio de 4px só na ponta de dados; a base, no zero, fica reta
+  function barraV(x, base, ponta, w) {
+    var r = Math.min(4, w / 2, Math.abs(base - ponta)), d = ponta < base ? 1 : -1;
+    return sv('path', { d: 'M' + x + ' ' + base + 'V' + (ponta + d * r) + 'Q' + x + ' ' + ponta + ' ' + (x + r) + ' ' + ponta +
+                           'H' + (x + w - r) + 'Q' + (x + w) + ' ' + ponta + ' ' + (x + w) + ' ' + (ponta + d * r) + 'V' + base + 'Z' });
+  }
+  function barraH(base, ponta, y, h) {
+    var r = Math.min(4, h / 2, Math.abs(ponta - base)), d = ponta > base ? -1 : 1;
+    return sv('path', { d: 'M' + base + ' ' + y + 'H' + (ponta + d * r) + 'Q' + ponta + ' ' + y + ' ' + ponta + ' ' + (y + r) +
+                           'V' + (y + h - r) + 'Q' + ponta + ' ' + (y + h) + ' ' + (ponta + d * r) + ' ' + (y + h) + 'H' + base + 'Z' });
+  }
+  function largura(host) { host.replaceChildren(); return Math.max(260, host.clientWidth || 600); }  // mede sem o SVG antigo segurando a célula
+  function graficoMensal(host, comps, serie, nome) {
+    var W = largura(host), H = 250, L = 70, R = 10, T = 14, B = 30;
+    var vals = [0];
+    serie.forEach(function (p) { vals.push(p[0]); if (p[1] !== null) vals.push(p[1]); });
+    var st = passo((Math.max.apply(null, vals) - Math.min.apply(null, vals)) / 4 || 2500);
+    var lo = Math.floor(Math.min.apply(null, vals) / st) * st, hi = Math.ceil(Math.max.apply(null, vals) / st) * st || st;
+    var y = function (v) { return T + (hi - v) / (hi - lo) * (H - T - B); };
+    var svg = sv('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': nome + ', orçado e realizado por mês' });
+    for (var v = lo; v <= hi + st / 2; v += st) {
+      svg.appendChild(sv('line', { x1: L, x2: W - R, y1: y(v), y2: y(v) }, Math.abs(v) < st / 2 ? 'orc-g-zero' : 'orc-g-grade'));
+      svg.appendChild(sv('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end' }, 'orc-g-eixo', curto(Math.abs(v) < st / 2 ? 0 : v)));
+    }
+    var tip, banda = (W - L - R) / comps.length, larg = Math.min(24, banda * 0.5), pula = banda < 34 ? 2 : 1;
+    var colunas = [];
+    comps.forEach(function (c, i) {
+      var cx = L + banda * (i + 0.5), o = serie[i][0], r = serie[i][1], col = sv('g', {}, 'orc-g-col');
+      col.appendChild(sv('rect', { x: cx - banda / 2, y: T, width: banda, height: H - T - B }, 'orc-g-fundo'));
+      if (r !== null) {
+        var b = barraV(cx - larg / 2, y(0), Math.abs(y(r) - y(0)) < 1 ? y(0) - 1 : y(r), larg);
+        b.setAttribute('class', 'orc-g-real');
+        col.appendChild(b);
+      } else col.appendChild(sv('text', { x: cx, y: y(0) - 6, 'text-anchor': 'middle' }, 'orc-g-nd', banda < 56 ? 's/d' : 'sem dado'));
+      col.appendChild(sv('line', { x1: cx - larg * 0.75, x2: cx + larg * 0.75, y1: y(o), y2: y(o) }, 'orc-g-orc'));
+      if (i % pula === 0) col.appendChild(sv('text', { x: cx, y: H - 10, 'text-anchor': 'middle' }, 'orc-g-eixo', NOMES_MES[+c.slice(5, 7)]));
+      svg.appendChild(col);
+      colunas.push([col, cx, o, r, c]);
+    });
+    tip = dica(svg, W);
+    colunas.forEach(function (x) {
+      var mes = NOMES_MES[+x[4].slice(5, 7)] + '/' + x[4].slice(0, 4);
+      var txt = [mes, 'Orçado ' + reais.format(x[2]), 'Realizado ' + (x[3] === null ? 'sem dado' : reais.format(x[3]))];
+      if (x[3] !== null) txt.push('Variação ' + sinal(Math.round((x[3] - x[2]) * 100) / 100));
+      alvo(x[0], nome + ' ' + txt.join(', '), function () { tip.mostrar(x[1], y(Math.max(x[2], x[3] || 0, 0)), txt); }, tip);
+    });
+    host.replaceChildren(svg);
+  }
+
+  function graficoDesvios(host, itens, aoClicar, vazio, nome) {
+    if (!itens.length) { host.replaceChildren(el('p', 'orc-g-vazio', vazio)); return; }
+    var W = largura(host), estreito = W < 560, linha = estreito ? 44 : 32, H = Math.max(96, itens.length * linha + 8);  // cabe o tooltip
+    var rotW = estreito ? W * 0.46 : Math.min(260, W * 0.42), valW = estreito ? 70 : 92, x0 = rotW + 10, x1 = W - valW, meio = (x0 + x1) / 2;
+    var max = Math.max.apply(null, itens.map(function (d) { return Math.abs(d.valor); })) || 1;
+    var svg = sv('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': nome });
+    svg.appendChild(sv('line', { x1: meio, x2: meio, y1: 0, y2: H }, 'orc-g-zero'));
+    var tip, linhasG = [];
+    itens.forEach(function (d, i) {
+      var cy = 4 + i * linha + linha / 2, w = Math.max(2, Math.abs(d.valor) / max * (x1 - x0) / 2 - 2), g = sv('g', {}, 'orc-g-col');
+      var cabe = Math.floor(rotW / 6.6), corta = function (t) { return t.length > cabe ? t.slice(0, cabe - 1) + '…' : t; };
+      g.appendChild(sv('rect', { x: 0, y: cy - linha / 2, width: W, height: linha }, 'orc-g-fundo'));
+      if (estreito && d.codigo !== undefined) {  // celular: código numa linha, nome na outra
+        g.appendChild(sv('text', { x: rotW, y: cy - 3, 'text-anchor': 'end' }, 'orc-g-rot', corta(d.codigo)));
+        g.appendChild(sv('text', { x: rotW, y: cy + 12, 'text-anchor': 'end' }, 'orc-g-eixo', corta(d.nome)));
+      } else g.appendChild(sv('text', { x: rotW, y: cy + 4, 'text-anchor': 'end' }, 'orc-g-rot', corta(d.rotulo)));
+      var bh = barraH(meio + (d.valor >= 0 ? 1 : -1), meio + (d.valor >= 0 ? 1 + w : -1 - w), cy - 8, 16);
+      bh.setAttribute('class', d.valor >= 0 ? 'orc-g-pos' : 'orc-g-neg');
+      g.appendChild(bh);
+      g.appendChild(sv('text', { x: W - 4, y: cy + 4, 'text-anchor': 'end' }, 'orc-g-val', (d.valor > 0 ? '+' : '') + curto(d.valor)));
+      svg.appendChild(g);
+      linhasG.push([g, cy, d]);
+    });
+    tip = dica(svg, W);
+    linhasG.forEach(function (x) {
+      var d = x[2], txt = [d.rotulo.slice(0, 48), 'Orçado ' + reais.format(d.orcado), 'Realizado ' + reais.format(d.realizado), 'Desvio ' + sinal(d.valor)];
+      alvo(x[0], txt.join(', '), function () { tip.mostrar(meio, x[1] - 4, txt); }, tip, function () { aoClicar(d); });
+    });
+    host.replaceChildren(svg);
+  }
+
+  var KPIS_DASH = [['receita', 'receita líquida'], ['custo_despesa', 'custo e despesa'], ['mc', 'margem de contribuição'],
+                   ['mc_pct', 'MC %'], ['resultado', 'resultado']];
+  function desenharPainel(d) {
+    dash = d;
+    avisosComuns(d);
+    if (d.meses_considerados.length && d.meses_considerados.length < d.competencias.length) {
+      aviso('Os indicadores comparam com o orçado só dos meses com razão (' + mesesPorExtenso(d.meses_considerados) +
+            '). O orçado do período inteiro é ' + reais.format(d.orcado_periodo) + ' de resultado.');
+    }
+    var box = $('orcDashKpis');
+    box.replaceChildren();
+    KPIS_DASH.forEach(function (k) {
+      var i = d.indicadores[k[0]], pct = k[0] === 'mc_pct', card = el('div', 'min-kpi' + (k[0] === 'mc' ? ' min-kpi-hl' : ''));
+      var fmt = function (v) { return v === null ? 'sem dado' : (pct ? pctFmt.format(v) + '%' : reais.format(v)); };
+      card.appendChild(el('span', 'min-kpi-label', k[1]));
+      card.appendChild(el('span', 'min-kpi-value', fmt(i.realizado)));
+      card.appendChild(el('span', 'min-kpi-sub', 'orçado ' + fmt(i.orcado)));
+      var vr = el('span', 'min-kpi-var orc-dk-var');
+      if (i.variacao === null) vr.textContent = 'sem realizado';
+      else {
+        vr.classList.add(i.variacao > 0 ? 'pos' : i.variacao < 0 ? 'neg' : 'zero');
+        vr.appendChild(el('i', 'ph ' + (i.variacao >= 0 ? 'ph-trend-up' : 'ph-trend-down')));
+        vr.appendChild(el('span', '', ' ' + (pct ? (i.variacao > 0 ? '+' : '') + pctFmt.format(i.variacao) + ' p.p.' : sinal(i.variacao)) +
+                                     (i.variacao > 0 ? ' melhor' : i.variacao < 0 ? ' pior' : '')));
+      }
+      card.appendChild(vr);
+      box.appendChild(card);
+    });
+    var ind = d.indicadores, nada = ['receita', 'custo_despesa', 'resultado'].every(function (k) { return !ind[k].orcado && !ind[k].realizado; }) && !d.orcado_periodo;
+    if (nada) { $('orcVazio').hidden = false; return; }  // mesmo estado vazio da tabela
+    $('orcDash').hidden = false;
+    redesenharPainel();
+  }
+  function redesenharPainel() {
+    if (!dash || $('orcDash').hidden) return;
+    graficoMensal($('orcGrafResultado'), dash.competencias, dash.mensal.resultado, 'Resultado');
+    graficoMensal($('orcGrafMc'), dash.competencias, dash.mensal.mc, 'Margem de contribuição');
+    graficoDesvios($('orcGrafCentro'), dash.desvios_centro.map(function (x) {
+      return { rotulo: x.rotulo, valor: x.variacao, orcado: x.orcado, realizado: x.realizado, chave: x.chave };
+    }), function (x) { abrirNaDre({ chave: x.chave, rotulo: x.rotulo, campo: 'centro' }); },
+       'Nenhum centro com desvio. Amplie o período ou tire um filtro.', 'Maiores desvios por centro de custo');
+    graficoDesvios($('orcGrafConta'), dash.desvios_conta.map(function (x) {
+      return { rotulo: x.codigo + ' · ' + x.rotulo, valor: x.variacao, orcado: x.orcado, realizado: x.realizado, codigo: x.codigo, nome: x.rotulo };
+    }), function (x) { abrirLancamentos({ codigo: x.codigo, rotulo: x.nome }); },
+       'Nenhuma conta com desvio. Amplie o período ou tire um filtro.', 'Maiores desvios por conta');
+    // corte declarado: com mais de 10, diz quantos existem
+    [['orcGrafCentro', dash.desvios_centro.length, dash.total_desvios_centro, 'centros'], ['orcGrafConta', dash.desvios_conta.length, dash.total_desvios_conta, 'contas']]
+      .forEach(function (c) {
+        var aviso10 = $(c[0]).parentNode.querySelector('.orc-g-corte');
+        aviso10.textContent = c[2] > c[1] ? 'Mostrando os ' + c[1] + ' maiores de ' + c[2] + ' ' + c[3] + ' com desvio.' : '';
+      });
+  }
+  var esperaRedesenho = null;
+  window.addEventListener('resize', function () { clearTimeout(esperaRedesenho); esperaRedesenho = setTimeout(redesenharPainel, 150); });
 
   $('orcConsultar').addEventListener('click', consultar);
   consultar();
