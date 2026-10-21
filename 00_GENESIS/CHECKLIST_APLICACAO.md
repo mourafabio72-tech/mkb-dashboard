@@ -112,8 +112,10 @@ Só marcar `[x]` com evidência apontável (arquivo:linha ou saída de prova).
   EVIDENCIA: CLAUDE.md com os 3 arquivos no mapa e o parágrafo do Orçamento nos Quirks (tabelas, centro sem ponto, realizado da razao, mês sem razão, consolidado, Gnileb, provas e comparador); graphify update . rodado
 - [x] push no `master`; `/health` com `build` = HEAD
   EVIDENCIA: commit dba8ce8 (Fase 4) no master; https://dre.zoaria.com.br/health = {"build":"20261021-1028"} = carimbo do HEAD; orcamento_tela.js 200 (arquivo novo na imagem); /orcamento 302 para o login. Fases 1 a 3 publicadas antes (277d924, 676ff32, 00bcf87), cada uma com o carimbo conferido
-- [ ] Fábio importa o orçamento real e confere um mês
-- [ ] ZIP em `z_Versoes/`; LOG `fase=5 acao=entrega resultado=ok`
+- [x] Fábio importa o orçamento real e confere um mês
+  EVIDENCIA: Fábio importou o Rel_OrcRel 2026 real em produção (prints de 2026-10-21, 'importei') e aprovou a tela depois dos ajustes ('perfeito, pode seguir', 14:04). DESVIO DECLARADO: a conferência número a número contra o Protheus foi do comparador, não à mão: realizado do Rel_OrcRel x razão em 29.395 de 29.398 células (as 3 de julho são retroativo do Protheus), DRE gerencial x motor 231 de 231, e aberturas, lançamentos e dashboard 171 checagens sem diferença
+- [x] ZIP em `z_Versoes/`; LOG `fase=5 acao=entrega resultado=ok`
+  EVIDENCIA: z_Versoes/20261021_1408_projeto.zip e 20261021_1408_SubirEasyPanel.zip pelo empacotar.py (saída 0, sem .db, .env nem certificado), linha no DIARIO.txt; LOG fase=9 acao=entrega
 
 ## Fase 6: DRE em árvore, vários meses e cards coloridos (ampliação de 2026-10-21)
 - [x] árvore de 3 níveis: bloco da DRE gerencial (Receita, Custos, Despesas, Financeiro, Outros, IRPJ e CSLL, Sem linha) > 5º nível da conta > conta analítica, com Resultado no fim; expandir e recolher

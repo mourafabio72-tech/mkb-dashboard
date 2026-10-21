@@ -169,7 +169,7 @@ Aprovado pelo Fábio em 2026-10-21 ("aprovado tudo"), com as três definições 
 
 ## Fase 9: Entrega (absorve o que restou da Fase 5)
 
-- **Status:** pending
+- **Status:** done
 - **O que entra:** Fábio confere um mês em produção; ZIP em `z_Versoes/`; linha de entrega no LOG.
 
 ---
