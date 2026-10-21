@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Orçado x Realizado{% endblock %}
+
+{% macro selectbusca(nome, rotulo, opcoes, valor='', vazio=None) %}
+<div class="g">
+  <span class="fu-lbl" id="lbl_{{ nome }}">{{ rotulo }}</span>
+  <div class="selectbusca" data-name="{{ nome }}" aria-labelledby="lbl_{{ nome }}">
+    <input type="hidden" name="{{ nome }}" value="{{ valor }}" id="orc_{{ nome }}">
+    <button type="button" class="sb-display" aria-haspopup="listbox" aria-labelledby="lbl_{{ nome }}">
+      <span class="sb-label">{{ vazio or 'Escolha' }}</span>
+      <i class="ph ph-caret-down"></i>
+    </button>
+    <div class="sb-panel" role="listbox">
+      <input class="sb-search" placeholder="Buscar..." aria-label="Buscar {{ rotulo|lower }}">
+      {% if vazio %}<div class="sb-opt" role="option" data-value="">{{ vazio }}</div>{% endif %}
+      {% for v, r in opcoes %}<div class="sb-opt" role="option" data-value="{{ v }}">{{ r }}</div>{% endfor %}
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='orcamento.css') }}?v=20261020b">
+
+<div class="orc-pagina" id="orcTela" data-url-dados="{{ url_for('orcamento.dados') }}"
+     data-url-exportar="{{ url_for('orcamento.exportar') }}">
+<div class="page-header">
+  <h1><i class="ph-bold ph-target"></i> Orçado x Realizado</h1>
+  <p class="subtitle">Orçamento do Rel_OrcRel contra o realizado do razão, nas linhas da DRE gerencial.</p>
+</div>
+
+<div class="fu-bar">
+  {{ selectbusca('empresa', 'Empresa', visoes, visoes[0][0] if visoes else '') }}
+  <div class="g">
+    <span class="fu-lbl" id="lbl_ano">Ano</span>
+    <div class="selectbusca" data-name="ano" aria-labelledby="lbl_ano">
+      <input type="hidden" name="ano" value="{{ ano }}" id="orc_ano">
+      <button type="button" class="sb-display" aria-haspopup="listbox" aria-labelledby="lbl_ano">
+        <span class="sb-label">{{ ano }}</span><i class="ph ph-caret-down"></i>
+      </button>
+      <div class="sb-panel" role="listbox">
+        <input class="sb-search" placeholder="Buscar..." aria-label="Buscar ano">
+        {% for a in anos|reverse %}<div class="sb-opt" role="option" data-value="{{ a }}">{{ a }}</div>{% endfor %}
+      </div>
+    </div>
+  </div>
+  {{ selectbusca('mes', 'Mês', meses, mes) }}
+  <div class="g">
+    <span class="fu-lbl" id="lblModo">Visão</span>
+    <div class="orc-fonte" id="orcModo" role="radiogroup" aria-labelledby="lblModo">
+      <button type="button" class="on" data-valor="mes" role="radio" aria-checked="true"><i class="ph ph-calendar-blank"></i> No mês</button>
+      <button type="button" data-valor="acumulado" role="radio" aria-checked="false"><i class="ph ph-calendar-dots"></i> Acumulado no ano</button>
+    </div>
+  </div>
+  <button type="button" class="btn btn-primary orc-consultar" id="orcConsultar">
+    <i class="ph ph-magnifying-glass"></i> Consultar
+  </button>
+</div>
+
+<div class="fu-bar fu-bar-2">
+  <div class="g">
+    <span class="fu-lbl" id="lblAbrir">Abrir por</span>
+    <div class="orc-presets" id="orcAbrir" role="radiogroup" aria-labelledby="lblAbrir">
+      {% for chave, rotulo in dimensoes %}
+      <button type="button" data-valor="{{ chave }}" role="radio" {% if loop.first %}class="on" aria-checked="true"{% else %}aria-checked="false"{% endif %}>{{ rotulo }}</button>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="orc-so-dimensao" id="orcLinhaGrupo" hidden>
+    {{ selectbusca('linha', 'Linha da DRE', linhas_dre, '', 'Resultado líquido') }}
+  </div>
+  {{ selectbusca('servico', 'Serviço', opcoes.servico|default([]), '', 'Todos') }}
+  {{ selectbusca('coordenador', 'Coordenador', opcoes.coordenador|default([]), '', 'Todos') }}
+  {{ selectbusca('filial', 'Filial', opcoes.filial|default([]), '', 'Todas') }}
+  {{ selectbusca('centro', 'Centro de custo', opcoes.centro|default([]), '', 'Todos') }}
+</div>
+
+<div id="orcAvisos" aria-live="polite"></div>
+
+<div class="mg-kpis" id="orcKpis">
+  {% for chave, rotulo, icone in [('orcado', 'Orçado', 'ph-target'), ('realizado', 'Realizado', 'ph-receipt'),
+                                  ('variacao', 'Variação', 'ph-arrows-down-up'), ('pct', '% realizado', 'ph-percent')] %}
+  <div class="mg-kpi k-{{ chave }}" data-kpi="{{ chave }}">
+    <div class="ico"><i class="ph {{ icone }}"></i></div>
+    <div class="corpo">
+      <div class="lbl">{{ rotulo }}</div>
+      <div class="val">&nbsp;</div>
+      <div class="disc"></div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="loading-inline" id="orcCarregando" hidden>
+  <div class="spinner-circle"></div>
+  <div class="loading-text">Calculando o orçado e o realizado...</div>
+</div>
+
+<div class="empty-state" id="orcVazio" hidden>
+  <h2>Nenhum valor no recorte</h2>
+  <p>Não há orçamento nem realizado para esta empresa, período e filtros. Importe o orçamento em Cadastro ou mude o filtro.</p>
+</div>
+
+<div class="tabela-wrap" id="orcTabelaWrap" hidden>
+  <div class="tabela-faixa">
+    <h3 class="tabela-titulo" id="orcTitulo">Orçado x Realizado</h3>
+    <span class="tabela-contagem" id="orcContagem"></span>
+    <div class="ta-menu-wrapper">
+      <button type="button" class="ta-menu-btn" id="orcMenuBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Ferramentas da tabela">
+        <i class="ph-bold ph-list icon"></i>
+      </button>
+      <div class="ta-menu" id="orcMenu" role="menu">
+        <button type="button" class="ta-menu-item" data-acao="filtro" role="menuitem"><i class="ph ph-funnel"></i> Filtro por coluna</button>
+        <button type="button" class="ta-menu-item" data-acao="ordenar" role="menuitem"><i class="ph ph-sort-ascending"></i> Ordenar</button>
+        <button type="button" class="ta-menu-item" data-acao="colunas" role="menuitem"><i class="ph ph-columns"></i> Colunas</button>
+        <div class="ta-menu-divider"></div>
+        <button type="button" class="ta-menu-item" data-acao="csv" role="menuitem"><i class="ph ph-file-csv"></i> Exportar CSV</button>
+        <button type="button" class="ta-menu-item" data-acao="excel" role="menuitem"><i class="ph ph-file-xls"></i> Exportar Excel</button>
+      </div>
+      <div class="ta-popup" id="orcPopOrdenar">
+        <div class="ta-popup-cab"><i class="ph ph-sort-ascending"></i> Ordenar</div>
+        <div class="ta-popup-corpo" id="orcOrdenarCorpo"></div>
+        <div class="ta-popup-rodape">
+          <button type="button" id="orcOrdemOriginal">Ordem da DRE</button>
+          <button type="button" class="ta-fechar">Fechar</button>
+        </div>
+      </div>
+      <div class="ta-popup" id="orcPopColunas">
+        <div class="ta-popup-cab"><i class="ph ph-columns"></i> Colunas</div>
+        <div class="ta-popup-corpo" id="orcColunasCorpo"></div>
+        <div class="ta-popup-rodape"><button type="button" class="ta-fechar">Fechar</button></div>
+      </div>
+    </div>
+  </div>
+  <div class="tabela-scroll">
+    <table class="orc-grade" id="orcTabela">
+      <thead>
+        <tr class="th-titulos">
+          <th data-col="rotulo" id="orcThRotulo">Linha da DRE</th>
+          <th data-col="orcado" class="num">Orçado</th>
+          <th data-col="realizado" class="num">Realizado</th>
+          <th data-col="variacao" class="num" title="Realizado menos orçado: positivo é melhor que o orçado em qualquer linha">Variação</th>
+          <th data-col="pct" class="num">% realizado</th>
+        </tr>
+        <tr class="th-filtro" hidden>
+          {% for c, r in [('rotulo', 'primeira coluna'), ('orcado', 'Orçado'), ('realizado', 'Realizado'), ('variacao', 'Variação'), ('pct', '% realizado')] %}
+          <th data-col="{{ c }}"><input type="text" placeholder="filtrar" data-th-filtro="{{ c }}" aria-label="Filtrar {{ r }}"></th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody id="orcCorpo"></tbody>
+    </table>
+  </div>
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='selectbusca.js') }}?v=20261020"></script>
+<script src="{{ url_for('static', filename='orcamento_tela.js') }}?v=20261020"></script>
+{% endblock %}

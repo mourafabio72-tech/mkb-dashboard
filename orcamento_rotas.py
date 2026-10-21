@@ -215,3 +215,139 @@ def confirmar():
                substituidas=removidas, centros=len(lido["centros"]), total=total)
     return jsonify(ok=True, linhas=len(lido["orcado"]), substituidas=removidas, ano=ano,
                    empresa=EMPRESAS[chave]["sigla"], total=total)
+
+
+# ─── Fase 4: tela Orçado x Realizado ─────────────────────────────────────────
+
+import io as _io  # noqa: E402
+
+import orcamento_engine as oe  # noqa: E402
+
+MESES_LONGOS = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto",
+                "Setembro", "Outubro", "Novembro", "Dezembro"]
+MAX_EXPORT_LINHAS, MAX_EXPORT_COLUNAS, MAX_EXPORT_TEXTO = 5000, 12, 200
+
+
+def _visoes_permitidas() -> list:
+    """[(chave, rótulo)] que esta sessão enxerga. Consolidado só para quem vê as duas empresas."""
+    perm = empresas_permitidas()
+    chaves = [k for k in EMPRESAS if perm is None or k in perm]
+    visoes = [(k, EMPRESAS[k]["sigla"]) for k in chaves]
+    if len(chaves) == len(EMPRESAS):
+        visoes.append(("consolidado", "Consolidado"))
+    return visoes
+
+
+def _visao_do_pedido(chave: str) -> str:
+    if chave not in dict(_visoes_permitidas()):
+        log_evento("ACESSO_NEGADO_IDOR", logging.WARNING, recurso="orcamento_tela", empresa=(chave or "")[:20])
+        raise ErroPedido("Empresa não encontrada.", 404, "empresa")
+    return chave
+
+
+def _inteiro(nome: str, minimo: int, maximo: int) -> int:
+    texto = (request.args.get(nome) or "").strip()
+    if not re.fullmatch(r"[0-9]{1,4}", texto) or not minimo <= int(texto) <= maximo:
+        raise ErroPedido("Parâmetro inválido.", 400, nome)
+    return int(texto)
+
+
+@bp.route("/orcamento")
+@login_required
+def tela():
+    visoes = _visoes_permitidas()
+    conn = get_conn()
+    try:
+        ids = [EMPRESAS[k]["id"] for k, _ in visoes if k in EMPRESAS] or [0]
+        marcas = ",".join("?" * len(ids))  # só a empresa que a sessão enxerga entra no padrão e na lista de anos
+        competencia = (request.args.get("competencia") or "").strip()
+        if not re.fullmatch(r"20[0-9]{2}-(0[1-9]|1[0-2])", competencia):
+            linha = conn.execute(f"SELECT MAX(competencia) FROM razao WHERE empresa_id IN ({marcas})", ids).fetchone()
+            competencia = (linha[0] if linha and linha[0] else datetime.now().strftime("%Y-%m"))
+        brutas = oe.opcoes_filtro(conn, "consolidado" if len(visoes) > 2 else visoes[0][0]) if visoes else {}
+        cad = oe._centros(conn, [EMPRESAS[k]["id"] for k, _ in visoes if k in EMPRESAS])
+        opcoes = {k: [(v, v) for v in vs] for k, vs in brutas.items() if k != "centro"}
+        opcoes["centro"] = [(c, f"{c} · {cad[c]['descricao']}" if cad[c]["descricao"] != c else c) for c in brutas.get("centro", [])]
+        for k in ("servico", "coordenador", "filial"):
+            opcoes[k].append((oe.SEM_CENTRO, oe.SEM_CENTRO))
+        anos = sorted({int(r[0]) for r in conn.execute(
+            f"SELECT DISTINCT substr(competencia, 1, 4) FROM orcamento WHERE empresa_id IN ({marcas}) "
+            f"UNION SELECT DISTINCT substr(competencia, 1, 4) FROM razao WHERE empresa_id IN ({marcas})", ids + ids)
+            if r[0] and r[0].isdigit()} | {int(competencia[:4])})
+    finally:
+        conn.close()
+    return render_template("orcamento.html", visoes=visoes, ano=int(competencia[:4]), mes=int(competencia[5:7]),
+                           anos=anos, meses=list(enumerate(MESES_LONGOS))[1:], opcoes=opcoes,
+                           linhas_dre=[(lid, rot) for lid, rot, _ in oe.LINHAS] + [oe.SEM_LINHA],
+                           dimensoes=list(oe.DIMENSOES.items()))
+
+
+@bp.route("/orcamento/dados")
+@login_required
+def dados():
+    try:
+        empresa = _visao_do_pedido((request.args.get("empresa") or "").strip())
+        ano = _inteiro("ano", 2000, 2100)
+        mes = _inteiro("mes", 1, 12)
+        filtros = {}
+        for chave in oe.FILTROS:
+            valor = (request.args.get(chave) or "").strip()
+            if valor:
+                if len(valor) > 120:
+                    raise ErroPedido("Filtro inválido.", 400, chave)
+                filtros[chave] = [valor]
+        linha = (request.args.get("linha") or "").strip() or None
+        conn = get_conn()
+        try:
+            resultado = oe.calcular(conn, empresa, ano, mes, (request.args.get("modo") or "mes").strip(),
+                                    (request.args.get("abrir_por") or "linha").strip(), filtros, linha)
+        finally:
+            conn.close()
+    except ErroPedido as erro:
+        return _resposta_erro(erro)
+    except ValueError as erro:
+        return jsonify(erro=str(erro)), 400
+    resultado["rotulo_empresa"] = dict(_visoes_permitidas())[empresa]
+    resultado["rotulo_mes"] = f"{MESES_LONGOS[mes]} de {ano}"
+    return jsonify(ok=True, dados=resultado)
+
+
+def _celula(valor):
+    if isinstance(valor, bool) or valor is None:
+        return ""
+    if isinstance(valor, (int, float)):
+        return valor if abs(valor) < 1e15 else ""
+    texto = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", str(valor))[:MAX_EXPORT_TEXTO]  # o xlsx recusa controle
+    return "'" + texto if texto and texto[0] in "=+-@\t\r" else texto  # célula que começa com fórmula vira texto
+
+
+@bp.route("/orcamento/exportar", methods=["POST"])
+@login_required
+def exportar():
+    """Excel das linhas VISÍVEIS (Padrao_Tabela): a tela manda o que sobrou depois dos filtros."""
+    corpo = request.get_json(silent=True)
+    try:
+        if not isinstance(corpo, dict):
+            raise ErroPedido("Pedido inválido.")
+        cab, linhas, nome = corpo.get("cabecalho"), corpo.get("linhas"), str(corpo.get("nome") or "")
+        if (not isinstance(cab, list) or not isinstance(linhas, list) or not 0 < len(cab) <= MAX_EXPORT_COLUNAS
+                or len(linhas) > MAX_EXPORT_LINHAS or any(not isinstance(l, list) or len(l) != len(cab) for l in linhas)):
+            raise ErroPedido("Pedido inválido.")
+        if not re.fullmatch(r"orcamento_[a-z]+_[0-9]{4}-[0-9]{2}-[0-9]{2}", nome):
+            raise ErroPedido("Nome de arquivo inválido.")
+    except ErroPedido as erro:
+        return _resposta_erro(erro)
+    from openpyxl import Workbook
+    livro = Workbook()
+    folha = livro.active
+    folha.title = "Orçado x Realizado"
+    folha.append([_celula(c) for c in cab])
+    for linha in linhas:
+        folha.append([_celula(c) for c in linha])
+    saida = _io.BytesIO()
+    livro.save(saida)
+    log_evento("EXPORT_DADOS", recurso="orcamento", linhas=len(linhas), formato="xlsx")
+    from flask import send_file
+    saida.seek(0)
+    return send_file(saida, as_attachment=True, download_name=nome + ".xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

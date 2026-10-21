@@ -94,7 +94,7 @@ Decisões fechadas na Fase 0 (Fábio respondeu "aprovado" sem alterar os padrõe
 
 ## Fase 4: Tela Orçado x Realizado
 
-- **Status:** pending
+- **Status:** done (2026-10-20)
 - **Duração estimada:** 5h
 - **O que entra:** rota `/orcamento` (`@login_required`, empresa por `_guard_empresa`), card novo no hub do dashboard,
   KPIs (Orçado, Realizado, Variação, % realizado), barra de filtros (empresa com MKB, Gnileb e Consolidado, ano, mês, No mês/Acumulado, Abrir por,

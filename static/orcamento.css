@@ -135,3 +135,180 @@
   .im-acao .btn { flex: 1 1 auto; justify-content: center; min-height: 44px; }
   .im-acao .im-msg { flex-basis: 100%; }
 }
+
+/* ── Tela Orçado x Realizado (Fase 4) ─────────────────────────────────────── */
+
+/* o atributo hidden tem de vencer o display das classes */
+.loading-inline[hidden], .empty-state[hidden], .orc-pagina [hidden] { display: none !important; }
+/* o robô do mascote fica fixo no canto direito: em tela larga a página reserva a faixa dele,
+   senão ele cobre o menu sanduíche e a coluna de % */
+@media (min-width: 1100px) { .orc-pagina { padding-right: 96px; } }
+
+/* Barra de filtros (Padrao_Barra_de_Filtros): altura única de 38px, rótulo em cima, Consultar à direita */
+.fu-bar {
+  --fu-h: 38px;
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-bottom: 8px;
+}
+.fu-bar-2 { margin-bottom: 16px; }
+.fu-bar .g { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.fu-bar .g .selectbusca { min-width: 170px; }
+/* --muted puro dá 2,8:1 no creme; misturado com --text passa de 4,5:1 nos dois temas */
+.fu-lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: color-mix(in srgb, var(--muted) 45%, var(--text)); }
+.fu-bar .selectbusca .sb-display { height: var(--fu-h); }
+.fu-bar .orc-consultar { background: color-mix(in srgb, var(--accent) 85%, black); height: var(--fu-h); margin-left: auto; align-self: flex-end; display: inline-flex; align-items: center; gap: 6px; }
+.orc-so-dimensao[hidden] { display: none; }
+
+/* Toggle tipo 1, multi opções (Abrir por) */
+.orc-presets {
+  display: inline-flex; align-items: center; gap: 4px; height: var(--fu-h); padding: 3px; box-sizing: border-box;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--card);
+}
+.orc-presets button {
+  height: calc(var(--fu-h) - 8px); padding: 0 10px; border: 1px solid transparent; border-radius: 8px;
+  background: transparent; font: inherit; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap;
+}
+.orc-presets button:hover { color: var(--primary); }
+.orc-presets button.on {
+  border-color: var(--accent); color: var(--primary);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+/* Toggle tipo 2, duas opções (No mês / Acumulado), com ícone */
+.orc-fonte {
+  display: inline-flex; align-items: stretch; height: var(--fu-h); box-sizing: border-box; overflow: hidden;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--card);
+}
+.orc-fonte button {
+  display: inline-flex; align-items: center; gap: 5px; padding: 0 13px; border: none; background: transparent;
+  font: inherit; font-size: 12px; font-weight: 700; color: var(--muted); cursor: pointer; white-space: nowrap;
+}
+.orc-fonte button + button { border-left: 1px solid var(--border); }
+.orc-fonte button.on { background: color-mix(in srgb, var(--accent) 85%, black); color: white; }
+.orc-presets button:focus-visible, .orc-fonte button:focus-visible, .ta-menu-btn:focus-visible,
+.orc-grade th:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Avisos */
+.orc-aviso.erro { border-left-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+
+/* KPIs (Padrao_KPI_Dashboard), cores só por token; 4 indicadores */
+/* 4 indicadores (o plano pede 4): 4 colunas só a partir de 1300px, senão o valor corta; 2 abaixo disso */
+.mg-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 18px; }
+@media (min-width: 1300px) { .mg-kpis { grid-template-columns: repeat(4, 1fr); } }
+.mg-kpis[hidden] { display: none; }
+.mg-kpi {
+  position: relative; overflow: hidden; display: flex; align-items: center; gap: 12px; padding: 14px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+}
+.mg-kpi::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--border); }
+.mg-kpi.k-orcado::before { background: var(--warning); }
+.mg-kpi.k-realizado::before { background: var(--accent); }
+.mg-kpi.k-pct::before { background: var(--primary); }
+.mg-kpi .ico {
+  flex-shrink: 0; width: 44px; height: 44px; border-radius: 11px; display: grid; place-items: center; font-size: 22px;
+  color: var(--primary); background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.mg-kpi .corpo { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mg-kpi .lbl {
+  min-height: 25px; display: flex; align-items: flex-end; font-size: 10.5px; font-weight: 700; line-height: 1.2;
+  text-transform: uppercase; letter-spacing: .03em; color: var(--muted);
+}
+.mg-kpi .val {
+  margin-top: 3px; font-size: 20px; font-weight: 800; line-height: 1; letter-spacing: -.5px;
+  font-variant-numeric: tabular-nums; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mg-kpi .disc { min-height: 14px; margin-top: 4px; font-size: 10.5px; font-style: italic; line-height: 1.2; color: var(--muted); }
+.mg-kpi.pos { border-color: var(--success); background: color-mix(in srgb, var(--success) 10%, var(--card)); }
+.mg-kpi.pos::before { background: var(--success); }
+.mg-kpi.pos .val, .mg-kpi.pos .lbl { color: color-mix(in srgb, var(--success) 70%, var(--text)); }
+.mg-kpi.neg { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 9%, var(--card)); }
+.mg-kpi.neg::before { background: var(--danger); }
+.mg-kpi.neg .val, .mg-kpi.neg .lbl { color: color-mix(in srgb, var(--danger) 75%, var(--text)); }
+
+/* Card da tabela (Padrao_Cabecalho_da_Tabela): sem overflow hidden, a rolagem é que recorta */
+.tabela-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 20px; }
+.tabela-wrap[hidden] { display: none; }
+.tabela-faixa { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.tabela-titulo { margin: 0; flex: 1; min-width: 0; font-size: 14px; font-weight: 700; color: var(--primary); }
+.tabela-contagem { font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tabela-scroll { overflow-x: auto; border-radius: 0 0 12px 12px; }
+
+/* Menu sanduíche e popups (Padrao_Tabela) */
+.ta-menu-wrapper { position: relative; }
+.ta-menu-btn {
+  width: 36px; height: 36px; display: grid; place-items: center; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--muted);
+}
+.ta-menu-btn:hover { border-color: var(--accent); color: var(--primary); }
+.ta-menu-btn i { font-size: 18px; }
+.ta-menu, .ta-popup {
+  display: none; position: absolute; top: 100%; right: 0; z-index: 60; margin-top: 6px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 18%, transparent);
+}
+.ta-menu { min-width: 210px; padding: 4px 0; }
+.ta-popup { min-width: 380px; }
+.ta-menu.aberto, .ta-popup.aberto { display: block; }
+.ta-menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; border: none; background: transparent;
+  font: inherit; font-size: 13px; color: var(--text); text-align: left; cursor: pointer;
+}
+.ta-menu-item:hover, .ta-menu-item.ativo { color: var(--primary); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.ta-menu-item i { font-size: 16px; color: var(--muted); }
+.ta-menu-divider { height: 1px; margin: 4px 0; background: var(--border); }
+.ta-popup-cab { display: flex; align-items: center; gap: 8px; padding: 12px 14px; font-weight: 700; color: var(--text); border-bottom: 1px solid var(--border); }
+.ta-popup-corpo { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; }
+.ta-popup-rodape { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
+.ta-popup-rodape button, .ta-ordem-btn {
+  min-height: 32px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--card);
+  font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text); cursor: pointer;
+}
+.ta-ordem-linha { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 6px; font-size: 13px; color: var(--text); }
+.ta-ordem-btn { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.ta-ordem-btn.on { border-color: var(--accent); color: var(--primary); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.ta-coluna { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); cursor: pointer; }
+.ta-coluna input { accent-color: var(--accent); }
+
+/* A grade */
+.orc-grade { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.orc-grade th {
+  padding: 9px 14px; text-align: left; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--card); border-bottom: 1px solid var(--border); cursor: pointer; white-space: nowrap;
+}
+.orc-grade th.num, .orc-grade td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.orc-grade th.ord-asc::after { content: ' \25B2'; font-size: 9px; }
+.orc-grade th.ord-desc::after { content: ' \25BC'; font-size: 9px; }
+.orc-grade th[data-ordem]:not([data-ordem=""])::after { content: ' ' attr(data-ordem); }
+.orc-grade th.ord-asc[data-ordem]:not([data-ordem=""])::after { content: ' \25B2' attr(data-ordem); }
+.orc-grade th.ord-desc[data-ordem]:not([data-ordem=""])::after { content: ' \25BC' attr(data-ordem); }
+.orc-grade .th-filtro th { padding: 6px 10px; cursor: default; }
+.orc-grade .th-filtro input {
+  box-sizing: border-box; width: 100%; min-width: 90px; height: 30px; padding: 0 8px; font: inherit; font-size: 12.5px;
+  color: var(--text); background: var(--card); border: 1px solid var(--border); border-radius: 8px; text-transform: none;
+}
+.orc-grade td { padding: 8px 14px; color: var(--text); border-bottom: 1px solid var(--border); }
+.orc-grade tr:last-child td { border-bottom: none; }
+.orc-grade tr.orc-sub td { font-weight: 700; background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.orc-grade tr.orc-sub.resultado_final td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+/* verde e terracota puros ficam abaixo de 4,5:1 no creme; a mistura com --text escurece no claro e clareia no escuro */
+.orc-grade td.pos { color: color-mix(in srgb, var(--success) 70%, var(--text)); font-weight: 600; }
+.orc-grade td.neg { color: color-mix(in srgb, var(--danger) 75%, var(--text)); font-weight: 600; }
+.orc-grade .tabela-vazia td { text-align: center; color: var(--muted); padding: 20px; }
+.orc-pagina.ocupado .fu-bar { opacity: .6; pointer-events: none; }
+
+@media (max-width: 720px) {
+  .fu-bar .g { flex: 1 1 100%; }
+  .fu-bar .g .selectbusca { min-width: 0; }
+  .orc-presets { flex-wrap: wrap; height: auto; }
+  .orc-presets button { height: auto; min-height: 40px; }
+  .orc-fonte { height: auto; }
+  .orc-fonte button { min-height: 40px; }
+  .fu-bar .orc-consultar { flex: 1 1 100%; justify-content: center; min-height: 44px; }
+  .mg-kpis { gap: 8px; }
+  .mg-kpi { padding: 12px 11px; gap: 9px; }
+  .mg-kpi .ico { width: 36px; height: 36px; font-size: 18px; border-radius: 9px; }
+  .mg-kpi .val { font-size: 18px; white-space: normal; overflow-wrap: anywhere; }
+  .mg-kpi .lbl { font-size: 9.5px; min-height: 23px; }
+  .mg-kpi .disc { font-size: 10px; min-height: 13px; }
+  .ta-popup { min-width: 0; width: calc(100vw - 48px); }
+  .ta-ordem-linha { grid-template-columns: 1fr; }
+}
