@@ -710,7 +710,7 @@
       caixa.addEventListener('change', function () {
         ocultasArv = ocultasArv.filter(function (k) { return k !== col.rot; });
         if (!caixa.checked) ocultasArv.push(col.rot);
-        try { localStorage.setItem(PREF_ARV, JSON.stringify(ocultasArv)); } catch (e) { /* sem armazenamento */ }
+        gravarOcultasArv();
         desenharArvore();
       });
       rot.appendChild(caixa);
@@ -718,6 +718,24 @@
       c.appendChild(rot);
     });
     $('orcArvPopColunas').classList.add('aberto');
+  }
+  function gravarOcultasArv() { try { localStorage.setItem(PREF_ARV, JSON.stringify(ocultasArv)); } catch (e) { /* sem armazenamento */ } }
+  function ocultarColunaArv(rot) {
+    if (ocultasArv.indexOf(rot) === -1) ocultasArv.push(rot);
+    gravarOcultasArv();
+    desenharArvore();
+  }
+  // faixa da tabela: quantas colunas estão ocultas, com o atalho para mostrar todas
+  function avisoOcultasArv() {
+    var n = todasColunas().filter(function (c) { return ocultasArv.indexOf(c.rot) !== -1; }).length, box = $('orcArvOcultas');
+    box.replaceChildren();
+    box.hidden = !n;
+    if (!n) return;
+    box.appendChild(el('span', '', n + (n === 1 ? ' coluna oculta' : ' colunas ocultas')));
+    var b = el('button', 'orc-link', 'Mostrar todas');
+    b.type = 'button';
+    b.addEventListener('click', function () { $('orcArvTodas').click(); });
+    box.appendChild(b);
   }
   $('orcArvTodas').addEventListener('click', function () {
     ocultasArv = [];
@@ -789,7 +807,14 @@
     th0.rowSpan = 2;
     tr1.appendChild(th0);
     cols.forEach(function (c) {
-      var th = el('th', 'arv-mes' + (c.extra ? ' arv-extra' : ''), c.rot);
+      var th = el('th', 'arv-mes' + (c.extra ? ' arv-extra' : '')), oc = el('button', 'arv-ocultar');
+      th.appendChild(el('span', '', c.rot));
+      oc.type = 'button';
+      oc.title = 'Ocultar ' + c.rot;
+      oc.setAttribute('aria-label', 'Ocultar a coluna ' + c.rot);
+      oc.appendChild(el('i', 'ph ph-eye-slash'));
+      oc.addEventListener('click', function () { ocultarColunaArv(c.rot); });
+      if (cols.length > 1) th.appendChild(oc);  // a última visível não se oculta
       tr1.appendChild(th);
       var sub = el('th', 'arv-mes-sub' + (c.extra ? ' arv-extra' : ''));
       sub.appendChild(el('span', 'arv-orc', 'Orçado'));
@@ -844,6 +869,7 @@
     }
     desenharCorpo();
     contagem();
+    avisoOcultasArv();
     $('orcArvoreWrap').hidden = false;
   }
 

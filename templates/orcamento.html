@@ -20,7 +20,7 @@
 {% endmacro %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='orcamento.css') }}?v=20261021e">
+<link rel="stylesheet" href="{{ url_for('static', filename='orcamento.css') }}?v=20261021f">
 
 <div class="orc-pagina" id="orcTela" data-url-dimensao="{{ url_for('orcamento.dimensao') }}" data-url-arvore="{{ url_for('orcamento.arvore') }}" data-url-painel="{{ url_for('orcamento.painel') }}"
      data-url-lancamentos="{{ url_for('orcamento.lancamentos') }}" data-url-exportar="{{ url_for('orcamento.exportar') }}">
@@ -152,6 +152,7 @@
 <div class="tabela-wrap" id="orcArvoreWrap" hidden>
   <div class="tabela-faixa">
     <h3 class="tabela-titulo" id="orcArvTitulo">Orçado x Realizado</h3>
+    <span class="orc-ocultas" id="orcArvOcultas" aria-live="polite" hidden></span>
     <span class="tabela-contagem" id="orcArvContagem"></span>
     <div class="ta-menu-wrapper">
       <button type="button" class="ta-menu-btn" id="orcArvMenuBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Ferramentas da tabela">
@@ -294,5 +295,5 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='selectbusca.js') }}?v=20261021"></script>
-<script src="{{ url_for('static', filename='orcamento_tela.js') }}?v=20261021e"></script>
+<script src="{{ url_for('static', filename='orcamento_tela.js') }}?v=20261021f"></script>
 {% endblock %}
