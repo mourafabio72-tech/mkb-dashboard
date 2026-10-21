@@ -816,7 +816,9 @@
       var porId = {};
       arv.linhas.forEach(function (l) { porId[l.id] = l; });
       linhasArvore().forEach(function (l) {
-        var tr = el('tr', 'arv-n' + l.nivel), td = el('td', 'arv-nome');
+        // a célula fica como célula de tabela (estica até a altura da linha); o flex mora num bloco dentro dela
+        var tr = el('tr', 'arv-n' + l.nivel), tdNome = el('td', 'arv-nome'), td = el('div', 'arv-nome-in');
+        tdNome.appendChild(td);
         var temFilhos = arv.linhas.some(function (x) { return x.pai === l.id; });
         if (temFilhos && l.nivel > 0) {
           var b = el('button', 'arv-abre');
@@ -834,8 +836,8 @@
           bc.addEventListener('click', function () { abrirLancamentos(l); });
           td.appendChild(bc);
         } else td.appendChild(el('span', 'arv-rotulo', (l.codigo ? l.codigo + ' · ' : '') + l.rotulo));
-        td.title = (l.codigo ? l.codigo + ' · ' : '') + l.rotulo;
-        tr.appendChild(td);
+        tdNome.title = (l.codigo ? l.codigo + ' · ' : '') + l.rotulo;
+        tr.appendChild(tdNome);
         cols.forEach(function (c) { tr.appendChild(celula(c.pega(l), c.extra, c.cmp ? c.cmp(l) : undefined)); });
         corpoArv.appendChild(tr);
       });

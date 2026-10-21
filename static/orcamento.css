@@ -349,32 +349,32 @@
 .mg-kpi.pos .val, .mg-kpi.pos .lbl, .mg-kpi.neg .val, .mg-kpi.neg .lbl { color: inherit; }
 
 /* A árvore: primeira coluna fixa, pares Orçado/Realizado por mês */
-.orc-arvore { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: 12px; }
+.orc-arvore { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: 11px; }
 .orc-arvore th, .orc-arvore td { border-bottom: 1px solid var(--border); background: var(--card); }
 .orc-arvore thead th {
-  position: sticky; top: 0; z-index: 2; padding: 8px 12px; text-align: right; white-space: nowrap;
-  font-size: 11.5px; font-weight: 700; letter-spacing: .04em; color: var(--text);
+  position: sticky; top: 0; z-index: 2; padding: 6px 6px; text-align: right; white-space: nowrap;
+  font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--text);
 }
 .orc-arvore thead th.arv-nome { text-align: left; text-transform: uppercase; color: var(--muted); }
 .orc-arvore .arv-nome {
-  position: sticky; left: 0; z-index: 1; min-width: 250px; max-width: 360px; padding: 6px 10px;
+  position: sticky; left: 0; z-index: 1; min-width: 230px; max-width: 330px; padding: 5px 8px; vertical-align: middle;
   border-right: 1px solid var(--border);
 }
 .orc-arvore thead .arv-nome { z-index: 3; }
-.arv-mes-sub span { display: inline-block; min-width: 58px; font-size: 10px; text-transform: uppercase; }
-.arv-mes-sub span + span, .arv-par span + span { margin-left: 10px; }
+.arv-mes-sub span { display: inline-block; min-width: 50px; font-size: 9.5px; text-transform: uppercase; }
+.arv-mes-sub span + span, .arv-par span + span { margin-left: 6px; }
 .orc-arvore .arv-orc { color: color-mix(in srgb, var(--warning) 30%, var(--text)); }
 .orc-arvore .arv-real { color: color-mix(in srgb, var(--accent) 45%, var(--text)); }
-.arv-cel { padding: 5px 10px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; vertical-align: top; }
-.arv-par span { display: inline-block; min-width: 58px; }
+.arv-cel { padding: 4px 6px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; vertical-align: top; }
+.arv-par span { display: inline-block; min-width: 50px; }
 .orc-arvore .arv-par .arv-real { font-weight: 600; }
 .orc-arvore thead th.arv-mes { font-size: 12px; text-transform: lowercase; }
-.orc-arvore .arv-sub-cab th { top: 33px; }
+.orc-arvore .arv-sub-cab th { top: 28px; }  /* altura da 1ª linha do cabeçalho, medida no Chrome */
 .arv-pct { font-weight: 700; }
 /* variação em pílula: fundo suave e letra forte, verde para melhor e terracota para pior (pedido de 2026-10-21) */
 .arv-var {
   margin: 3px 0 0 auto; width: fit-content; display: flex; align-items: center; gap: 5px; padding: 1px 7px;
-  border-radius: 999px; font-size: 11px; font-weight: 600;
+  border-radius: 999px; font-size: 10px; font-weight: 600;
 }
 /* o escuro é o padrão do FinHub; o claro vem por [data-theme="light"] */
 .arv-var.pos { color: color-mix(in srgb, var(--success) 70%, white); background: color-mix(in srgb, var(--success) 18%, var(--card)); }
@@ -384,9 +384,9 @@
 .arv-var.zero { color: var(--muted); }
 .orc-arvore .arv-extra { background: color-mix(in srgb, var(--accent) 6%, var(--card)); }
 .orc-arvore thead th.arv-extra { background: color-mix(in srgb, var(--accent) 10%, var(--card)); }
-.orc-arvore td.arv-nome { display: flex; align-items: center; gap: 6px; }
-.arv-rotulo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: 12px; }
-.arv-n3 .arv-rotulo { font-size: 11.5px; }
+.arv-nome-in { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 314px; }
+.arv-rotulo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: 11px; min-width: 0; }
+.arv-n3 .arv-rotulo { font-size: 10.5px; }
 .arv-n0 td { font-weight: 800; background: color-mix(in srgb, var(--accent) 16%, var(--card)); }
 .arv-n1 td { font-weight: 700; background: color-mix(in srgb, var(--accent) 8%, var(--card)); }
 .arv-n2 td.arv-nome { padding-left: 30px; }
@@ -404,6 +404,7 @@
 }
 @media (max-width: 720px) {
   .orc-arvore .arv-nome { min-width: 190px; max-width: 220px; }
+  .arv-nome-in { max-width: 204px; }
   .arv-n2 td.arv-nome { padding-left: 16px; }
   .arv-n3 td.arv-nome { padding-left: 30px; }
   .orc-ate { flex-basis: 100%; }

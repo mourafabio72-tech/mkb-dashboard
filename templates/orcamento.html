@@ -20,7 +20,7 @@
 {% endmacro %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='orcamento.css') }}?v=20261021d">
+<link rel="stylesheet" href="{{ url_for('static', filename='orcamento.css') }}?v=20261021e">
 
 <div class="orc-pagina" id="orcTela" data-url-dimensao="{{ url_for('orcamento.dimensao') }}" data-url-arvore="{{ url_for('orcamento.arvore') }}" data-url-painel="{{ url_for('orcamento.painel') }}"
      data-url-lancamentos="{{ url_for('orcamento.lancamentos') }}" data-url-exportar="{{ url_for('orcamento.exportar') }}">
@@ -294,5 +294,5 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='selectbusca.js') }}?v=20261021"></script>
-<script src="{{ url_for('static', filename='orcamento_tela.js') }}?v=20261021d"></script>
+<script src="{{ url_for('static', filename='orcamento_tela.js') }}?v=20261021e"></script>
 {% endblock %}
