@@ -101,6 +101,9 @@ balanço e validação DRE x balancete. Em produção em `dre.zoaria.com.br`, en
 | `*_parser.py`, `ingestion.py` | importação de balancete, razão, endividamento, IRPJ/CSLL |
 | `config.py` | env vars, empresas, caminhos |
 | `versao.py` | carimbo do `/health` |
+| `orcamento_parser.py` | leitor do Rel_OrcRel do Protheus (abas DADOS e CTT), por nome de coluna |
+| `orcamento_rotas.py` | blueprint do Orçamento: `/orcamento/importar` (admin), `/orcamento`, `/orcamento/dados`, `/orcamento/exportar` |
+| `orcamento_engine.py` | cálculo do Orçado x Realizado nas linhas da DRE gerencial (reusa `classificar_conta` e `_aplicar_calc_ger`) |
 | `provas/` | provas executáveis, uma por lógica não trivial |
 | `templates/`, `static/style.css` | telas (Jinja) e o tema Sage & Creme |
 
@@ -128,6 +131,13 @@ admin, sem valor padrão), `ZOARIA_SECRET_KEY`, `ZOARIA_COOKIE_DOMAIN`, `ZOARIA_
 - **Janela do mascote em texto (2026-10-14):** `/ia/conversar` (`ia_conversa.py`) manda à IA a DRE mensal, a receita por cliente e a despesa por fornecedor do escopo da sessão, com cliente e fornecedor em código neutro X01 (nunca o nome, o histórico do razão nem a NF), modelo `gpt-4.1-mini` (ou `OPENAI_MODEL`), temperatura 0. O `/ia/perguntar` e a tela `/ia` seguem como estavam. Prova: `provas/prova_ia_conversa.py`.
 - **Chave de IA:** variável de ambiente vence o arquivo no diretório do banco
   (`/data/openai_key.txt`, `/data/nvidia_key.txt`). A chave nunca volta ao navegador nem ao log.
+- **Orçamento (Orçado x Realizado, 2026-10-20):** tabelas `orcamento`, `orcamento_lotes` e `centros_custo`
+  no `schema.sql`. Orçado e realizado casam por mês + conta + centro, com a conta sem espaço e o **centro sem
+  ponto** (`01.02.069.11` no razão é `010206911` no orçamento). Realizado sai da `razao` (contas 3 e 4), nunca
+  da `v_lancamentos`; mês sem razão sai marcado, não zerado. Consolidado elimina só a equivalência patrimonial
+  (`CONTAS_EP`), igual à DRE. A Gnileb não tem orçamento e o razão dela não tem centro de custo. Importar
+  substitui o ano daquela empresa. Provas: `prova_orcamento_leitor`, `_importar`, `_calculo`, `_tela`; dado
+  real: `provas/conferir_orcamento_real.py` (caminhos por argumento, banco temporário).
 - **Isolamento por empresa:** toda rota com `<empresa>` ou `?empresa=` passa por
   `_guard_empresa`. Código novo que recebe empresa valida contra `empresas_permitidas()`.
 

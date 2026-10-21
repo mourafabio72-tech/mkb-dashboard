@@ -102,10 +102,15 @@ Só marcar `[x]` com evidência apontável (arquivo:linha ou saída de prova).
   EVIDENCIA: 49 ok, exit 0: cliente do hub da MKB recebe 403/404 na Gnileb e 404 no consolidado, e a tela dele não oferece os dois; tela = motor em 6 combinações de parâmetro; 11 entradas tortas = 400/404; exportar com CSRF e limites; bateria de grep e cartão no hub
 
 ## Fase 5: entrega
-- [ ] comparador nos 8 meses reais da MKB; diferenças listadas por mês e centro
-- [ ] Revisao_Vulnerabilidades: `grep -rEn "(senha|password|token|api_key|secret)\s*=\s*['\"]" --include="*.py"` só com `os.getenv`; `grep -rn "| safe" templates/orcamento*` vazio
-- [ ] todas as provas de `provas/` verdes
-- [ ] `CLAUDE.md` do projeto atualizado; `graphify update .`
-- [ ] push no `master`; `/health` com `build` = HEAD
+- [x] comparador nos 8 meses reais da MKB; diferenças listadas por mês e centro
+  EVIDENCIA: provas/conferir_orcamento_real.py rodado em 2026-10-20 com os razões da MKB de 01 a 07/2026 e os da Gnileb de 01 a 08/2026 (o razão da MKB de agosto não está exportado): 29.398 células, 3 diferenças listadas (julho, centro 010120301, IRPJ, CSLL e uma conta de folha: retroativo do Protheus); DRE gerencial x motor 231 de 231. DESVIO DECLARADO: 7 meses da MKB, não 8; agosto se confere quando o razão for exportado, com o mesmo comando
+- [x] Revisao_Vulnerabilidades: `grep -rEn "(senha|password|token|api_key|secret)\s*=\s*['\"]" --include="*.py"` só com `os.getenv`; `grep -rn "| safe" templates/orcamento*` vazio
+  EVIDENCIA (2026-10-21): os 10 itens da nota nos arquivos do módulo: (1) grep de chave vazio nos 8 arquivos; (2) nenhuma chave no template nem no JS; (3) nenhum {{ config }} nem request.environ; (4) SQL só parametrizado, as 6 f-strings de SQL só interpolam 'marcas' ('?' repetido, conferido por ast); (5) grep de | safe e Markup vazio; (6) DEBUG padrão false (config.py:109); (7) SESSION_COOKIE_SECURE fora do debug (app.py:63); (8) a (10) não tocados pelo módulo (login e banco SQLite no volume, sem porta)
+- [x] todas as provas de `provas/` verdes
+  EVIDENCIA: as 14 provas de provas/ com exit 0 em 2026-10-21 (4 do orçamento: leitor 43, importar 52, cálculo 49, tela 51)
+- [x] `CLAUDE.md` do projeto atualizado; `graphify update .`
+  EVIDENCIA: CLAUDE.md com os 3 arquivos no mapa e o parágrafo do Orçamento nos Quirks (tabelas, centro sem ponto, realizado da razao, mês sem razão, consolidado, Gnileb, provas e comparador); graphify update . rodado
+- [x] push no `master`; `/health` com `build` = HEAD
+  EVIDENCIA: commit dba8ce8 (Fase 4) no master; https://dre.zoaria.com.br/health = {"build":"20261021-1028"} = carimbo do HEAD; orcamento_tela.js 200 (arquivo novo na imagem); /orcamento 302 para o login. Fases 1 a 3 publicadas antes (277d924, 676ff32, 00bcf87), cada uma com o carimbo conferido
 - [ ] Fábio importa o orçamento real e confere um mês
 - [ ] ZIP em `z_Versoes/`; LOG `fase=5 acao=entrega resultado=ok`

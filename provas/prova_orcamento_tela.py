@@ -162,7 +162,8 @@ confere(not re.search(r"Carregando\.\.\.|Aguarde\.\.\.|Processando\.\.\.", tpl +
 confere("toISOString" not in js, "tela: data local, sem toISOString")
 sessao(ADMIN)
 inicio = cli.get("/").get_data(as_text=True)
-confere("/orcamento?competencia=" in inicio and "Orçado x Realizado" in inicio, "tela: cartão no hub do dashboard")
+confere("/orcamento?competencia=" in inicio and ("Orçado x Realizado" in inicio or "<span>Orçamento</span>" in inicio),
+        "tela: cartão no hub do dashboard (grande ou na faixa compacta)")
 
 print()
 print(f"{len(falhas)} falha(s)" if falhas else "prova_orcamento_tela: tudo ok")
