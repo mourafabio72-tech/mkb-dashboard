@@ -25,6 +25,7 @@ MODOS = ("mes", "acumulado")
 DIMENSOES = {"linha": "Linha da DRE", "servico": "Serviço", "coordenador": "Coordenador",
              "filial": "Filial", "centro": "Centro de custo"}
 FILTROS = ("servico", "coordenador", "filial", "centro")
+FILTROS_CONTA = ("conta", "descricao")  # conta: código ou o começo dele; descrição: contém, sem acento
 SEM_CENTRO = "Sem centro de custo"
 SEM_VALOR = "Não informado"
 SEM_LINHA = ("SEM_LINHA", "Sem linha na DRE")
@@ -60,7 +61,7 @@ def _validar(empresa, ano, mes, modo, abrir_por, filtros, linha):
     if linha is not None and linha not in IDS_LINHA:
         raise ValueError("Linha da DRE inválida.")
     for chave, valores in (filtros or {}).items():
-        if chave not in FILTROS or not isinstance(valores, (list, tuple, set)):
+        if chave not in FILTROS + FILTROS_CONTA or not isinstance(valores, (list, tuple, set)):
             raise ValueError("Filtro inválido.")
         if any(not isinstance(v, str) or len(v) > 120 for v in valores):
             raise ValueError("Filtro inválido.")
@@ -88,9 +89,24 @@ def _rotulo(dim, centro, cad):
     return (info or {}).get(dim) or SEM_VALOR
 
 
+def _sem_acento(texto) -> str:
+    import unicodedata
+    return unicodedata.normalize("NFD", str(texto or "")).encode("ascii", "ignore").decode().lower()
+
+
+def _passa_conta(filtros, conta, descr) -> bool:
+    for valor in (filtros or {}).get("conta") or []:
+        if not conta.startswith(valor.strip()):
+            return False
+    for valor in (filtros or {}).get("descricao") or []:
+        if _sem_acento(valor).strip() not in _sem_acento(descr.get(conta, "")):
+            return False
+    return True
+
+
 def _passa(filtros, centro, cad):
     for chave, valores in (filtros or {}).items():
-        if not valores:
+        if not valores or chave in FILTROS_CONTA:
             continue
         valor = centro if chave == "centro" else ((cad.get(centro) or {}).get(chave) or (SEM_VALOR if centro else SEM_CENTRO))
         if (valor or SEM_CENTRO) not in valores:
@@ -138,6 +154,15 @@ def _lancamentos(conn, per, eliminado: list):
             yield indice, eid, comp, conta, centro, round(valor or 0.0, 2)  # em centavos: árvore e cálculo somam igual
 
 
+def _filtradas(conn, per, filtros, eliminado):
+    """_lancamentos com os filtros de conta e de descrição aplicados (a descrição vem da tabela contas)."""
+    linhas = list(_lancamentos(conn, per, eliminado))
+    if not (filtros or {}).get("conta") and not (filtros or {}).get("descricao"):
+        return linhas
+    descr = _descricoes(conn, per["ids"], {l[3] for l in linhas}) if (filtros or {}).get("descricao") else {}
+    return [l for l in linhas if _passa_conta(filtros, l[3], descr)]
+
+
 def _meta(conn, empresa, ano, per, eliminado):
     marcas = per["marcas"]
     return dict(
@@ -161,7 +186,7 @@ def calcular(conn, empresa: str, ano: int, mes: int, modo: str = "mes", abrir_po
     valores = defaultdict(lambda: [0.0, 0.0])  # (chave de abertura, linha da DRE) -> [orçado, realizado]
     eliminado = [0.0]
     cache_linha = {}
-    for indice, _eid, _comp, conta, centro, valor in _lancamentos(conn, per, eliminado):
+    for indice, _eid, _comp, conta, centro, valor in _filtradas(conn, per, filtros, eliminado):
         lid = cache_linha.get(conta)
         if lid is None:
             lid = cache_linha[conta] = linha_da_conta(conta)
@@ -310,7 +335,7 @@ def arvore(conn, empresa: str, ano: int, mes_ini: int, mes_fim: int, filtros: di
     vazio = lambda: [[0.0, 0.0] for _ in meses]  # noqa: E731
     por_conta = defaultdict(vazio)
     eliminado = [0.0]
-    for indice, _eid, comp, conta, centro, valor in _lancamentos(conn, per, eliminado):
+    for indice, _eid, comp, conta, centro, valor in _filtradas(conn, per, filtros, eliminado):
         if _passa(filtros, centro, cad):
             por_conta[conta][pos[comp]][indice] += valor
 
@@ -363,3 +388,100 @@ def arvore(conn, empresa: str, ano: int, mes_ini: int, mes_fim: int, filtros: di
                 linhas=[total] + linhas, total=total,
                 realizado_ate=_ultimo_dia(ultimo[-1]) if ultimo else None,
                 **_meta(conn, empresa, ano, per, eliminado))
+
+
+# ─── Fase 7: abertura por dimensão (Receita, Custo e Despesa, MC) e lançamentos ─
+
+CUSTO_DESPESA = tuple(g for g in _GER_GRUPOS_DIRETOS if g.startswith(("CPV_", "DADM_")))
+MAX_LANCAMENTOS = 3000
+
+
+def por_dimensao(conn, empresa: str, ano: int, mes_ini: int, mes_fim: int, abrir_por: str,
+                 filtros: dict | None = None) -> dict:
+    """Uma linha por valor da dimensão com Receita (ROB + deduções), Custo e Despesa (custos e despesas
+    operacionais) e MC = Receita + Custo e Despesa (D8), em orçado e realizado. Financeiro, outros, IRPJ e
+    contas sem linha ficam fora da MC. Com mês sem razão no período, o orçado considera só os meses com
+    razão, para a comparação ser do mesmo período (o aviso diz quais meses saíram)."""
+    if abrir_por not in DIMENSOES or abrir_por == "linha":
+        raise ValueError("Abertura inválida.")
+    for v in (mes_ini, mes_fim):
+        if isinstance(v, bool) or not isinstance(v, int) or not 1 <= v <= 12:
+            raise ValueError("Mês inválido.")
+    if mes_ini > mes_fim:
+        raise ValueError("O mês inicial vem depois do final.")
+    _validar(empresa, ano, mes_fim, "mes", abrir_por, filtros, None)
+    per = _periodo(conn, empresa, ano, mes_ini, mes_fim)
+    cad = _centros(conn, per["ids"])
+    meses_sem = {c for c in per["meses"] if any(c in f for f in per["sem_razao"].values())}
+    com_razao = [c for c in per["meses"] if c not in meses_sem]
+    considera = set(com_razao) or set(per["meses"])
+    linhas = defaultdict(lambda: {"receita": [0.0, 0.0], "cd": [0.0, 0.0]})
+    chaves = {}  # rótulo -> valor cru do filtro, para o drilldown (no centro, o rótulo traz a descrição)
+    eliminado = [0.0]
+    cache = {}
+    for indice, _eid, comp, conta, centro, valor in _filtradas(conn, per, filtros, eliminado):
+        if comp not in considera or not _passa(filtros, centro, cad):
+            continue
+        lid = cache.get(conta)
+        if lid is None:
+            lid = cache[conta] = linha_da_conta(conta)
+        grupo = "receita" if lid in ("ROB", "DED") else ("cd" if lid in CUSTO_DESPESA else None)
+        if grupo:
+            rot = _rotulo(abrir_por, centro, cad)
+            linhas[rot][grupo][indice] += valor
+            chaves.setdefault(rot, (centro or SEM_CENTRO) if abrir_por == "centro" else rot)
+
+    def linha(rotulo, v):
+        rec, cd = [round(x, 2) for x in v["receita"]], [round(x, 2) for x in v["cd"]]
+        mc = [round(rec[i] + cd[i], 2) for i in (0, 1)]
+        if not com_razao:  # nenhum mês com razão: o realizado é sem dado, não zero
+            rec[1] = cd[1] = mc[1] = None
+        return dict(rotulo=rotulo, chave=chaves.get(rotulo), receita=rec, custo_despesa=cd, mc=mc,
+                    mc_pct=[round(mc[i] / rec[i] * 100, 1) if rec[i] and mc[i] is not None else None for i in (0, 1)],
+                    variacao=round(mc[1] - mc[0], 2) if com_razao else None)
+
+    saida = [linha(r, v) for r, v in linhas.items() if any(v["receita"] + v["cd"])]
+    saida.sort(key=lambda l: (l["rotulo"] in (SEM_CENTRO, SEM_VALOR), -abs(l["mc"][0]) - abs(l["mc"][1] or 0)))
+    tot = {"receita": [sum(v["receita"][i] for v in linhas.values()) for i in (0, 1)],
+           "cd": [sum(v["cd"][i] for v in linhas.values()) for i in (0, 1)]}
+    return dict(empresa=empresa, ano=ano, mes_ini=mes_ini, mes_fim=mes_fim, abrir_por=abrir_por,
+                dimensao=DIMENSOES[abrir_por], linhas=saida, total=linha("Total", tot),
+                meses_considerados=sorted(considera), competencias=per["meses"],
+                **_meta(conn, empresa, ano, per, eliminado))
+
+
+def lancamentos(conn, empresa: str, ano: int, mes_ini: int, mes_fim: int, conta: str,
+                filtros: dict | None = None) -> dict:
+    """Lançamentos do razão de uma conta no período, com os filtros de centro; soma = realizado da conta."""
+    if not isinstance(conta, str) or not conta.strip().startswith(("3", "4")) or len(conta) > 40:
+        raise ValueError("Conta inválida.")
+    conta = conta.strip()
+    for v in (mes_ini, mes_fim):
+        if isinstance(v, bool) or not isinstance(v, int) or not 1 <= v <= 12:
+            raise ValueError("Mês inválido.")
+    if mes_ini > mes_fim:
+        raise ValueError("O mês inicial vem depois do final.")
+    _validar(empresa, ano, mes_fim, "mes", "linha", filtros, None)
+    per = _periodo(conn, empresa, ano, mes_ini, mes_fim)
+    cad = _centros(conn, per["ids"])
+    gnileb_id = EMPRESAS["gnileb"]["id"]
+    marcas = per["marcas"]
+    linhas, total, n = [], 0.0, 0
+    for eid, data, doc, hist, centro, valor in conn.execute(
+            f"""SELECT empresa_id, data_lanc, documento, historico, replace(trim(COALESCE(centro_custo, '')), '.', ''), valor
+                FROM razao WHERE empresa_id IN ({marcas}) AND competencia BETWEEN ? AND ? AND trim(conta_cod) = ?
+                ORDER BY data_lanc, id""", (*per["ids"], per["meses"][0], per["meses"][-1], conta)):
+        if per["consolidado"] and eid == gnileb_id and conta in CONTAS_EP:
+            continue
+        if not _passa(filtros, centro or "", cad):
+            continue
+        total += valor or 0.0
+        n += 1
+        if len(linhas) < MAX_LANCAMENTOS:
+            linhas.append(dict(empresa=EMPRESAS[next(k for k in EMPRESAS if EMPRESAS[k]["id"] == eid)]["sigla"],
+                               data=data, documento=(doc or "")[:40], historico=" ".join(str(hist or "").split())[:200],
+                               centro=centro or "", valor=round(valor or 0.0, 2)))
+    descr = _descricoes(conn, per["ids"], {conta}).get(conta, conta)
+    return dict(conta=conta, descricao=descr, linhas=linhas, total=round(total, 2), quantidade=n,
+                cortado=n > len(linhas), limite=MAX_LANCAMENTOS)
+

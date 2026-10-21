@@ -164,6 +164,55 @@ for k in ((3, 1), (0, 2), (1, 13), (True, 2)):
     except ValueError:
         confere(True, f"árvore: meses {k} recusados")
 
+# 5c. Fase 7: abertura por dimensão com Receita, Custo e Despesa e MC (D8), filtros de conta e lançamentos
+dim = oe.por_dimensao(conn, "mkb", 2026, 1, 1, "servico")
+porrot = {l["rotulo"]: l for l in dim["linhas"]}
+confere(porrot["ASSESSORIA"]["receita"] == [900, 990] and porrot["ASSESSORIA"]["mc"] == [900, 990], "dimensão: ASSESSORIA receita líquida 900 x 990")
+confere(porrot["FACILITIES"]["custo_despesa"] == [-400, -380] and porrot["FACILITIES"]["mc"] == [100, -380],
+        "dimensão: FACILITIES MC = 500 - 400 e 0 - 380 (conta sem linha fora da MC)")
+confere(all(l["mc"] == [round(l["receita"][i] + l["custo_despesa"][i], 2) for i in (0, 1)] for l in dim["linhas"] + [dim["total"]]),
+        "dimensão: MC = Receita + Custo e Despesa em toda linha")
+confere(dim["total"]["mc"] == [1000, 640] and dim["total"]["variacao"] == -360 and dim["total"]["mc_pct"] == [71.4, 62.7],
+        "dimensão: total MC 1000 x 640, variação -360, MC % sobre a receita líquida")
+for d in ("coordenador", "filial", "centro"):
+    confere(oe.por_dimensao(conn, "mkb", 2026, 1, 1, d)["total"]["mc"] == [1000, 640], f"dimensão: por {d} soma a mesma MC")
+for d in ("servico", "coordenador", "filial", "centro"):  # drilldown: a chave da linha, como filtro, isola a linha
+    for l in oe.por_dimensao(conn, "mkb", 2026, 1, 1, d)["linhas"]:
+        sozinha = oe.por_dimensao(conn, "mkb", 2026, 1, 1, d, {d: [l["chave"]]})
+        confere(len(sozinha["linhas"]) == 1 and sozinha["total"]["mc"] == l["mc"],
+                f"drilldown: {d} = {l['chave']!r} isola a linha e a MC dela")
+tri = oe.por_dimensao(conn, "mkb", 2026, 1, 3, "centro")
+confere(tri["meses_considerados"] == ["2026-01", "2026-02"] and tri["total"]["mc"][0] == 1800,
+        "dimensão: com março sem razão, o orçado considera só jan e fev")
+confere(oe.por_dimensao(conn, "mkb", 2026, 3, 3, "centro")["total"]["mc"][1] is None, "dimensão: período sem razão = realizado sem dado")
+confere(oe.por_dimensao(conn, "consolidado", 2026, 1, 1, "centro")["total"]["mc"] == [1000, 940],
+        "dimensão: consolidado soma a receita da Gnileb (300) e não a equivalência")
+filtro_conta = oe.arvore(conn, "mkb", 2026, 1, 1, {"conta": ["3."]})
+confere(filtro_conta["total"]["acumulado"] == [1400, 1020], "filtro de conta: começo '3.' fica só com a receita")
+filtro_desc = oe.arvore(conn, "mkb", 2026, 1, 1, {"descricao": ["servicos"]})
+confere(filtro_desc["total"]["acumulado"] == [1500, 1130], "filtro de descrição: 'servicos' acha RECEITA - SERVICOS, sem acento e sem caixa")
+confere(oe.por_dimensao(conn, "mkb", 2026, 1, 1, "centro", {"conta": ["4."]})["total"]["mc"] == [-400, -380], "filtro de conta vale na abertura")
+lanc = oe.lancamentos(conn, "mkb", 2026, 1, 2, ROB)
+confere(lanc["total"] == 2130 and lanc["quantidade"] == 3 and lanc["descricao"] == "RECEITA - SERVICOS",
+        "lançamentos: ROB em jan e fev somam o realizado (1100 + 30 + 1000)")
+confere(oe.lancamentos(conn, "mkb", 2026, 1, 1, ROB, {"servico": ["ASSESSORIA"]})["total"] == 1100, "lançamentos: filtro de serviço")
+confere(oe.lancamentos(conn, "consolidado", 2026, 1, 1, EP)["quantidade"] == 0, "lançamentos: equivalência fora no consolidado")
+confere(oe.lancamentos(conn, "gnileb", 2026, 1, 1, EP)["total"] == 200, "lançamentos: equivalência aparece na Gnileb sozinha")
+for k in (dict(conta=""), dict(conta="x" * 41), dict(mes_ini=2, mes_fim=1)):
+    base = dict(empresa="mkb", ano=2026, mes_ini=1, mes_fim=1, conta=ROB); base.update(k)
+    try:
+        oe.lancamentos(conn, **base)
+        confere(False, f"lançamentos: {k} devia recusar")
+    except ValueError:
+        confere(True, f"lançamentos: {k} recusado")
+for k in (dict(abrir_por="linha"), dict(abrir_por="conta"), dict(filtros={"conta": "3"})):
+    base = dict(empresa="mkb", ano=2026, mes_ini=1, mes_fim=1, abrir_por="centro"); base.update(k)
+    try:
+        oe.por_dimensao(conn, **base)
+        confere(False, f"dimensão: {k} devia recusar")
+    except ValueError:
+        confere(True, f"dimensão: {k} recusado")
+
 # 5b. furos achados pelo verificador (2026-10-20), em base própria de abril e maio
 conn.executemany("INSERT INTO orcamento (empresa_id, competencia, conta_cod, centro_custo, valor, lote_id) VALUES (1,?,?,?,?,1)", [
     ("2026-04", ROB, C1, 0.3), ("2026-04", DED, C1, -0.1), ("2026-04", DED, C1 + " ", -0.2),   # ROL = resíduo de 5e-17
@@ -192,7 +241,7 @@ for k in (dict(filtros=[1]), dict(filtros="abc"), dict(empresa=["mkb"]), dict(ab
 
 # 6. entrada inválida
 for k in (dict(empresa="xyz"), dict(ano=1999), dict(ano="2026"), dict(mes=13), dict(mes=True), dict(modo="ano"),
-          dict(abrir_por="conta"), dict(linha="DROP"), dict(filtros={"conta": ["x"]}), dict(filtros={"servico": "A"}),
+          dict(abrir_por="conta"), dict(linha="DROP"), dict(filtros={"cnpj": ["x"]}), dict(filtros={"servico": "A"}),
           dict(filtros={"servico": [1]})):
     try:
         calc(**k)
@@ -214,6 +263,38 @@ atribuicoes = [ast.unparse(n.value) for n in ast.walk(arvore) if isinstance(n, a
                and any(isinstance(a, ast.Name) and a.id == "marcas" for a in n.targets)]
 confere(atribuicoes.count("','.join('?' * len(ids))") == 1 and set(atribuicoes) <= {"','.join('?' * len(ids))", "per['marcas']", "','.join('?' * len(lote))"},
         "sql: marcas só nasce de '?' repetido pelo número de empresas (em _periodo, e repassado por per['marcas'])")
+
+# 5d. furos do verificador de ataque da Fase 7 (2026-10-21): junho próprio, sem mexer nos meses de cima
+DADM = "4.4.1.01.01.001"
+conn.execute("INSERT INTO contas (cod, empresa_id, descricao) VALUES (?, 1, 'PRÓ-LABORE ADMINISTRAÇÃO')", (DADM,))
+conn.executemany("INSERT INTO orcamento (empresa_id, competencia, conta_cod, centro_custo, valor, lote_id) VALUES (1,?,?,?,?,1)",
+                 [("2026-06", ROB, C1, 100), ("2026-06", DADM, C1, -30)])
+conn.executemany("INSERT INTO razao (empresa_id, competencia, data_lanc, conta_cod, documento, centro_custo, valor) VALUES (1,?,?,?,?,?,?)",
+                 [("2026-06", "2026-06-10", ROB, "J1", C1, 120), ("2026-06", "2026-06-10", DADM, "J2", C1, -40)])
+conn.commit()
+jun = {l["rotulo"]: l for l in oe.por_dimensao(conn, "mkb", 2026, 6, 6, "servico")["linhas"]}
+confere(jun["ASSESSORIA"]["custo_despesa"] == [-30, -40] and jun["ASSESSORIA"]["mc"] == [70, 80],
+        "dimensão: despesa administrativa (DADM_) entra em Custo e despesa")
+confere(oe.arvore(conn, "mkb", 2026, 6, 6, {"descricao": ["administracao"]})["total"]["acumulado"] == [-30, -40],
+        "filtro de descrição: 'administracao' acha 'PRÓ-LABORE ADMINISTRAÇÃO' (tira o acento dos dois lados)")
+confere(oe.arvore(conn, "mkb", 2026, 6, 6, {"conta": ["1.01"]})["total"]["acumulado"] == [0, 0],
+        "filtro de conta: '1.01' é começo do código, não pedaço do meio")
+confere(linha(calc(filtros={"conta": ["4."]}), "ROB")["realizado"] == 0 and linha(calc(), "ROB")["realizado"] != 0,
+        "filtro de conta vale também no calcular")
+teto = oe.MAX_LANCAMENTOS
+oe.MAX_LANCAMENTOS = 1
+try:
+    corte = oe.lancamentos(conn, "mkb", 2026, 1, 2, ROB)
+finally:
+    oe.MAX_LANCAMENTOS = teto
+confere(len(corte["linhas"]) == 1 and corte["cortado"] and corte["quantidade"] == 3 and corte["total"] == 2130,
+        "lançamentos: acima do teto corta as linhas, avisa e o total soma todas")
+for conta in ("1.1.1", "2.1"):
+    try:
+        oe.lancamentos(conn, "mkb", 2026, 1, 1, conta)
+        confere(False, f"lançamentos: conta {conta} fora do resultado devia recusar")
+    except ValueError:
+        confere(True, f"lançamentos: conta {conta} fora do resultado recusada")
 
 conn.close()
 print()

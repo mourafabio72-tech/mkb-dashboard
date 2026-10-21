@@ -41,6 +41,7 @@ def main():
     ap.add_argument("--empresa", default="mkb", choices=sorted(EMPRESAS))
     ap.add_argument("--razao", nargs="+", required=True)
     ap.add_argument("--razao-gnileb", nargs="*", default=[])
+    ap.add_argument("--fase7", action="store_true", help="grava o orçado e confere a abertura por dimensão e os lançamentos")
     a = ap.parse_args()
 
     conn = get_conn()
@@ -102,7 +103,66 @@ def main():
         conn.close()
         print(f"DRE gerencial x motor do orçamento: {n} células, {dif} diferenças")
         falhou = falhou or bool(dif)
+    if a.fase7:
+        falhou = conferir_fase7(a, sorted(meses_razao)) or falhou
     return 1 if falhou else 0
+
+
+def conferir_fase7(a, meses):
+    """Com o orçado gravado: as quatro aberturas somam a mesma MC; a soma das linhas = total; a chave de cada
+    linha, como filtro, isola a linha; os lançamentos de cada conta somam o realizado dela na árvore."""
+    import orcamento_engine as oe
+    lido = op.ler_orcamento(a.orcrel, a.ano)
+    eid = EMPRESAS[a.empresa]["id"]
+    conn = get_conn()
+    lote = conn.execute("INSERT INTO orcamento_lotes (empresa_id, ano, usuario, arquivo, linhas, total) VALUES (?, ?, 'conferir', 'real', ?, 0)",
+                        (eid, a.ano, len(lido["orcado"]))).lastrowid
+    conn.executemany("INSERT INTO orcamento (empresa_id, competencia, conta_cod, centro_custo, valor, lote_id) VALUES (?, ?, ?, ?, ?, ?)",
+                     [(eid, c, conta, centro, round(v, 2), lote) for (c, conta, centro), v in lido["orcado"].items()])
+    conn.executemany("INSERT INTO centros_custo (empresa_id, codigo, descricao, servico, coordenador, filial, tipo) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                     [(eid, k, c["descricao"], c["servico"], c["coordenador"], c["filial"], c["tipo"]) for k, c in lido["centros"].items()])
+    conn.commit()
+    ultimo = int(meses[-1][5:])
+    periodos = [(m, m) for m in range(1, ultimo + 1)] + [(1, ultimo)]
+    checagens, erros = 0, 0
+
+    def confere(cond, msg):
+        nonlocal checagens, erros
+        checagens += 1
+        if not cond:
+            erros += 1
+            print("  FASE 7:", msg)
+
+    for de, ate in periodos:
+        totais = {}
+        for d in ("servico", "coordenador", "filial", "centro"):
+            r = oe.por_dimensao(conn, a.empresa, a.ano, de, ate, d)
+            totais[d] = r["total"]["mc"]
+            soma = [round(sum(l["mc"][i] or 0 for l in r["linhas"]), 2) for i in (0, 1)]
+            confere(all(abs(soma[i] - (r["total"]["mc"][i] or 0)) <= TOL * max(1, len(r["linhas"])) for i in (0, 1)),
+                    f"{de}-{ate} {d}: soma das linhas {soma} x total {r['total']['mc']}")
+            if d == "servico":
+                for l in r["linhas"]:
+                    so = oe.por_dimensao(conn, a.empresa, a.ano, de, ate, d, {d: [l["chave"]]})["total"]["mc"]
+                    confere(all(abs((so[i] or 0) - (l["mc"][i] or 0)) <= TOL for i in (0, 1)), f"{de}-{ate} {d} {l['chave']}: filtro {so} x linha {l['mc']}")
+        base = totais["servico"]
+        confere(all(all(abs((t[i] or 0) - (base[i] or 0)) <= 0.05 for i in (0, 1)) for t in totais.values()),
+                f"{de}-{ate}: MC difere entre as aberturas {totais}")
+    arv = oe.arvore(conn, a.empresa, a.ano, 1, ultimo)
+    contas = sorted((l for l in arv["linhas"] if l["nivel"] == 3), key=lambda l: -abs(l["acumulado"][1] or 0))[:40]
+    for l in contas:
+        lc = oe.lancamentos(conn, a.empresa, a.ano, 1, ultimo, l["codigo"])
+        confere(abs(lc["total"] - (l["acumulado"][1] or 0)) <= TOL, f"lançamentos {l['codigo']}: {lc['total']} x árvore {l['acumulado'][1]}")
+    import time
+    for nome, fn in (("abertura por centro, jan a " + meses[-1][5:], lambda: oe.por_dimensao(conn, a.empresa, a.ano, 1, ultimo, "centro")),
+                     ("árvore, jan a " + meses[-1][5:], lambda: oe.arvore(conn, a.empresa, a.ano, 1, ultimo)),
+                     ("lançamentos da maior conta", lambda: oe.lancamentos(conn, a.empresa, a.ano, 1, ultimo, contas[0]["codigo"]))):
+        t0 = time.perf_counter()
+        fn()
+        print(f"  tempo: {nome}: {time.perf_counter() - t0:.2f} s")
+    conn.close()
+    print(f"Fase 7 com dado real: {checagens} checagens, {erros} diferenças ({len(periodos)} períodos, {len(contas)} contas nos lançamentos)")
+    return bool(erros)
 
 
 if __name__ == "__main__":

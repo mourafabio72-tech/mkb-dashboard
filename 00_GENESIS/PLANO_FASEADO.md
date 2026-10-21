@@ -148,7 +148,7 @@ Aprovado pelo Fábio em 2026-10-21 ("aprovado tudo"), com as três definições 
 
 ## Fase 7: Abertura por dimensão no formato do print, painel de filtros e drilldown
 
-- **Status:** pending
+- **Status:** done
 - **Duração estimada:** 6h
 - **O que entra:** Serviço, Coordenador, Filial e Centro de custo com as colunas Receita, Custo e Despesa, MC, MC %
   (Orçado e Realizado em cada) e Variação de MC (realizado menos orçado), sem a coluna Resultado. Botão Filtro abre

@@ -1,8 +1,9 @@
-/* Orçado x Realizado (Fases 4 e 6). Linhas da DRE: /orcamento/arvore, em árvore e por mês.
-   Outras aberturas: /orcamento/dados, que desenha indicadores, avisos e a
-   tabela com o menu sanduíche (Padrao_Tabela): Filtro por coluna, Ordenar, Colunas, Exportar CSV,
-   Exportar Excel. A tabela vem inteira (algumas centenas de linhas no máximo), então filtro,
-   ordem e exportação rodam no navegador e só sobre o que está visível. Texto só por textContent. */
+/* Orçado x Realizado (Fases 4, 6 e 7). Linhas da DRE: /orcamento/arvore, em árvore e por mês, e a conta
+   analítica abre os lançamentos do razão num modal (/orcamento/lancamentos). Serviço, coordenador, filial
+   e centro: /orcamento/dimensao, com Receita, Custo e despesa, MC e MC % (orçado e realizado) e a variação
+   da MC, numa tabela com o menu sanduíche (Padrao_Tabela); clicar numa linha abre a DRE só dela. O botão
+   Filtro abre o painel lateral com o período e os filtros, que valem para todas as aberturas.
+   Filtro, ordem e exportação da tabela rodam no navegador, sobre o que está visível. Texto só por textContent. */
 (function () {
   var tela = document.getElementById('orcTela');
   if (!tela) return;
@@ -10,18 +11,23 @@
   var reais = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
   var pctFmt = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   var COLUNAS = [
-    { chave: 'rotulo', titulo: 'Linha da DRE', num: false },
-    { chave: 'orcado', titulo: 'Orçado', num: true },
-    { chave: 'realizado', titulo: 'Realizado', num: true },
-    { chave: 'variacao', titulo: 'Variação', num: true },
-    { chave: 'pct', titulo: '% realizado', num: true }
+    { chave: 'rotulo', titulo: 'Serviço', num: false },
+    { chave: 'rec_o', grupo: 'Receita', titulo: 'Orçado', num: true },
+    { chave: 'rec_r', grupo: 'Receita', titulo: 'Realizado', num: true },
+    { chave: 'cd_o', grupo: 'Custo e despesa', titulo: 'Orçado', num: true },
+    { chave: 'cd_r', grupo: 'Custo e despesa', titulo: 'Realizado', num: true },
+    { chave: 'mc_o', grupo: 'MC', titulo: 'Orçado', num: true },
+    { chave: 'mc_r', grupo: 'MC', titulo: 'Realizado', num: true },
+    { chave: 'mcp_o', grupo: 'MC %', titulo: 'Orçado', num: true, pct: true },
+    { chave: 'mcp_r', grupo: 'MC %', titulo: 'Realizado', num: true, pct: true },
+    { chave: 'variacao', titulo: 'Variação da MC', num: true }
   ];
-  var PREF = 'orcamento_tabela';
+  var PREF = 'orcamento_dimensao';
   // escada: colunas escondidas guardadas no navegador (localStorage); o FinHub não tem tabela de
   // preferência por usuário. Subir para o banco quando outra tela do FinHub precisar de preferência.
   var escondidas = lerPref();
-  var linhas = [], ordem = null, ocupado = false, estado = { modo: 'evolucao', abrir: 'linha' };
-  var arv = null, abertos = {}, filtroArv = '';
+  var linhas = [], totalDim = null, ordem = null, ocupado = false, estado = { modo: 'evolucao', abrir: 'linha' };
+  var arv = null, abertos = {}, filtroArv = '', consultado = null;  // parâmetros da última consulta
 
   function el(tag, classe, texto) {
     var n = document.createElement(tag);
@@ -29,20 +35,30 @@
     if (texto !== undefined && texto !== null) n.textContent = texto;
     return n;
   }
-  function semAcento(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+  function semAcento(t) { return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
   function lerPref() { try { return JSON.parse(localStorage.getItem(PREF) || '[]'); } catch (e) { return []; } }
   function gravarPref() { try { localStorage.setItem(PREF, JSON.stringify(escondidas)); } catch (e) { /* sem armazenamento */ } }
   function hoje() {
     var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
   }
+  function nome(c) { return c.grupo ? c.grupo + ' ' + c.titulo.toLowerCase() : c.titulo; }
   function texto(col, l) {
-    if (col.chave === 'rotulo') return l.rotulo;
-    if (col.chave === 'pct') return l.pct === null ? 'sem orçado' : pctFmt.format(l.pct) + '%';
-    return 'R$ ' + num(l[col.chave]) + (fmtPref.mil ? ' mil' : '');  // segue o ÷ 1.000 e os centavos da faixa de opções
+    var v = l[col.chave];
+    if (col.chave === 'rotulo') return v;
+    if (v === null || v === undefined) return col.pct && l.mc_r !== null ? 'sem receita' : 'sem dado';
+    if (col.pct) return pctFmt.format(v) + '%';
+    // sinal antes do R$, como nos cards; segue o ÷ 1.000 e os centavos da faixa de opções
+    return (num(v).charAt(0) === '-' ? '-R$ ' + num(v).slice(1) : 'R$ ' + num(v)) + (fmtPref.mil ? ' mil' : '');
   }
 
   /* ── seletores tipo 1 e tipo 2 (Padrao_Toggle_Tipos) ── */
+  function marcar(id, valor) {
+    $(id).querySelectorAll('button').forEach(function (x) {
+      x.classList.toggle('on', x.dataset.valor === valor);
+      x.setAttribute('aria-checked', x.dataset.valor === valor ? 'true' : 'false');
+    });
+  }
   function grupo(id, chave, aoMudar) {
     $(id).addEventListener('keydown', function (e) {  // radiogroup: setas trocam a opção
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].indexOf(e.key) === -1) return;
@@ -55,28 +71,71 @@
     });
     $(id).addEventListener('click', function (e) {
       var b = e.target.closest('button');
-      if (!b || ocupado) return;
-      $(id).querySelectorAll('button').forEach(function (x) {
-        x.classList.toggle('on', x === b);
-        x.setAttribute('aria-checked', x === b ? 'true' : 'false');
-      });
+      if (!b || ocupado || b.dataset.valor === estado[chave]) return;
+      marcar(id, b.dataset.valor);
       estado[chave] = b.dataset.valor;
       if (aoMudar) aoMudar();
     });
   }
   grupo('orcModo', 'modo', function () { if (arv && estado.abrir === 'linha') desenharArvore(); });
-  grupo('orcAbrir', 'abrir', function () { $('orcLinhaGrupo').hidden = estado.abrir === 'linha'; });
+  grupo('orcAbrir', 'abrir', function () { consultar(); });
+
+  /* ── campos do painel de filtros ── */
+  var CAMPOS = [['servico', 'Serviço'], ['coordenador', 'Coordenador'], ['filial', 'Filial'], ['centro', 'Centro'],
+                ['conta', 'Conta'], ['descricao', 'Descrição']];
+  var NO_PAINEL = ['de', 'ate'].concat(CAMPOS.map(function (c) { return c[0]; }));
+  function sb(nomeCampo) { return document.querySelector('.selectbusca[data-name="' + nomeCampo + '"]'); }
+  // grava o valor do SelectBusca sem abrir a lista (drilldown, chip e Limpar)
+  function definir(nomeCampo, valor, rotulo) {
+    var caixa = sb(nomeCampo);
+    $('orc_' + nomeCampo).value = valor;
+    if (!caixa) return;
+    var opt = caixa.querySelector('.sb-opt[data-value="' + CSS.escape(valor) + '"]');
+    caixa.querySelector('.sb-label').textContent = opt ? opt.textContent : (rotulo || valor);
+    caixa.classList.toggle('tem-valor', !!valor);
+    caixa.querySelectorAll('.sb-opt').forEach(function (o) { o.setAttribute('aria-selected', o === opt ? 'true' : 'false'); });
+  }
+  function rotuloDe(nomeCampo) { var caixa = sb(nomeCampo); return caixa ? caixa.querySelector('.sb-label').textContent : $('orc_' + nomeCampo).value.trim(); }
+  function fotografar() {
+    var f = {};
+    NO_PAINEL.forEach(function (c) { f[c] = [$('orc_' + c).value, rotuloDe(c)]; });
+    return f;
+  }
+  function restaurar(f) { NO_PAINEL.forEach(function (c) { definir(c, f[c][0], f[c][1]); }); }
+
+  // um chip por filtro aplicado, com o x que tira só aquele; o período fica sempre à vista
+  function chips() {
+    var box = $('orcAtivos'), n = 0, de = +$('orc_de').value, ate = +$('orc_ate').value;
+    box.replaceChildren();
+    var per = el('span', 'orc-ativo orc-ativo-fixo');
+    per.appendChild(el('i', 'ph ph-calendar-blank'));
+    per.appendChild(el('span', '', (de === ate ? NOMES_MES[de] : NOMES_MES[de] + ' a ' + NOMES_MES[ate]) + '/' + $('orc_ano').value));
+    box.appendChild(per);
+    CAMPOS.forEach(function (c) {
+      if (!$('orc_' + c[0]).value.trim()) return;
+      n++;
+      var chip = el('span', 'orc-ativo'), x = el('button', 'orc-ativo-x');
+      chip.appendChild(el('span', 'orc-ativo-lbl', c[1]));
+      chip.appendChild(el('span', '', rotuloDe(c[0])));
+      x.type = 'button';
+      x.setAttribute('aria-label', 'Tirar o filtro ' + c[1].toLowerCase());
+      x.appendChild(el('i', 'ph ph-x'));
+      x.addEventListener('click', function () { if (ocupado) return; definir(c[0], ''); consultar(); });
+      chip.appendChild(x);
+      box.appendChild(chip);
+    });
+    $('orcFiltroQtd').textContent = n ? String(n) : '';
+    $('orcFiltroQtd').hidden = !n;
+  }
 
   /* ── consulta ── */
   function parametros() {
     var p = new URLSearchParams();
-    ['empresa', 'ano', 'de', 'ate', 'servico', 'coordenador', 'filial', 'centro'].forEach(function (c) {
-      var v = $('orc_' + c).value;
+    ['empresa', 'ano'].concat(NO_PAINEL).forEach(function (c) {
+      var v = $('orc_' + c).value.trim();
       if (v) p.set(c, v);
     });
-    p.set('mes', $('orc_ate').value);
-    p.set('abrir_por', estado.abrir);
-    if (estado.abrir !== 'linha' && $('orc_linha').value) p.set('linha', $('orc_linha').value);
+    if (estado.abrir !== 'linha') p.set('abrir_por', estado.abrir);
     return p;
   }
 
@@ -89,7 +148,8 @@
   function consultar() {
     if (ocupado) return;
     $('orcAvisos').replaceChildren();
-    if (+$('orc_de').value > +$('orc_ate').value) { aviso('O mês inicial vem depois do final.', 'erro'); return; }
+    if (+$('orc_de').value > +$('orc_ate').value) { aviso('O mês inicial vem depois do final. Ajuste o período no Filtro.', 'erro'); return; }
+    chips();
     travar(true);
     $('orcTabelaWrap').hidden = true;
     $('orcArvoreWrap').hidden = true;
@@ -97,13 +157,14 @@
     $('orcKpis').hidden = true;
     $('orcCarregando').hidden = false;
     var naArvore = estado.abrir === 'linha';
-    fetch((naArvore ? tela.dataset.urlArvore : tela.dataset.urlDados) + '?' + parametros().toString()).then(function (r) {
-      return r.json().catch(function () { return { erro: 'Resposta inesperada do servidor (' + r.status + ').' }; });
+    consultado = parametros();
+    fetch((naArvore ? tela.dataset.urlArvore : tela.dataset.urlDimensao) + '?' + parametros().toString()).then(function (r) {
+      return r.json().catch(function () { return { erro: 'Não foi possível buscar agora. Tente de novo.' }; });
     }).then(function (j) {
       if (!j.ok) { aviso(j.erro || 'Não foi possível calcular.', 'erro'); return; }
-      if (naArvore) receberArvore(j.dados); else desenhar(j.dados);
+      if (naArvore) receberArvore(j.dados); else desenharDimensao(j.dados);
     }).catch(function () {
-      aviso('Sem conexão com o servidor. Tente de novo.', 'erro');
+      aviso('Sem conexão. Tente de novo.', 'erro');
     }).finally(function () {
       $('orcCarregando').hidden = true;
       travar(false);
@@ -115,8 +176,7 @@
   }
 
   function mesesPorExtenso(lista) {
-    var nomes = ['', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-    return lista.map(function (c) { return nomes[+c.slice(5, 7)] + '/' + c.slice(0, 4); }).join(', ');
+    return lista.map(function (c) { return NOMES_MES[+c.slice(5, 7)] + '/' + c.slice(0, 4); }).join(', ');
   }
 
   function avisosComuns(d) {
@@ -132,39 +192,14 @@
     }
   }
 
-  function desenhar(d) {
-    avisosComuns(d);
-    if (d.abrir_por !== 'linha' && d.empresa !== 'mkb') {
-      aviso('O razão da Gnileb não tem centro de custo: o realizado dela aparece em Sem centro de custo.');
-    }
-    if (estado.modo === 'evolucao') aviso('A evolução mês a mês vale para Linhas da DRE; nesta abertura, o valor é a soma do período.');
-    var semLinha = d.linhas.some(function (l) { return l.id === 'SEM_LINHA'; });
-    kpis(d.total, d.linha_dre ? rotuloLinha(d.linha_dre) : (semLinha ? 'Resultado, com as contas sem linha' : 'Resultado líquido'),
-         d.meses_sem_realizado.length);
-    // linha da DRE zerada no orçado e no realizado sai da grade; subtotal fica, para a DRE ler inteira
-    linhas = d.linhas.filter(function (l) { return l.orcado || l.realizado || (l.tipo && l.tipo.indexOf('grupo') !== 0); })
-      .map(function (l, i) { l._i = i; return l; });
-    ordem = null;
-    $('orcThRotulo').textContent = d.dimensao;
-    COLUNAS[0].titulo = d.dimensao;
-    var recorte = d.linha_dre ? ' · ' + (rotuloLinha(d.linha_dre) || d.linha_dre) : '';
-    $('orcTitulo').textContent = d.rotulo_empresa + ' · ' + d.rotulo_mes + recorte;
-    $('orcKpis').hidden = false;
-    if (!linhas.length || (!d.total.orcado && !d.total.realizado)) {
-      $('orcVazio').hidden = false;
-      return;
-    }
-    $('orcTabelaWrap').hidden = false;
-    corpo();
-  }
-
-  function rotuloLinha(id) {
-    var opt = document.querySelector('.selectbusca[data-name="linha"] .sb-opt[data-value="' + CSS.escape(id) + '"]');
-    return opt ? opt.textContent : '';
-  }
-
   function kpis(t, base, mesesSem) {
-    var valores = {
+    var semDado = t.realizado === null;  // nenhum mês do período tem razão: não é zero nem igual ao orçado
+    var valores = semDado ? {
+      orcado: [reais.format(t.orcado), base],
+      realizado: ['sem dado', 'período sem razão importado'],
+      variacao: ['sem dado', 'falta o realizado'],
+      pct: ['sem dado', 'falta o realizado']
+    } : {
       orcado: [reais.format(t.orcado), base],
       realizado: [reais.format(t.realizado), mesesSem ? 'período com mês sem razão' : base],
       variacao: [reais.format(t.variacao), t.variacao > 0 ? 'melhor que o orçado' : (t.variacao < 0 ? 'pior que o orçado' : 'igual ao orçado')],
@@ -175,13 +210,82 @@
       card.querySelector('.val').textContent = valores[k][0];
       card.querySelector('.disc').textContent = valores[k][1];
       if (k === 'variacao') {
-        card.classList.toggle('pos', t.variacao > 0);
-        card.classList.toggle('neg', t.variacao < 0);
+        card.classList.toggle('pos', !semDado && t.variacao > 0);
+        card.classList.toggle('neg', !semDado && t.variacao < 0);
       }
     });
   }
 
+  /* ── Fase 7: abertura por serviço, coordenador, filial ou centro ── */
+  function plano(l) {
+    return { rotulo: l.rotulo, chave: l.chave, rec_o: l.receita[0], rec_r: l.receita[1], cd_o: l.custo_despesa[0],
+             cd_r: l.custo_despesa[1], mc_o: l.mc[0], mc_r: l.mc[1], mcp_o: l.mc_pct[0], mcp_r: l.mc_pct[1], variacao: l.variacao };
+  }
+
+  function desenharDimensao(d) {
+    avisosComuns(d);
+    if (d.empresa !== 'mkb') aviso('O razão da Gnileb não tem centro de custo: o realizado dela aparece em Sem centro de custo.');
+    if (d.meses_considerados.length && d.meses_considerados.length < d.competencias.length) {
+      aviso('O orçado considera só os meses com razão (' + mesesPorExtenso(d.meses_considerados) + '), para comparar o mesmo período.');
+    }
+    if (estado.modo === 'evolucao') aviso('A evolução mês a mês vale para Linhas da DRE; nesta abertura, o valor é a soma do período.');
+    var t = d.total;
+    kpis({ orcado: t.mc[0], realizado: t.mc[1], variacao: t.variacao || 0,
+           pct: t.mc[0] && t.mc[1] !== null ? Math.round(t.mc[1] / t.mc[0] * 1000) / 10 : null },
+         'Margem de contribuição', d.meses_sem_realizado.length);
+    totalDim = plano(t);
+    totalDim.rotulo = 'Total';
+    linhas = d.linhas.map(function (l, i) { var x = plano(l); x._i = i; return x; });
+    ordem = null;
+    COLUNAS[0].titulo = d.dimensao;
+    $('orcCab').querySelector('.th-titulos th[data-col="rotulo"]').textContent = d.dimensao;
+    $('orcCab').querySelector('[data-th-filtro="rotulo"]').setAttribute('aria-label', 'Filtrar ' + d.dimensao.toLowerCase());
+    $('orcTitulo').textContent = d.rotulo_empresa + ' · ' + d.rotulo_periodo + (fmtPref.mil ? ' · em R$ mil' : '');
+    $('orcKpis').hidden = false;
+    if (!linhas.length) { $('orcVazio').hidden = false; return; }
+    $('orcTabelaWrap').hidden = false;
+    corpo();
+  }
+
+  // drilldown: a linha vira filtro e a tela abre a DRE em árvore só dela (grupo e conta)
+  function abrirNaDre(l) {
+    if (ocupado || !l.chave) return;
+    definir(estado.abrir, l.chave, l.rotulo);
+    estado.abrir = 'linha';
+    marcar('orcAbrir', 'linha');
+    consultar();
+  }
+
   /* ── tabela ── */
+  function montarCabecalho() {
+    var g = el('tr', 'th-grupos'), t = el('tr', 'th-titulos'), f = el('tr', 'th-filtro');
+    for (var i = 0; i < COLUNAS.length;) {  // uma célula por sequência de colunas do mesmo grupo
+      var c = COLUNAS[i], n = 1;
+      while (c.grupo && COLUNAS[i + n] && COLUNAS[i + n].grupo === c.grupo) n++;
+      var th = el('th', 'th-grupo', c.grupo || '');
+      th.colSpan = n;
+      th.dataset.grupo = c.grupo || c.chave;
+      g.appendChild(th);
+      i += n;
+    }
+    COLUNAS.forEach(function (c) {
+      var th = el('th', c.num ? 'num' : '', c.titulo), thf = el('th'), inp = el('input');
+      th.dataset.col = thf.dataset.col = c.chave;
+      if (c.grupo) th.title = nome(c);
+      if (c.chave === 'variacao') th.title = 'MC realizada menos MC orçada: positivo é melhor que o orçado';
+      t.appendChild(th);
+      inp.type = 'text';
+      inp.placeholder = 'filtrar';
+      inp.dataset.thFiltro = c.chave;
+      inp.setAttribute('aria-label', 'Filtrar ' + nome(c).toLowerCase());
+      thf.appendChild(inp);
+      f.appendChild(thf);
+    });
+    f.hidden = true;
+    $('orcCab').replaceChildren(g, t, f);
+  }
+  montarCabecalho();
+
   function filtros() {
     var f = {};
     document.querySelectorAll('[data-th-filtro]').forEach(function (i) { if (i.value.trim()) f[i.dataset.thFiltro] = semAcento(i.value.trim()); });
@@ -210,25 +314,42 @@
     return lista;
   }
 
-  function corpo() {
-    var tb = $('orcCorpo'), lista = visiveis();
-    tb.replaceChildren();
-    lista.forEach(function (l) {
-      var tr = el('tr', l.tipo && l.tipo !== 'grupo' && l.tipo !== 'grupo_pos' ? 'orc-sub ' + l.tipo : '');
-      COLUNAS.forEach(function (c) {
-        var td = el('td', c.num ? 'num' : '', texto(c, l));
-        if (c.chave === 'variacao' && l.variacao) td.classList.add(l.variacao > 0 ? 'pos' : 'neg');
-        td.hidden = escondidas.indexOf(c.chave) !== -1;
-        tr.appendChild(td);
-      });
-      tb.appendChild(tr);
+  function linhaTabela(l, total) {
+    var tr = el('tr', total ? 'orc-total' : '');
+    COLUNAS.forEach(function (c) {
+      var td = el('td', c.num ? 'num' : '');
+      if (c.chave === 'rotulo' && !total && l.chave) {
+        var b = el('button', 'orc-drill', l.rotulo);
+        b.type = 'button';
+        b.title = 'Abrir a DRE só de ' + l.rotulo;
+        b.addEventListener('click', function () { abrirNaDre(l); });
+        td.appendChild(b);
+      } else td.textContent = texto(c, l);
+      if (c.chave === 'variacao' && l.variacao) td.classList.add(l.variacao > 0 ? 'pos' : 'neg');
+      td.hidden = escondidas.indexOf(c.chave) !== -1;
+      tr.appendChild(td);
     });
+    return tr;
+  }
+
+  function corpo() {
+    var tb = $('orcCorpo'), lista = visiveis(), filtrando = Object.keys(filtros()).length;
+    tb.replaceChildren();
+    lista.forEach(function (l) { tb.appendChild(linhaTabela(l)); });
     if (!lista.length) {
       var tr = el('tr', 'tabela-vazia'), td = el('td', '', 'Nenhuma linha com esse filtro.');
       td.colSpan = COLUNAS.length;
       tr.appendChild(td);
       tb.appendChild(tr);
     }
+    // com filtro por coluna, o total da base continua o do recorte inteiro: o rodapé some para não enganar
+    $('orcRodape').replaceChildren();
+    if (totalDim && !filtrando) $('orcRodape').appendChild(linhaTabela(totalDim, true));
+    document.querySelectorAll('#orcCab .th-grupos th').forEach(function (th) {
+      var n = COLUNAS.filter(function (c) { return (c.grupo || c.chave) === th.dataset.grupo && escondidas.indexOf(c.chave) === -1; }).length;
+      th.hidden = !n;
+      if (n) th.colSpan = n;
+    });
     document.querySelectorAll('#orcTabela th[data-col]').forEach(function (th) {
       th.hidden = escondidas.indexOf(th.dataset.col) !== -1;
       if (!th.parentNode.classList.contains('th-titulos')) return;
@@ -237,7 +358,6 @@
       th.classList.toggle('ord-desc', !!o && o.desc);
       th.dataset.ordem = ordem && ordem.length > 1 && o ? String(pos + 1) : '';
     });
-    var filtrando = Object.keys(filtros()).length;
     $('orcContagem').textContent = filtrando ? lista.length + ' de ' + linhas.length + ' linhas'
                                              : linhas.length + (linhas.length === 1 ? ' linha' : ' linhas');
   }
@@ -303,7 +423,7 @@
     c.replaceChildren();
     COLUNAS.forEach(function (col) {
       var linha = el('div', 'ta-ordem-linha');
-      linha.appendChild(el('span', '', col.titulo));
+      linha.appendChild(el('span', '', nome(col)));
       [['Crescente', false, 'ph-sort-ascending'], ['Decrescente', true, 'ph-sort-descending']].forEach(function (o) {
         var r = regra(col.chave), b = el('button', 'ta-ordem-btn' + (r && r.desc === o[1] ? ' on' : ''));
         b.type = 'button';
@@ -333,7 +453,7 @@
         corpo();
       });
       rot.appendChild(caixa);
-      rot.appendChild(document.createTextNode(' ' + col.titulo));
+      rot.appendChild(document.createTextNode(' ' + nome(col)));
       c.appendChild(rot);
     });
     $('orcPopColunas').classList.add('aberto');
@@ -342,31 +462,35 @@
   /* ── exportação: só as linhas e colunas visíveis ── */
   function tabelaVisivel() {
     var cols = COLUNAS.filter(function (c) { return escondidas.indexOf(c.chave) === -1; });
+    var lista = visiveis().concat(totalDim && !Object.keys(filtros()).length ? [totalDim] : []);
     return {
-      cab: cols.map(function (c) { return c.titulo; }),
-      linhas: visiveis().map(function (l) {
-        return cols.map(function (c) { return c.chave === 'rotulo' ? l.rotulo : l[c.chave]; });
-      })
+      cab: cols.map(nome),
+      linhas: lista.map(function (l) { return cols.map(function (c) { return l[c.chave]; }); })
     };
   }
-  function baixar(blob, nome) {
+  function baixar(blob, arquivo) {
     var a = el('a');
     a.href = URL.createObjectURL(blob);
-    a.download = nome;
+    a.download = arquivo;
     document.body.appendChild(a);
     a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 0);
   }
-  function exportarCsv() {
-    var t = tabelaVisivel(), campo = function (v) {
+  // CSV com ; e BOM para o Excel brasileiro; texto que começa com = + - @ vira texto (sem fórmula)
+  function baixarCsv(cab, lista, arquivo) {
+    var campo = function (v) {
       if (v === null || v === undefined) return '';
       if (typeof v === 'number') return String(v).replace('.', ',');
       var s = String(v);
       if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
       return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     };
-    var texto = [t.cab].concat(t.linhas).map(function (l) { return l.map(campo).join(';'); }).join('\r\n');
-    baixar(new Blob(['﻿' + texto], { type: 'text/csv;charset=utf-8' }), PREF + '_' + hoje() + '.csv');
+    var txt = [cab].concat(lista).map(function (l) { return l.map(campo).join(';'); }).join('\r\n');
+    baixar(new Blob(['﻿' + txt], { type: 'text/csv;charset=utf-8' }), arquivo);
+  }
+  function exportarCsv() {
+    var t = tabelaVisivel();
+    baixarCsv(t.cab, t.linhas, PREF + '_' + hoje() + '.csv');
   }
   function exportarExcel() {
     var t = tabelaVisivel();
@@ -379,6 +503,140 @@
     }).then(function (b) { baixar(b, PREF + '_' + hoje() + '.xlsx'); })
       .catch(function () { aviso('Não foi possível gerar o Excel. Tente o CSV.', 'erro'); });
   }
+
+  /* ── painel lateral e modal (Padrao_Modal_Nao_Fecha_Sozinho: só o X, Fechar e Aplicar fecham;
+        Padrao_Transicao_Simetrica: entram e saem pelo mesmo caminho, em 200 ms) ── */
+  var voltaFoco = null, fotoPainel = null;
+  function abrirCamada(caixa, fundo) {
+    voltaFoco = document.activeElement;
+    fundo.hidden = false;
+    caixa.hidden = false;
+    void caixa.offsetWidth;  // a transição parte do estado fechado
+    fundo.classList.add('aberto');
+    caixa.classList.add('aberto');
+    document.body.classList.add('drawer-aberto');
+    var primeiro = caixa.querySelector('.orc-x');
+    if (primeiro) primeiro.focus();
+  }
+  // lista do SelectBusca no fim do painel: rola o corpo até ela aparecer inteira, sem passar por trás do rodapé
+  $('orcDrawer').addEventListener('click', function (e) {
+    var bt = e.target.closest('.sb-display');
+    if (!bt) return;
+    setTimeout(function () {
+      var lista = bt.parentNode.querySelector('.sb-panel');
+      if (bt.parentNode.classList.contains('open') && lista) lista.scrollIntoView({ block: 'nearest' });
+    }, 0);
+  });
+  function fecharCamada(caixa, fundo) {
+    fundo.classList.remove('aberto');
+    caixa.classList.remove('aberto');
+    document.body.classList.remove('drawer-aberto');
+    setTimeout(function () { if (!caixa.classList.contains('aberto')) { fundo.hidden = true; caixa.hidden = true; } }, 200);
+    if (voltaFoco && voltaFoco.focus) voltaFoco.focus();
+  }
+  function painelAberto() { return $('orcDrawer').classList.contains('aberto'); }
+  $('orcAbrirFiltro').addEventListener('click', function () {
+    if (ocupado) return;
+    fotoPainel = fotografar();
+    $('orcDrawerMsg').textContent = '';
+    abrirCamada($('orcDrawer'), $('orcDrawerFundo'));
+  });
+  // o X desfaz o que não foi aplicado; Aplicar consulta com o que está no painel
+  function fecharPainel() {
+    if (fotoPainel) restaurar(fotoPainel);
+    fecharCamada($('orcDrawer'), $('orcDrawerFundo'));
+  }
+  $('orcAplicar').addEventListener('click', function () {
+    var conta = $('orc_conta').value.trim();
+    if (conta && !/^[0-9][0-9.]{0,39}$/.test(conta)) { $('orcDrawerMsg').textContent = 'Conta contábil: use só números e pontos, como 3.1.1.'; $('orc_conta').focus(); return; }
+    if (+$('orc_de').value > +$('orc_ate').value) { $('orcDrawerMsg').textContent = 'O mês inicial vem depois do final.'; return; }
+    fotoPainel = null;
+    fecharCamada($('orcDrawer'), $('orcDrawerFundo'));
+    consultar();
+  });
+  $('orcLimpar').addEventListener('click', function () {
+    CAMPOS.forEach(function (c) { definir(c[0], ''); });
+    $('orcDrawerMsg').textContent = '';
+  });
+  ['orc_conta', 'orc_descricao'].forEach(function (id) {
+    $(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('orcAplicar').click(); } });
+  });
+  document.querySelectorAll('[data-fechar]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (b.dataset.fechar === 'orcDrawer') fecharPainel();
+      else fecharCamada($('orcLanc'), $('orcLancFundo'));
+    });
+  });
+  // foco preso na camada aberta: Tab no último volta ao primeiro
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Tab') return;
+    var caixa = $('orcLanc').classList.contains('aberto') ? $('orcLanc') : (painelAberto() ? $('orcDrawer') : null);
+    if (!caixa) return;
+    var f = Array.prototype.filter.call(caixa.querySelectorAll('button, input:not([type=hidden])'),
+                                        function (x) { return !x.disabled && x.offsetParent !== null; });
+    if (!f.length) return;
+    var i = f.indexOf(document.activeElement);
+    if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+    else if (!e.shiftKey && (i === -1 || i === f.length - 1)) { e.preventDefault(); f[0].focus(); }
+  });
+
+  /* ── lançamentos da conta analítica ── */
+  var lanc = null, pedidoLanc = 0;  // só a resposta do último pedido desenha
+  function dataBr(d) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] : (d || ''); }
+  function abrirLancamentos(l) {
+    lanc = null;
+    $('orcLancTit').textContent = l.codigo + ' · ' + l.rotulo;
+    $('orcLancSub').textContent = arv.rotulo_empresa + ' · ' + arv.rotulo_periodo;
+    $('orcLancCorpo').replaceChildren();
+    $('orcLancRodape').replaceChildren();
+    $('orcLancAviso').hidden = true;
+    $('orcLancCarregando').hidden = false;
+    $('orcLancCsv').disabled = true;
+    abrirCamada($('orcLanc'), $('orcLancFundo'));
+    var p = new URLSearchParams(consultado.toString()), meu = ++pedidoLanc;  // a empresa e o período da árvore na tela
+    p.set('conta_lanc', l.codigo);
+    fetch(tela.dataset.urlLancamentos + '?' + p.toString()).then(function (r) {
+      return r.json().catch(function () { return { erro: 'Não foi possível buscar agora. Tente de novo.' }; });
+    }).then(function (j) {
+      if (meu !== pedidoLanc) return;
+      if (!j.ok) { avisoLanc(j.erro || 'Não foi possível buscar os lançamentos.'); return; }
+      desenharLancamentos(j.dados);
+    }).catch(function () {
+      if (meu === pedidoLanc) avisoLanc('Sem conexão. Tente de novo.');
+    }).finally(function () { if (meu === pedidoLanc) $('orcLancCarregando').hidden = true; });
+  }
+  function avisoLanc(msg) { $('orcLancAviso').textContent = msg; $('orcLancAviso').hidden = false; }
+  function desenharLancamentos(d) {
+    lanc = d;
+    var tb = $('orcLancCorpo');
+    d.linhas.forEach(function (x) {
+      var tr = el('tr');
+      [x.empresa, dataBr(x.data), x.documento, x.historico, x.centro].forEach(function (v) { tr.appendChild(el('td', '', v)); });
+      tr.lastChild.previousSibling.className = 'orc-hist';
+      tr.appendChild(el('td', 'num', reais.format(x.valor)));
+      tb.appendChild(tr);
+    });
+    if (!d.linhas.length) {
+      var vazio = el('tr', 'tabela-vazia'), td = el('td', '', 'Nenhum lançamento desta conta no período e nos filtros.');
+      td.colSpan = 6;
+      vazio.appendChild(td);
+      tb.appendChild(vazio);
+    }
+    var tot = el('tr', 'orc-total'), rot = el('td', '', 'Total · ' + d.quantidade + (d.quantidade === 1 ? ' lançamento' : ' lançamentos'));
+    rot.colSpan = 5;
+    tot.appendChild(rot);
+    tot.appendChild(el('td', 'num', reais.format(d.total)));
+    $('orcLancRodape').appendChild(tot);
+    if (d.cortado) avisoLanc('Mostrando os primeiros ' + d.limite.toLocaleString('pt-BR') + ' de ' + d.quantidade.toLocaleString('pt-BR') +
+                             ' lançamentos. O total soma todos; o CSV traz os mostrados.');
+    $('orcLancCsv').disabled = !d.linhas.length;
+  }
+  $('orcLancCsv').addEventListener('click', function () {
+    if (!lanc) return;
+    baixarCsv(['Empresa', 'Data', 'Documento', 'Histórico', 'Centro', 'Valor'],
+              lanc.linhas.map(function (x) { return [x.empresa, dataBr(x.data), x.documento, x.historico, x.centro, x.valor]; }),
+              'orcamento_lancamentos_' + lanc.conta + '_' + hoje() + '.csv');
+  });
 
   /* ── Fase 6: DRE em árvore, por mês ── */
   var PREF_FMT = 'orcamento_formato';
@@ -406,10 +664,10 @@
     abertos = {};
     d.linhas.forEach(function (l) { if (l.nivel <= 1) abertos[l.id] = true; });  // abre até o grupo do 5º nível
     avisosComuns(d);
-    var t = d.total.acumulado, oc = d.total.orcado_comparavel, r = t[1] === null ? 0 : t[1];
+    var t = d.total.acumulado, oc = d.total.orcado_comparavel, r = t[1];
     // variação e % contra o orçado dos meses com razão, para mês sem razão não virar desvio
-    kpis({ orcado: t[0], realizado: r, variacao: Math.round((r - oc) * 100) / 100,
-           pct: oc ? Math.round(r / oc * 1000) / 10 : null }, 'Resultado do período', d.meses_sem_realizado.length);
+    kpis({ orcado: t[0], realizado: r, variacao: r === null ? null : Math.round((r - oc) * 100) / 100,
+           pct: oc && r !== null ? Math.round(r / oc * 1000) / 10 : null }, 'Resultado do período', d.meses_sem_realizado.length);
     $('orcKpis').hidden = false;
     if (d.linhas.length <= 1) { $('orcVazio').hidden = false; return; }
     desenharArvore();
@@ -518,7 +776,13 @@
           b.addEventListener('click', function () { abertos[l.id] = !abertos[l.id]; desenharCorpo(); contagem(); });
           td.appendChild(b);
         } else if (l.nivel > 0) td.appendChild(el('span', 'arv-folha'));
-        td.appendChild(el('span', 'arv-rotulo', (l.codigo ? l.codigo + ' · ' : '') + l.rotulo));
+        if (l.nivel === 3 && l.codigo) {  // conta analítica: abre os lançamentos do razão
+          var bc = el('button', 'arv-rotulo arv-conta', l.codigo + ' · ' + l.rotulo);
+          bc.type = 'button';
+          bc.setAttribute('aria-label', 'Ver os lançamentos de ' + l.codigo + ' · ' + l.rotulo);
+          bc.addEventListener('click', function () { abrirLancamentos(l); });
+          td.appendChild(bc);
+        } else td.appendChild(el('span', 'arv-rotulo', (l.codigo ? l.codigo + ' · ' : '') + l.rotulo));
         td.title = (l.codigo ? l.codigo + ' · ' : '') + l.rotulo;
         tr.appendChild(td);
         cols.forEach(function (c) { tr.appendChild(celula(c.pega(l), c.extra, c.cmp ? c.cmp(l) : undefined)); });
@@ -572,24 +836,13 @@
       });
       return r;
     });
-    var nome = 'orcamento_arvore_' + hoje();
-    if (tipo === 'csv') {
-      var campo = function (v) {
-        if (v === null || v === undefined) return '';
-        if (typeof v === 'number') return String(v).replace('.', ',');
-        var s = String(v);
-        if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
-        return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-      };
-      var txt = [cab].concat(linhasExp).map(function (l) { return l.map(campo).join(';'); }).join('\r\n');
-      baixar(new Blob(['\ufeff' + txt], { type: 'text/csv;charset=utf-8' }), nome + '.csv');
-      return;
-    }
+    var arquivo = 'orcamento_arvore_' + hoje();
+    if (tipo === 'csv') { baixarCsv(cab, linhasExp, arquivo + '.csv'); return; }
     fetch(tela.dataset.urlExportar, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome: nome, cabecalho: cab, linhas: linhasExp })
+      body: JSON.stringify({ nome: arquivo, cabecalho: cab, linhas: linhasExp })
     }).then(function (r) { if (!r.ok) throw new Error(); return r.blob(); })
-      .then(function (b) { baixar(b, nome + '.xlsx'); })
+      .then(function (b) { baixar(b, arquivo + '.xlsx'); })
       .catch(function () { aviso('Não foi possível gerar o Excel. Tente o CSV, ou exporte menos meses.', 'erro'); });
   }
 

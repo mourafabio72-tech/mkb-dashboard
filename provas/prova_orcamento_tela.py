@@ -134,6 +134,40 @@ for c in (dict(de="2", ate="1"), dict(de="0"), dict(ate="13"), dict(de="x"), dic
 sessao(HUB_MKB)
 confere(arvore_get(empresa="gnileb").status_code in (403, 404) and arvore_get(empresa="consolidado").status_code == 404,
         "árvore: cliente da MKB não lê Gnileb nem consolidado")
+
+# 4c. abertura por dimensão e lançamentos (Fase 7)
+def rota_get(rota, **p):
+    base = dict(empresa="mkb", ano="2026", de="1", ate="1")
+    base.update(p)
+    return cli.get(rota, query_string={k: v for k, v in base.items() if v is not None})
+sessao(LEITURA)
+conn = get_conn()
+r = rota_get("/orcamento/dimensao", abrir_por="servico")
+confere(r.status_code == 200 and r.get_json()["dados"]["total"] == oe.por_dimensao(conn, "mkb", 2026, 1, 1, "servico")["total"],
+        "dimensão: leitura consulta e tela = motor")
+r = rota_get("/orcamento/dimensao", abrir_por="centro", conta="3.", descricao="servicos")
+confere(r.status_code == 200 and r.get_json()["dados"]["total"] == oe.por_dimensao(
+    conn, "mkb", 2026, 1, 1, "centro", {"conta": ["3."], "descricao": ["servicos"]})["total"], "dimensão: conta e descrição chegam ao motor")
+r = rota_get("/orcamento/lancamentos", conta_lanc=ROB)
+confere(r.status_code == 200 and r.get_json()["dados"]["total"] == oe.lancamentos(conn, "mkb", 2026, 1, 1, ROB)["total"],
+        "lançamentos: leitura consulta e tela = motor")
+conn.close()
+for c in (dict(abrir_por="linha"), dict(abrir_por="conta"), dict(abrir_por="servico", conta="3.1' OR 1"),
+          dict(abrir_por="servico", conta="x"), dict(abrir_por="servico", descricao="<script>"),
+          dict(abrir_por="servico", descricao="a" * 81), dict(abrir_por="servico", de="3", ate="1"),
+          dict(abrir_por="servico", servico="x" * 200)):
+    confere(rota_get("/orcamento/dimensao", **c).status_code == 400, f"dimensão: entrada {c} recusada")
+for c in (dict(abrir_por="servico", descricao="日本"), dict(abrir_por="servico", descricao="ß")):
+    confere(rota_get("/orcamento/dimensao", **c).status_code == 400, f"dimensão: descrição que some sem acento ({c['descricao']}) recusada")
+for c in (dict(), dict(conta_lanc=""), dict(conta_lanc="abc"), dict(conta_lanc="1" * 41), dict(conta_lanc=ROB, ate="13"),
+          dict(conta_lanc="1.1.1"), dict(conta_lanc="2.1")):
+    confere(rota_get("/orcamento/lancamentos", **c).status_code == 400, f"lançamentos: entrada {c} recusada")
+sessao(HUB_MKB)
+for rota, extra in (("/orcamento/dimensao", dict(abrir_por="centro")), ("/orcamento/lancamentos", dict(conta_lanc=ROB))):
+    confere(rota_get(rota, empresa="gnileb", **extra).status_code in (403, 404) and
+            rota_get(rota, empresa="consolidado", **extra).status_code == 404, f"isolamento: {rota} sem Gnileb nem consolidado")
+j = rota_get("/orcamento/lancamentos", conta_lanc=ROB).get_json()["dados"]
+confere(j["linhas"] and all(l["empresa"] == "MKB" for l in j["linhas"]), "isolamento: lançamentos do cliente da MKB só da MKB")
 sessao(ADMIN)
 
 # 5. exportar Excel
@@ -172,8 +206,25 @@ confere(re.findall(r'data-acao="([a-z]+)"', menu_tabela) == ["filtro", "ordenar"
 confere(re.findall(r'data-acao="([a-z]+)"', menu_arvore) == ["filtro", "csv", "excel", "expandir", "recolher"],
         "tela: menu da árvore com Filtro, CSV, Excel, Expandir e Recolher (sem Ordenar e Colunas: grade hierárquica)")
 confere("ph-list" in tpl and "ph-dots-three" not in tpl + js and not re.search(r'id="[a-zA-Z]*[Tt]oolbar"', tpl), "tela: sanduíche dentro do card, sem toolbar solta")
-confere(tpl.count('placeholder="filtrar"') == 1 and "addEventListener('input', corpo)" in js and "inp.placeholder = 'filtrar'" in js,
+confere(js.count("inp.placeholder = 'filtrar'") == 2 and "addEventListener('input', corpo)" in js,
         "tela: filtro por coluna a cada caractere, na tabela e na árvore")
+gaveta = tpl[tpl.index('id="orcDrawer"') - 60:tpl.index('id="orcLancFundo"')]
+modal = tpl[tpl.index('id="orcLanc"') - 60:]
+confere(all(x in gaveta for x in ('role="dialog"', 'aria-modal="true"', 'aria-labelledby="orcDrawerTit"', 'id="orcDrawerTit"')) and
+        all(f"selectbusca('{c}'" in gaveta for c in ("de", "ate", "servico", "coordenador", "filial", "centro")) and
+        'id="orc_conta"' in gaveta and 'id="orc_descricao"' in gaveta, "painel: dialog com período, os 4 filtros de centro, conta e descrição")
+confere(all(x in modal for x in ('role="dialog"', 'aria-modal="true"', 'aria-labelledby="orcLancTit"', "modal-lg")),
+        "modal: lançamentos em dialog modal-lg com título ligado")
+confere(gaveta.index('id="orcLimpar"') < gaveta.index('id="orcAplicar"') and modal.index('id="orcLancCsv"') < modal.index('data-fechar="orcLanc">Fechar'),
+        "painel e modal: ação primária à direita")
+fecha = re.findall(r"if \(e\.key === 'Escape'\)[^\n]*", js)
+confere(fecha and all("fecharTudo" in f and "fecharPainel" not in f and "fecharCamada" not in f for f in fecha)
+        and ".orc-fundo" in css and "orcDrawerFundo').addEventListener" not in js and "orcLancFundo').addEventListener" not in js,
+        "painel e modal: Esc e clique no fundo não fecham (só X, Fechar e Aplicar)")
+confere(re.search(r"\.orc-drawer \{[^}]*transition: transform \.2s", css) and "translateX(100%)" in css and
+        "prefers-reduced-motion" in css and "setTimeout(function () { if (!caixa.classList.contains('aberto'))" in js,
+        "painel e modal: saem pelo mesmo caminho em 200 ms, esperando a saída antes de esconder")
+confere("body.drawer-aberto { overflow: hidden; }" in css and "classList.add('drawer-aberto')" in js, "painel: página atrás não rola")
 confere(tpl.count('role="radiogroup"') == 2, "tela: os dois toggles com radiogroup")
 confere(tpl.count('class="cv-sw"') == 2 and re.search(r"\.cv-sw input\s*\{\s*display:\s*none", css), "tela: liga/desliga ÷ 1.000 e centavos no padrão cv-sw")
 confere(not re.search(r"\.tabela-wrap\s*\{[^}]*overflow\s*:\s*hidden", css), "tela: .tabela-wrap sem overflow hidden")

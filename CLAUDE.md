@@ -102,7 +102,7 @@ balanço e validação DRE x balancete. Em produção em `dre.zoaria.com.br`, en
 | `config.py` | env vars, empresas, caminhos |
 | `versao.py` | carimbo do `/health` |
 | `orcamento_parser.py` | leitor do Rel_OrcRel do Protheus (abas DADOS e CTT), por nome de coluna |
-| `orcamento_rotas.py` | blueprint do Orçamento: `/orcamento/importar` (admin), `/orcamento`, `/orcamento/dados`, `/orcamento/exportar` |
+| `orcamento_rotas.py` | blueprint do Orçamento: `/orcamento/importar` (admin), `/orcamento`, `/orcamento/arvore` (DRE em árvore por mês), `/orcamento/dimensao` (Receita, Custo e despesa, MC por serviço, coordenador, filial ou centro), `/orcamento/lancamentos` (razão de uma conta), `/orcamento/dados`, `/orcamento/exportar` |
 | `orcamento_engine.py` | cálculo do Orçado x Realizado nas linhas da DRE gerencial (reusa `classificar_conta` e `_aplicar_calc_ger`) |
 | `provas/` | provas executáveis, uma por lógica não trivial |
 | `templates/`, `static/style.css` | telas (Jinja) e o tema Sage & Creme |
@@ -137,7 +137,10 @@ admin, sem valor padrão), `ZOARIA_SECRET_KEY`, `ZOARIA_COOKIE_DOMAIN`, `ZOARIA_
   da `v_lancamentos`; mês sem razão sai marcado, não zerado. Consolidado elimina só a equivalência patrimonial
   (`CONTAS_EP`), igual à DRE. A Gnileb não tem orçamento e o razão dela não tem centro de custo. Importar
   substitui o ano daquela empresa. Provas: `prova_orcamento_leitor`, `_importar`, `_calculo`, `_tela`; dado
-  real: `provas/conferir_orcamento_real.py` (caminhos por argumento, banco temporário).
+  real: `provas/conferir_orcamento_real.py` (caminhos por argumento, banco temporário; `--fase7` grava o orçado e
+  confere aberturas e lançamentos). MC = Receita líquida (ROB + DED) + custos + despesas operacionais; MC % sobre
+  a receita líquida. Mês sem razão sai do orçado comparado. Filtros de conta (começo do código) e descrição valem
+  para árvore, abertura e lançamentos.
 - **Isolamento por empresa:** toda rota com `<empresa>` ou `?empresa=` passa por
   `_guard_empresa`. Código novo que recebe empresa valida contra `empresas_permitidas()`.
 

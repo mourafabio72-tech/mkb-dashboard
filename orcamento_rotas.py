@@ -278,7 +278,6 @@ def tela():
         conn.close()
     return render_template("orcamento.html", visoes=visoes, ano=int(competencia[:4]), mes=int(competencia[5:7]),
                            anos=anos, meses=list(enumerate(MESES_LONGOS))[1:], opcoes=opcoes,
-                           linhas_dre=[(lid, rot) for lid, rot, _ in oe.LINHAS] + [oe.SEM_LINHA],
                            dimensoes=list(oe.DIMENSOES.items()))
 
 
@@ -316,7 +315,65 @@ def _filtros_do_pedido() -> dict:
             if len(valor) > 120:
                 raise ErroPedido("Filtro inválido.", 400, chave)
             filtros[chave] = [valor]
+    conta = (request.args.get("conta") or "").strip()
+    if conta:
+        if not re.fullmatch(r"[0-9][0-9.]{0,39}", conta):
+            raise ErroPedido("Conta contábil: use só números e pontos, como 3.1.1.", 400, "conta")
+        filtros["conta"] = [conta]
+    descricao = " ".join((request.args.get("descricao") or "").split())
+    if descricao:
+        if len(descricao) > 80 or not re.fullmatch(r"[\w .,/()&-]+", descricao) or not oe._sem_acento(descricao).strip():
+            raise ErroPedido("Descrição da conta: use letras ou números, como aluguel.", 400, "descricao")
+        filtros["descricao"] = [descricao]
     return filtros
+
+
+def _periodo_do_pedido():
+    empresa = _visao_do_pedido((request.args.get("empresa") or "").strip())
+    return empresa, _inteiro("ano", 2000, 2100), _inteiro("de", 1, 12), _inteiro("ate", 1, 12)
+
+
+@bp.route("/orcamento/dimensao")
+@login_required
+def dimensao():
+    """Abertura por serviço, coordenador, filial ou centro com Receita, Custo e Despesa e MC (Fase 7)."""
+    try:
+        empresa, ano, de, ate = _periodo_do_pedido()
+        conn = get_conn()
+        try:
+            resultado = oe.por_dimensao(conn, empresa, ano, de, ate, (request.args.get("abrir_por") or "").strip(),
+                                        _filtros_do_pedido())
+        finally:
+            conn.close()
+    except ErroPedido as erro:
+        return _resposta_erro(erro)
+    except ValueError as erro:
+        return jsonify(erro=str(erro)), 400
+    resultado["rotulo_empresa"] = dict(_visoes_permitidas())[empresa]
+    resultado["rotulo_periodo"] = (f"{MESES_LONGOS[de]} de {ano}" if de == ate
+                                   else f"{MESES_LONGOS[de]} a {MESES_LONGOS[ate]} de {ano}")
+    return jsonify(ok=True, dados=resultado)
+
+
+@bp.route("/orcamento/lancamentos")
+@login_required
+def lancamentos():
+    """Drilldown: os lançamentos do razão de uma conta analítica no período e nos filtros."""
+    try:
+        empresa, ano, de, ate = _periodo_do_pedido()
+        conta = (request.args.get("conta_lanc") or "").strip()
+        if not re.fullmatch(r"[34][0-9.]{0,39}", conta):  # só conta de resultado, como o resto do módulo
+            raise ErroPedido("Conta inválida.", 400, "conta_lanc")
+        conn = get_conn()
+        try:
+            resultado = oe.lancamentos(conn, empresa, ano, de, ate, conta, _filtros_do_pedido())
+        finally:
+            conn.close()
+    except ErroPedido as erro:
+        return _resposta_erro(erro)
+    except ValueError as erro:
+        return jsonify(erro=str(erro)), 400
+    return jsonify(ok=True, dados=resultado)
 
 
 @bp.route("/orcamento/arvore")

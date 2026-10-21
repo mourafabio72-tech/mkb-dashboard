@@ -20,10 +20,10 @@
 {% endmacro %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='orcamento.css') }}?v=20261021">
+<link rel="stylesheet" href="{{ url_for('static', filename='orcamento.css') }}?v=20261021b">
 
-<div class="orc-pagina" id="orcTela" data-url-dados="{{ url_for('orcamento.dados') }}" data-url-arvore="{{ url_for('orcamento.arvore') }}"
-     data-url-exportar="{{ url_for('orcamento.exportar') }}">
+<div class="orc-pagina" id="orcTela" data-url-dimensao="{{ url_for('orcamento.dimensao') }}" data-url-arvore="{{ url_for('orcamento.arvore') }}"
+     data-url-lancamentos="{{ url_for('orcamento.lancamentos') }}" data-url-exportar="{{ url_for('orcamento.exportar') }}">
 <div class="page-header">
   <h1><i class="ph-bold ph-target"></i> Orçado x Realizado</h1>
   <p class="subtitle">Orçamento do Rel_OrcRel contra o realizado do razão, nas linhas da DRE gerencial.</p>
@@ -44,8 +44,6 @@
       </div>
     </div>
   </div>
-  {{ selectbusca('de', 'Competência de', meses, 1) }}
-  {{ selectbusca('ate', 'Até', meses, mes) }}
   <div class="g">
     <span class="fu-lbl" id="lblModo">Exibição</span>
     <div class="orc-fonte" id="orcModo" role="radiogroup" aria-labelledby="lblModo">
@@ -53,6 +51,9 @@
       <button type="button" class="on" data-valor="evolucao" role="radio" aria-checked="true"><i class="ph ph-calendar-dots"></i> Evolução mensal</button>
     </div>
   </div>
+  <button type="button" class="orc-btn-filtro" id="orcAbrirFiltro" aria-haspopup="dialog" aria-controls="orcDrawer">
+    <i class="ph ph-funnel"></i> Filtro <span class="orc-badge" id="orcFiltroQtd" hidden></span>
+  </button>
   <button type="button" class="btn btn-primary orc-consultar" id="orcConsultar">
     <i class="ph ph-magnifying-glass"></i> Consultar
   </button>
@@ -67,13 +68,7 @@
       {% endfor %}
     </div>
   </div>
-  <div class="orc-so-dimensao" id="orcLinhaGrupo" hidden>
-    {{ selectbusca('linha', 'Linha da DRE', linhas_dre, '', 'Resultado líquido') }}
-  </div>
-  {{ selectbusca('servico', 'Serviço', opcoes.servico|default([]), '', 'Todos') }}
-  {{ selectbusca('coordenador', 'Coordenador', opcoes.coordenador|default([]), '', 'Todos') }}
-  {{ selectbusca('filial', 'Filial', opcoes.filial|default([]), '', 'Todas') }}
-  {{ selectbusca('centro', 'Centro de custo', opcoes.centro|default([]), '', 'Todos') }}
+  <div class="orc-ativos" id="orcAtivos" aria-live="polite"></div>
 </div>
 
 <div class="orc-legenda">
@@ -170,7 +165,7 @@
         <div class="ta-popup-cab"><i class="ph ph-sort-ascending"></i> Ordenar</div>
         <div class="ta-popup-corpo" id="orcOrdenarCorpo"></div>
         <div class="ta-popup-rodape">
-          <button type="button" id="orcOrdemOriginal">Ordem da DRE</button>
+          <button type="button" id="orcOrdemOriginal">Ordem original</button>
           <button type="button" class="ta-fechar">Fechar</button>
         </div>
       </div>
@@ -183,28 +178,80 @@
   </div>
   <div class="tabela-scroll">
     <table class="orc-grade" id="orcTabela">
-      <thead>
-        <tr class="th-titulos">
-          <th data-col="rotulo" id="orcThRotulo">Linha da DRE</th>
-          <th data-col="orcado" class="num">Orçado</th>
-          <th data-col="realizado" class="num">Realizado</th>
-          <th data-col="variacao" class="num" title="Realizado menos orçado: positivo é melhor que o orçado em qualquer linha">Variação</th>
-          <th data-col="pct" class="num">% realizado</th>
-        </tr>
-        <tr class="th-filtro" hidden>
-          {% for c, r in [('rotulo', 'primeira coluna'), ('orcado', 'Orçado'), ('realizado', 'Realizado'), ('variacao', 'Variação'), ('pct', '% realizado')] %}
-          <th data-col="{{ c }}"><input type="text" placeholder="filtrar" data-th-filtro="{{ c }}" aria-label="Filtrar {{ r }}"></th>
-          {% endfor %}
-        </tr>
-      </thead>
+      <thead id="orcCab"></thead>
       <tbody id="orcCorpo"></tbody>
+      <tfoot id="orcRodape"></tfoot>
     </table>
+  </div>
+</div>
+
+<div class="orc-fundo" id="orcDrawerFundo" hidden></div>
+<aside class="orc-drawer" id="orcDrawer" role="dialog" aria-modal="true" aria-labelledby="orcDrawerTit" hidden>
+  <div class="orc-drawer-cab">
+    <h2 id="orcDrawerTit"><i class="ph ph-funnel"></i> Filtros</h2>
+    <button type="button" class="orc-x" data-fechar="orcDrawer" aria-label="Fechar os filtros"><i class="ph ph-x"></i></button>
+  </div>
+  <div class="orc-drawer-corpo">
+    <p class="orc-sec">Período</p>
+    <div class="orc-par">
+      {{ selectbusca('de', 'Competência de', meses, 1) }}
+      {{ selectbusca('ate', 'Até', meses, mes) }}
+    </div>
+    <p class="orc-sec">Centro de custo</p>
+    {{ selectbusca('servico', 'Serviço', opcoes.servico|default([]), '', 'Todos') }}
+    {{ selectbusca('coordenador', 'Coordenador', opcoes.coordenador|default([]), '', 'Todos') }}
+    {{ selectbusca('filial', 'Filial', opcoes.filial|default([]), '', 'Todas') }}
+    {{ selectbusca('centro', 'Centro de custo', opcoes.centro|default([]), '', 'Todos') }}
+    <p class="orc-sec">Conta</p>
+    <div class="g">
+      <label class="fu-lbl" for="orc_conta">Conta contábil</label>
+      <input type="text" class="orc-input" id="orc_conta" maxlength="40" inputmode="decimal" autocomplete="off" placeholder="o começo do código, como 3.1.1">
+    </div>
+    <div class="g">
+      <label class="fu-lbl" for="orc_descricao">Descrição da conta</label>
+      <input type="text" class="orc-input" id="orc_descricao" maxlength="80" autocomplete="off" placeholder="parte do nome, como aluguel">
+    </div>
+    <p class="orc-drawer-msg" id="orcDrawerMsg" aria-live="polite"></p>
+  </div>
+  <div class="orc-drawer-rodape">
+    <button type="button" class="btn btn-secondary" id="orcLimpar"><i class="ph ph-eraser"></i> Limpar filtros</button>
+    <button type="button" class="btn btn-primary" id="orcAplicar"><i class="ph ph-check"></i> Aplicar</button>
+  </div>
+</aside>
+
+<div class="orc-fundo orc-fundo-modal" id="orcLancFundo" hidden>
+  <div class="orc-modal modal-lg" id="orcLanc" role="dialog" aria-modal="true" aria-labelledby="orcLancTit">
+    <div class="orc-modal-cab">
+      <div>
+        <h2 id="orcLancTit">Lançamentos</h2>
+        <p class="orc-modal-sub" id="orcLancSub"></p>
+      </div>
+      <button type="button" class="orc-x" data-fechar="orcLanc" aria-label="Fechar os lançamentos"><i class="ph ph-x"></i></button>
+    </div>
+    <div class="orc-modal-corpo">
+      <div class="loading-inline" id="orcLancCarregando" hidden>
+        <div class="spinner-circle"></div>
+        <div class="loading-text">Buscando os lançamentos no razão...</div>
+      </div>
+      <p class="orc-aviso" id="orcLancAviso" hidden></p>
+      <div class="tabela-scroll">
+        <table class="orc-grade orc-lanc" id="orcLancTabela">
+          <thead><tr class="th-titulos"><th>Empresa</th><th>Data</th><th>Documento</th><th>Histórico</th><th>Centro</th><th class="num">Valor</th></tr></thead>
+          <tbody id="orcLancCorpo"></tbody>
+          <tfoot id="orcLancRodape"></tfoot>
+        </table>
+      </div>
+    </div>
+    <div class="orc-modal-rodape">
+      <button type="button" class="btn btn-secondary" id="orcLancCsv"><i class="ph ph-file-csv"></i> Exportar CSV</button>
+      <button type="button" class="btn btn-primary" data-fechar="orcLanc">Fechar</button>
+    </div>
   </div>
 </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='selectbusca.js') }}?v=20261020"></script>
-<script src="{{ url_for('static', filename='orcamento_tela.js') }}?v=20261020"></script>
+<script src="{{ url_for('static', filename='selectbusca.js') }}?v=20261021"></script>
+<script src="{{ url_for('static', filename='orcamento_tela.js') }}?v=20261021"></script>
 {% endblock %}

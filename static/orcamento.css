@@ -156,7 +156,6 @@
 .fu-lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: color-mix(in srgb, var(--muted) 45%, var(--text)); }
 .fu-bar .selectbusca .sb-display { height: var(--fu-h); }
 .fu-bar .orc-consultar { background: color-mix(in srgb, var(--accent) 85%, black); height: var(--fu-h); margin-left: auto; align-self: flex-end; display: inline-flex; align-items: center; gap: 6px; }
-.orc-so-dimensao[hidden] { display: none; }
 
 /* Toggle tipo 1, multi opções (Abrir por) */
 .orc-presets {
@@ -402,3 +401,133 @@
 }
 /* número nunca quebra no meio: abaixo de 480px, um card por linha */
 @media (max-width: 480px) { .mg-kpis { grid-template-columns: 1fr; } }
+
+/* ── Fase 7: botão Filtro, chips, painel lateral, abertura por dimensão e lançamentos ── */
+
+/* Botão Filtro na barra, com a contagem de filtros aplicados */
+.orc-btn-filtro {
+  display: inline-flex; align-items: center; gap: 6px; height: var(--fu-h); padding: 0 14px; cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 700; color: var(--text); background: var(--card);
+  border: 1px solid var(--border); border-radius: 8px; align-self: flex-end;
+}
+.orc-btn-filtro:hover, .orc-btn-filtro:focus-visible { border-color: var(--accent); outline: none; }
+.orc-badge {
+  min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; display: inline-grid; place-items: center;
+  border-radius: 999px; font-size: 11px; color: white; background: color-mix(in srgb, var(--accent) 85%, black);
+}
+
+/* Filtros aplicados, um chip cada, com o x que tira só aquele */
+.orc-ativos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; align-self: flex-end; min-height: var(--fu-h); }
+.orc-ativo {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 320px; height: 30px; padding: 0 4px 0 10px;
+  box-sizing: border-box; font-size: 12.5px; color: var(--text); border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--card)); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+.orc-ativo > span:last-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orc-ativo-fixo { padding-right: 10px; background: var(--card); border-color: var(--border); }
+.orc-ativo-lbl { font-weight: 700; }
+.orc-ativo-x {
+  flex: 0 0 auto; width: 24px; height: 24px; display: grid; place-items: center; padding: 0; cursor: pointer;
+  color: var(--text); background: transparent; border: none; border-radius: 50%;
+}
+.orc-ativo-x:hover, .orc-ativo-x:focus-visible { background: color-mix(in srgb, var(--text) 12%, transparent); outline: none; }
+
+/* Fundo das camadas: escurece a página e não fecha nada (Padrao_Modal_Nao_Fecha_Sozinho) */
+body.drawer-aberto { overflow: hidden; }
+.orc-fundo {
+  position: fixed; inset: 0; z-index: 1000; opacity: 0; transition: opacity .2s ease;
+  background: color-mix(in srgb, black 42%, transparent);
+}
+.orc-fundo.aberto { opacity: 1; }
+.orc-fundo[hidden], .orc-drawer[hidden] { display: none !important; }
+
+/* Painel lateral: entra e sai pela direita, no mesmo caminho (Padrao_Transicao_Simetrica) */
+.orc-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 1001; width: min(420px, 100vw); box-sizing: border-box;
+  display: flex; flex-direction: column; background: var(--card); color: var(--text);
+  border-left: 1px solid var(--border); box-shadow: -12px 0 32px color-mix(in srgb, black 22%, transparent);
+  transform: translateX(100%); transition: transform .2s ease;
+}
+.orc-drawer.aberto { transform: none; }
+.orc-drawer-cab, .orc-modal-cab {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.orc-drawer-cab h2, .orc-modal-cab h2 {
+  margin: 0; font-size: 16px; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px;
+}
+.orc-x {
+  flex: 0 0 auto; width: 36px; height: 36px; display: grid; place-items: center; cursor: pointer; font-size: 18px;
+  color: var(--text); background: transparent; border: 1px solid var(--border); border-radius: 8px;
+}
+.orc-x:hover, .orc-x:focus-visible { border-color: var(--accent); outline: none; }
+.orc-drawer-corpo { flex: 1 1 auto; overflow-y: auto; padding: 4px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
+.orc-drawer-corpo .g { display: flex; flex-direction: column; gap: 4px; }
+.orc-drawer-corpo .orc-input { height: 40px; }
+.orc-sec {
+  margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--border);
+  font-size: 12px; font-weight: 800; color: var(--primary);
+}
+.orc-sec:first-child { border-top: none; padding-top: 6px; }
+.orc-par { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.orc-drawer .g { min-width: 0; }
+.orc-drawer .selectbusca { min-width: 0; width: 100%; }
+.orc-drawer-msg { margin: 0; min-height: 18px; font-size: 12.5px; font-weight: 600; color: color-mix(in srgb, var(--danger) 75%, var(--text)); }
+.orc-drawer-rodape, .orc-modal-rodape {
+  display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 12px 18px;
+  border-top: 1px solid var(--border);
+}
+.orc-drawer .btn, .orc-modal .btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; }
+.orc-drawer .btn-primary, .orc-modal .btn-primary { background: color-mix(in srgb, var(--accent) 85%, black); box-shadow: none; }
+.orc-drawer .btn-secondary, .orc-modal .btn-secondary { color: var(--text); background: var(--card); border: 1px solid var(--border); }
+.orc-modal .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Modal grande (Padrao_Modal, modal-lg): sobe ao entrar e desce ao sair */
+/* coluna minmax(0, 1fr): sem ela o item de grid cresce até a largura da tabela e vaza a tela no celular */
+.orc-fundo-modal { display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; padding: 16px; box-sizing: border-box; }
+.orc-modal {
+  width: 89vw; max-width: 100%; max-height: 90vh;  /* Padrao_Modal, modal-lg */ display: flex; flex-direction: column; box-sizing: border-box;
+  background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 20px 50px color-mix(in srgb, black 30%, transparent);
+  opacity: 0; transform: translateY(16px) scale(.98); transition: opacity .2s ease, transform .2s ease;
+}
+.orc-fundo-modal.aberto .orc-modal { opacity: 1; transform: none; }
+.orc-modal-sub { margin: 4px 0 0; font-size: 12.5px; color: var(--text); }
+.orc-modal-corpo { flex: 1 1 auto; min-height: 120px; overflow: auto; padding: 12px 18px; }
+.orc-modal-corpo .tabela-scroll { overflow: visible; }
+.orc-modal-rodape { justify-content: space-between; }
+.orc-lanc th { cursor: default; position: sticky; top: 0; }
+.orc-lanc td { white-space: nowrap; }
+.orc-lanc td.orc-hist { white-space: normal; min-width: 260px; }
+@media (max-width: 880px) { .orc-modal { width: 96vw; max-height: 92vh; } .orc-fundo-modal { padding: 8px; } }
+@media (prefers-reduced-motion: reduce) {
+  .orc-drawer, .orc-modal { transition: opacity .12s ease; transform: none; }
+  .orc-drawer { opacity: 0; }
+  .orc-drawer.aberto, .orc-fundo-modal.aberto .orc-modal { opacity: 1; }
+}
+
+/* Abertura por dimensão: grupos Receita, Custo e despesa, MC e MC % sobre os pares Orçado e Realizado */
+.orc-grade .th-grupos th { cursor: default; padding-bottom: 2px; text-align: center; border-bottom: none; color: var(--primary); }
+.orc-grade .th-grupos th:not(:empty) { border-bottom: 2px solid color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.orc-grade tfoot td { font-weight: 800; border-top: 2px solid var(--border); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.orc-drill {
+  padding: 0; font: inherit; font-weight: 600; text-align: left; cursor: pointer;
+  color: var(--text); background: none; border: none; text-decoration: underline;
+  text-decoration-color: var(--accent); text-decoration-thickness: 1.5px; text-underline-offset: 3px;
+}
+.orc-drill:hover, .orc-drill:focus-visible { color: var(--primary); text-decoration-color: var(--accent); outline: none; }
+.arv-conta {
+  padding: 0; font: inherit; text-align: left; cursor: pointer; color: var(--text); background: none; border: none;
+  text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 1.5px; text-underline-offset: 3px;
+}
+.arv-conta:hover, .arv-conta:focus-visible { color: var(--primary); text-decoration-color: var(--accent); outline: 2px solid transparent; }
+
+@media (max-width: 720px) {
+  .orc-btn-filtro { flex: 1 1 auto; justify-content: center; min-height: 44px; }
+  .orc-ativos { flex-basis: 100%; }
+  .orc-ativo { max-width: 100%; height: 36px; }
+  .orc-ativo-x { width: 32px; height: 32px; }
+  .arv-abre, .arv-folha { width: 36px; height: 36px; }
+  .orc-modal-rodape { flex-wrap: wrap; }
+  .orc-par { grid-template-columns: 1fr; }
+}
