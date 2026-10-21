@@ -363,8 +363,11 @@
 .orc-arvore thead .arv-nome { z-index: 3; }
 .arv-mes-sub span { display: inline-block; min-width: 50px; font-size: 9.5px; text-transform: uppercase; }
 .arv-mes-sub span + span, .arv-par span + span { margin-left: 6px; }
-.orc-arvore .arv-orc { color: color-mix(in srgb, var(--warning) 30%, var(--text)); }
-.orc-arvore .arv-real { color: color-mix(in srgb, var(--accent) 45%, var(--text)); }
+/* orçado em âmbar e realizado em verde, as mesmas cores das etiquetas da legenda */
+.orc-arvore .arv-orc { color: color-mix(in srgb, var(--warning) 55%, var(--text)); }
+.orc-arvore .arv-real { color: color-mix(in srgb, var(--accent) 60%, var(--text)); }
+[data-theme="light"] .orc-arvore .arv-orc { color: color-mix(in srgb, var(--warning) 45%, black); }
+[data-theme="light"] .orc-arvore .arv-real { color: color-mix(in srgb, var(--accent) 70%, black); }
 .arv-cel { padding: 4px 6px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; vertical-align: top; }
 .arv-par span { display: inline-block; min-width: 50px; }
 .orc-arvore .arv-par .arv-real { font-weight: 600; }
@@ -393,11 +396,11 @@
   margin: 3px 0 0 auto; width: fit-content; display: flex; align-items: center; gap: 5px; padding: 1px 7px;
   border-radius: 999px; font-size: 10px; font-weight: 600;
 }
-/* o escuro é o padrão do FinHub; o claro vem por [data-theme="light"] */
-.arv-var.pos { color: color-mix(in srgb, var(--success) 70%, white); background: color-mix(in srgb, var(--success) 18%, var(--card)); }
-.arv-var.neg { color: color-mix(in srgb, var(--danger) 65%, white); background: color-mix(in srgb, var(--danger) 18%, var(--card)); }
-[data-theme="light"] .arv-var.pos { color: color-mix(in srgb, var(--success) 50%, black); background: color-mix(in srgb, var(--success) 28%, var(--card)); }
-[data-theme="light"] .arv-var.neg { color: color-mix(in srgb, var(--danger) 70%, black); background: color-mix(in srgb, var(--danger) 16%, var(--card)); }
+/* pílula cheia, letra branca, no tom dos cards (pedido de 2026-10-21: destaque mais forte) */
+.arv-var.pos { color: white; background: color-mix(in srgb, var(--success) 52%, black); }
+.arv-var.neg { color: white; background: color-mix(in srgb, var(--danger) 62%, black); }
+[data-theme="light"] .arv-var.pos { background: color-mix(in srgb, var(--success) 75%, black); }
+[data-theme="light"] .arv-var.neg { background: color-mix(in srgb, var(--danger) 85%, black); }
 .arv-var.zero { color: var(--muted); }
 .orc-arvore .arv-extra { background: color-mix(in srgb, var(--accent) 6%, var(--card)); }
 .orc-arvore thead th.arv-extra { background: color-mix(in srgb, var(--accent) 10%, var(--card)); }
