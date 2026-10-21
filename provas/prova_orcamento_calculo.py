@@ -125,6 +125,45 @@ confere(par(calc(empresa="consolidado", abrir_por="centro")["total"]) == (1000, 
 confere(dict((l["rotulo"], par(l)) for l in calc(empresa="consolidado", abrir_por="filial")["linhas"]).get(oe.SEM_CENTRO) == (0, 330),
         "consolidado: Gnileb (sem centro) junto do sem centro da MKB")
 
+# 5a. árvore da DRE (Fase 6): mesmas contas, organizadas em bloco > grupo do 5º nível > analítica, por mês
+conn.execute("INSERT INTO contas (cod, empresa_id, descricao) VALUES ('3.1.1.01.01', 1, 'RECEITA BRUTA DE SERVICOS')")
+conn.execute("INSERT INTO contas (cod, empresa_id, descricao) VALUES (?, 1, 'RECEITA - SERVICOS')", (ROB,))
+conn.commit()
+arv = oe.arvore(conn, "mkb", 2026, 1, 3)
+porid = {l["id"]: l for l in arv["linhas"]}
+confere(arv["linhas"][0]["id"] == "TOTAL" and [l["nivel"] for l in arv["linhas"]][:3] == [0, 1, 2], "árvore: Resultado no topo, depois bloco e grupo")
+confere([m for m in arv["total"]["meses"]] == [[1000, 590], [800, 580], [900, None]], "árvore: total por mês = cálculo da Fase 3; março sem razão = sem dado, não zero")
+confere(arv["total"]["orcado_comparavel"] == 1800 and arv["total"]["media_orcado_comparavel"] == 900,
+        "árvore: acumulado compara com o orçado só dos meses com razão (1800, não 2700)")
+pais_ok = all(abs(sum(f["meses"][i][k] or 0 for f in arv["linhas"] if f["pai"] == l["id"]) - (l["meses"][i][k] or 0)) < 1e-9
+              for l in arv["linhas"] if any(f["pai"] == l["id"] for f in arv["linhas"]) for i in range(3) for k in (0, 1))
+confere(pais_ok, "árvore: cada pai é a soma exata (em centavos) dos filhos, mês a mês")
+for mes, esperado in ((1, (1000, 590)), (2, (800, 580))):
+    confere(tuple(oe.arvore(conn, "mkb", 2026, mes, mes)["total"]["acumulado"]) == esperado == par(calc(mes=mes)["total"]),
+            f"árvore: mês {mes} sozinho = calcular")
+confere(arv["total"]["acumulado"] == [2700, 1170], "árvore: acumulado = soma dos meses")
+confere(arv["total"]["media"] == [900, 585], "árvore: média do orçado ÷ 3 meses, do realizado ÷ 2 meses com razão")
+rec = porid["RECEITA"]
+confere(rec["meses"][0] == [1400, 1020] and rec["rotulo"] == "Receita", "árvore: bloco Receita = ROB + deduções (jan 1400 x 1020)")
+grupos = [l for l in arv["linhas"] if l["pai"] == "RECEITA"]
+for g in grupos:
+    filhos = [l for l in arv["linhas"] if l["pai"] == g["id"]]
+    confere(filhos and all(abs(sum(f["acumulado"][i] for f in filhos) - g["acumulado"][i]) < .01 for i in (0, 1)),
+            f"árvore: grupo {g['codigo']} = soma das analíticas")
+confere(porid["g:RECEITA:3.1.1.01.01"]["rotulo"] == "RECEITA BRUTA DE SERVICOS" and porid["c:" + ROB]["rotulo"] == "RECEITA - SERVICOS",
+        "árvore: descrição do grupo e da conta pela tabela contas")
+confere(porid["g:CUSTOS:4.1.1.01.02"]["rotulo"] == "Grupo 4.1.1.01.02", "árvore: grupo sem descrição vira Grupo <código>")
+confere(arv["meses_sem_realizado"] == ["2026-03"] and arv["realizado_ate"] == "28/02/2026", "árvore: realizado disponível até o fim de fevereiro")
+cons = oe.arvore(conn, "consolidado", 2026, 1, 1)
+confere(tuple(cons["total"]["acumulado"]) == (1000, 890) and cons["eliminado_equivalencia"] == -200, "árvore: consolidado sem a equivalência")
+confere(tuple(oe.arvore(conn, "mkb", 2026, 1, 1, {"servico": ["ASSESSORIA"]})["total"]["acumulado"]) == (900, 990), "árvore: filtro de serviço")
+for k in ((3, 1), (0, 2), (1, 13), (True, 2)):
+    try:
+        oe.arvore(conn, "mkb", 2026, *k)
+        confere(False, f"árvore: meses {k} deviam recusar")
+    except ValueError:
+        confere(True, f"árvore: meses {k} recusados")
+
 # 5b. furos achados pelo verificador (2026-10-20), em base própria de abril e maio
 conn.executemany("INSERT INTO orcamento (empresa_id, competencia, conta_cod, centro_custo, valor, lote_id) VALUES (1,?,?,?,?,1)", [
     ("2026-04", ROB, C1, 0.3), ("2026-04", DED, C1, -0.1), ("2026-04", DED, C1 + " ", -0.2),   # ROL = resíduo de 5e-17
@@ -173,7 +212,8 @@ for no in ast.walk(arvore):
 confere(interpolados and set(interpolados) == {"marcas"}, f"sql: f-string de SQL só interpola os marcadores ({len(interpolados)} achados)")
 atribuicoes = [ast.unparse(n.value) for n in ast.walk(arvore) if isinstance(n, ast.Assign)
                and any(isinstance(a, ast.Name) and a.id == "marcas" for a in n.targets)]
-confere(atribuicoes == ["','.join('?' * len(ids))"], "sql: marcas só nasce de '?' repetido pelo número de empresas")
+confere(atribuicoes.count("','.join('?' * len(ids))") == 1 and set(atribuicoes) <= {"','.join('?' * len(ids))", "per['marcas']", "','.join('?' * len(lote))"},
+        "sql: marcas só nasce de '?' repetido pelo número de empresas (em _periodo, e repassado por per['marcas'])")
 
 conn.close()
 print()

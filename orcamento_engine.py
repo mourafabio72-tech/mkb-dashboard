@@ -98,28 +98,26 @@ def _passa(filtros, centro, cad):
     return True
 
 
-def calcular(conn, empresa: str, ano: int, mes: int, modo: str = "mes", abrir_por: str = "linha",
-             filtros: dict | None = None, linha: str | None = None) -> dict:
-    _validar(empresa, ano, mes, modo, abrir_por, filtros, linha)
+def _periodo(conn, empresa, ano, mes_ini, mes_fim):
+    """Empresas, meses e marcas do período; mês sem razão de qualquer empresa sai em sem_razao."""
     consolidado = empresa == "consolidado"
     chaves = ["mkb", "gnileb"] if consolidado else [empresa]
     ids = [EMPRESAS[k]["id"] for k in chaves]
-    gnileb_id = EMPRESAS["gnileb"]["id"]
-    comp_fim = f"{ano}-{mes:02d}"
-    comp_ini = comp_fim if modo == "mes" else f"{ano}-01"
-    meses = [f"{ano}-{m:02d}" for m in range(int(comp_ini[5:]), mes + 1)]
+    meses = [f"{ano}-{m:02d}" for m in range(mes_ini, mes_fim + 1)]
     marcas = ",".join("?" * len(ids))
-
     com_razao = {(e, c) for e, c in conn.execute(
         f"SELECT DISTINCT empresa_id, competencia FROM razao WHERE empresa_id IN ({marcas}) AND competencia BETWEEN ? AND ?",
-        (*ids, comp_ini, comp_fim))}
+        (*ids, meses[0], meses[-1]))}
     # no consolidado, o mês fica sem realizado se faltar o razão de QUALQUER das empresas
     sem_razao = {EMPRESAS[k]["sigla"]: [c for c in meses if (EMPRESAS[k]["id"], c) not in com_razao] for k in chaves}
-    cad = _centros(conn, ids)
+    return dict(consolidado=consolidado, chaves=chaves, ids=ids, meses=meses, marcas=marcas, sem_razao=sem_razao)
 
-    # (chave de abertura, linha da DRE) -> [orçado, realizado]
-    valores = defaultdict(lambda: [0.0, 0.0])
-    eliminado = 0.0
+
+def _lancamentos(conn, per, eliminado: list):
+    """(0 orçado | 1 realizado, empresa, mês, conta, centro, valor), contas de resultado, conta sem espaço e
+    centro sem ponto. No consolidado, a equivalência patrimonial da Gnileb sai e soma em eliminado[0]."""
+    gnileb_id = EMPRESAS["gnileb"]["id"]
+    marcas, ids = per["marcas"], per["ids"]
     consultas = (
         # as duas consultas com a mesma regra: só contas de resultado (3 e 4), conta sem espaço, centro sem ponto
         (0, f"""SELECT empresa_id, competencia, trim(conta_cod), replace(trim(COALESCE(centro_custo, '')), '.', ''), SUM(valor)
@@ -131,31 +129,51 @@ def calcular(conn, empresa: str, ano: int, mes: int, modo: str = "mes", abrir_po
                   AND (trim(conta_cod) LIKE '3%' OR trim(conta_cod) LIKE '4%')
                 GROUP BY 1, 2, 3, 4"""),
     )
-    cache_linha = {}
     for indice, sql in consultas:
-        for eid, comp, conta, centro, valor in conn.execute(sql, (*ids, comp_ini, comp_fim)):
-            conta = (conta or "").strip()
-            centro = (centro or "").strip()
-            if consolidado and eid == gnileb_id and conta in CONTAS_EP:
-                eliminado += valor or 0.0
+        for eid, comp, conta, centro, valor in conn.execute(sql, (*ids, per["meses"][0], per["meses"][-1])):
+            conta, centro = (conta or "").strip(), (centro or "").strip()
+            if per["consolidado"] and eid == gnileb_id and conta in CONTAS_EP:
+                eliminado[0] += valor or 0.0
                 continue
-            lid = cache_linha.get(conta)
-            if lid is None:
-                lid = cache_linha[conta] = linha_da_conta(conta)
-            if linha is not None and lid != linha and linha in _BASE_GER + [SEM_LINHA[0]]:
-                continue
-            if not _passa(filtros, centro, cad):
-                continue
-            valores[(_rotulo(abrir_por, centro, cad), lid)][indice] += valor or 0.0
+            yield indice, eid, comp, conta, centro, round(valor or 0.0, 2)  # em centavos: árvore e cálculo somam igual
 
-    return _montar(valores, abrir_por, linha, dict(
-        empresa=empresa, ano=ano, mes=mes, modo=modo, abrir_por=abrir_por, competencias=meses,
-        meses_sem_realizado=[c for c in meses if any(c in faltam for faltam in sem_razao.values())],
-        sem_razao_por_empresa={sigla: faltam for sigla, faltam in sem_razao.items() if faltam},
+
+def _meta(conn, empresa, ano, per, eliminado):
+    marcas = per["marcas"]
+    return dict(
+        meses_sem_realizado=[c for c in per["meses"] if any(c in f for f in per["sem_razao"].values())],
+        sem_razao_por_empresa={sigla: f for sigla, f in per["sem_razao"].items() if f},
         sem_orcamento=not conn.execute(
             f"SELECT 1 FROM orcamento WHERE empresa_id IN ({marcas}) AND substr(competencia, 1, 4) = ? LIMIT 1",
-            (*ids, str(ano))).fetchone(),
-        eliminado_equivalencia=round(-eliminado, 2) if consolidado else 0.0))
+            (*per["ids"], str(ano))).fetchone(),
+        eliminado_equivalencia=round(-eliminado[0], 2) if per["consolidado"] else 0.0)
+
+
+def calcular(conn, empresa: str, ano: int, mes: int, modo: str = "mes", abrir_por: str = "linha",
+             filtros: dict | None = None, linha: str | None = None, mes_ini: int | None = None) -> dict:
+    """Uma coluna. O período é mes_ini..mes (quando mes_ini vem), ou o mês, ou o acumulado do ano (modo)."""
+    _validar(empresa, ano, mes, modo, abrir_por, filtros, linha)
+    if mes_ini is not None and (isinstance(mes_ini, bool) or not isinstance(mes_ini, int) or not 1 <= mes_ini <= mes):
+        raise ValueError("Mês inicial inválido.")
+    inicio = mes_ini if mes_ini is not None else (mes if modo == "mes" else 1)
+    per = _periodo(conn, empresa, ano, inicio, mes)
+    cad = _centros(conn, per["ids"])
+    valores = defaultdict(lambda: [0.0, 0.0])  # (chave de abertura, linha da DRE) -> [orçado, realizado]
+    eliminado = [0.0]
+    cache_linha = {}
+    for indice, _eid, _comp, conta, centro, valor in _lancamentos(conn, per, eliminado):
+        lid = cache_linha.get(conta)
+        if lid is None:
+            lid = cache_linha[conta] = linha_da_conta(conta)
+        if linha is not None and lid != linha and linha in _BASE_GER + [SEM_LINHA[0]]:
+            continue
+        if not _passa(filtros, centro, cad):
+            continue
+        valores[(_rotulo(abrir_por, centro, cad), lid)][indice] += valor
+
+    return _montar(valores, abrir_por, linha, dict(
+        empresa=empresa, ano=ano, mes=mes, modo=modo, abrir_por=abrir_por, competencias=per["meses"],
+        **_meta(conn, empresa, ano, per, eliminado)))
 
 
 def _por_linha(pares):
@@ -232,3 +250,116 @@ def opcoes_filtro(conn, empresa: str) -> dict:
     saida = {d: sorted({(c.get(d) or SEM_VALOR) for c in cad.values()}) for d in ("servico", "coordenador", "filial")}
     saida["centro"] = sorted(cad)
     return saida
+
+
+# ─── Fase 6: DRE em árvore, por mês ──────────────────────────────────────────
+
+# Nível 1 pela DRE gerencial (D3): bloco -> linhas base que ele soma
+BLOCOS = [
+    ("RECEITA", "Receita", ("ROB", "DED")),
+    ("CUSTOS", "Custos", tuple(g for g in _GER_GRUPOS_DIRETOS if g.startswith("CPV_"))),
+    ("DESPESAS", "Despesas", tuple(g for g in _GER_GRUPOS_DIRETOS if g.startswith("DADM_"))),
+    ("FINANCEIRO", "Resultado financeiro", ("ENC_FIN",)),
+    ("OUTROS", "Outros resultados", ("OUTROS_OP",)),
+    ("IRPJ", "IRPJ e CSLL", ("IRPJ_CSLL",)),
+    ("SEM", "Sem linha na DRE", (SEM_LINHA[0],)),
+]
+_BLOCO_DA_LINHA = {lid: b for b, _, lids in BLOCOS for lid in lids}
+NIVEL_GRUPO = 5  # o 5º nível do código (3.1.1.01.01) é o grupo que aparece entre o bloco e a analítica
+
+
+def _grupo(conta: str) -> str:
+    partes = conta.split(".")
+    return ".".join(partes[:NIVEL_GRUPO]) if len(partes) > NIVEL_GRUPO else conta
+
+
+def _descricoes(conn, ids, codigos) -> dict:
+    """código -> descrição da tabela `contas`; vale a da primeira empresa da lista (MKB no consolidado)."""
+    saida = {}
+    codigos = sorted(codigos)
+    for eid in ids:
+        for i in range(0, len(codigos), 500):
+            lote = codigos[i:i + 500]
+            marcas = ",".join("?" * len(lote))
+            for cod, desc in conn.execute(f"SELECT trim(cod), descricao FROM contas WHERE empresa_id = ? AND trim(cod) IN ({marcas})",
+                                          (eid, *lote)):
+                if desc and cod not in saida:
+                    saida[cod] = " ".join(str(desc).split())[:120]
+    return saida
+
+
+def _ultimo_dia(comp: str) -> str:
+    import calendar
+    ano, mes = int(comp[:4]), int(comp[5:7])
+    return f"{calendar.monthrange(ano, mes)[1]:02d}/{mes:02d}/{ano}"
+
+
+def arvore(conn, empresa: str, ano: int, mes_ini: int, mes_fim: int, filtros: dict | None = None) -> dict:
+    """Linhas da árvore (Resultado no topo, bloco, grupo do 5º nível, analítica) com [orçado, realizado] por mês,
+    Acumulado e Média. Média do orçado = acumulado ÷ meses do período; do realizado = acumulado ÷ meses com razão."""
+    for v in (mes_ini, mes_fim):
+        if isinstance(v, bool) or not isinstance(v, int) or not 1 <= v <= 12:
+            raise ValueError("Mês inválido.")
+    if mes_ini > mes_fim:
+        raise ValueError("O mês inicial vem depois do final.")
+    _validar(empresa, ano, mes_fim, "mes", "linha", filtros, None)
+    per = _periodo(conn, empresa, ano, mes_ini, mes_fim)
+    cad = _centros(conn, per["ids"])
+    meses = per["meses"]
+    pos = {c: i for i, c in enumerate(meses)}
+    vazio = lambda: [[0.0, 0.0] for _ in meses]  # noqa: E731
+    por_conta = defaultdict(vazio)
+    eliminado = [0.0]
+    for indice, _eid, comp, conta, centro, valor in _lancamentos(conn, per, eliminado):
+        if _passa(filtros, centro, cad):
+            por_conta[conta][pos[comp]][indice] += valor
+
+    # cada conta arredondada antes de somar: o pai é a soma exata, em centavos, dos filhos que aparecem na tela
+    for cels in por_conta.values():
+        for c in cels:
+            c[0], c[1] = round(c[0], 2), round(c[1], 2)
+    descr = _descricoes(conn, per["ids"], set(por_conta) | {_grupo(c) for c in por_conta})
+    meses_sem = [c for c in meses if any(c in f for f in per["sem_razao"].values())]
+    com_razao = [i for i, c in enumerate(meses) if c not in meses_sem]
+
+    def no(id_, pai, nivel, codigo, rotulo, cels):
+        acum = [round(sum(c[0] for c in cels), 2), round(sum(cels[i][1] for i in com_razao), 2) if com_razao else None]
+        # orçado só dos meses que têm razão: é contra ele que o realizado acumulado se compara
+        orc_cmp = round(sum(cels[i][0] for i in com_razao), 2)
+        media = [round(acum[0] / len(meses), 2), round(acum[1] / len(com_razao), 2) if com_razao else None]
+        return dict(id=id_, pai=pai, nivel=nivel, codigo=codigo, rotulo=rotulo,
+                    meses=[[round(o, 2), None if meses[i] in meses_sem else round(r, 2)] for i, (o, r) in enumerate(cels)],
+                    acumulado=acum, media=media, orcado_comparavel=orc_cmp,
+                    media_orcado_comparavel=round(orc_cmp / len(com_razao), 2) if com_razao else None)
+
+    def soma(listas):
+        tot = vazio()
+        for cels in listas:
+            for i, (o, r) in enumerate(cels):
+                tot[i][0] += o
+                tot[i][1] += r
+        return tot
+
+    linhas, blocos_cels = [], {}
+    for bid, rotulo, _ in BLOCOS:
+        contas = sorted(c for c in por_conta if _BLOCO_DA_LINHA.get(linha_da_conta(c)) == bid)
+        if not contas:
+            continue
+        grupos = defaultdict(list)
+        for c in contas:
+            grupos[_grupo(c)].append(c)
+        filhos = []
+        for g in sorted(grupos):
+            g_cels = soma(por_conta[c] for c in grupos[g])
+            filhos.append(no(f"g:{bid}:{g}", bid, 2, g, descr.get(g) or f"Grupo {g}", g_cels))
+            for c in grupos[g]:
+                filhos.append(no(f"c:{c}", f"g:{bid}:{g}", 3, c, descr.get(c) or c, por_conta[c]))
+        blocos_cels[bid] = soma(por_conta[c] for c in contas)
+        linhas.append(no(bid, "TOTAL", 1, "", rotulo, blocos_cels[bid]))
+        linhas.extend(filhos)
+    total = no("TOTAL", None, 0, "", "Resultado", soma(blocos_cels.values()))
+    ultimo = [c for c in meses if c not in meses_sem]
+    return dict(empresa=empresa, ano=ano, mes_ini=mes_ini, mes_fim=mes_fim, competencias=meses,
+                linhas=[total] + linhas, total=total,
+                realizado_ate=_ultimo_dia(ultimo[-1]) if ultimo else None,
+                **_meta(conn, empresa, ano, per, eliminado))

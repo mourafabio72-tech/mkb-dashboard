@@ -122,6 +122,56 @@ Decisões fechadas na Fase 0 (Fábio respondeu "aprovado" sem alterar os padrõe
   - ZIP de versão em `z_Versoes/` e linha `fase=5 acao=entrega resultado=ok` no LOG.
 - **Dependências:** Fase 4.
 
+## Ampliação de 2026-10-21 (pedido do Fábio depois de importar o orçamento real)
+
+Fonte: chat (print do app de origem) e `Orçamento.md` com 5 prints. Decisões já dadas: árvore para na conta analítica
+e centro é filtro; nível 1 pela DRE gerencial; uma coluna por mês com total no fim; card inteiro colorido.
+Aprovado pelo Fábio em 2026-10-21 ("aprovado tudo"), com as três definições propostas:
+- D8 MC = Receita líquida (ROB + deduções) + Custos + Despesas operacionais (antes do financeiro, outros e IRPJ/CSLL);
+  MC % = MC ÷ Receita líquida.
+- D9 "Slide bar" = painel lateral aberto pelo botão Filtro, com o período (mês inicial e final) e os filtros dentro.
+- D10 Gráficos do dashboard desenhados no app (SVG), sem Chart.js nem outra biblioteca de CDN.
+
+## Fase 6: DRE em árvore, vários meses e cards coloridos
+
+- **Status:** done (2026-10-21)
+- **Duração estimada:** 6h
+- **O que entra:** a abertura "Linhas da DRE" vira árvore de 3 níveis: (1) sintético pela DRE gerencial (Receita,
+  Custos, Despesas, Resultado financeiro, Outros, IRPJ e CSLL, com o Resultado no fim), (2) o 5º nível da conta
+  (ex.: `3.1.1.01.01 · RECEITA BRUTA DE SERVIÇOS`), (3) as contas analíticas, com expandir e recolher. Descrição pela
+  tabela `contas`; sem descrição, "Grupo <código>". Período: mês inicial e final (vários meses), com a escolha
+  "Do período" (uma coluna, soma) ou "Evolução mensal" (uma coluna por mês com Orçado, Realizado, variação em valor
+  e %, seta de subiu ou desceu), e no fim Média e Acumulado. Faixa de legenda Orçado/Realizado e "Realizado disponível
+  até <data>". Opções de exibição ÷ 1.000 e centavos. Cards dos indicadores pintados por inteiro.
+- **Critério de aceite:** prova: árvore soma igual à DRE gerencial em cada mês; nível 2 = soma das analíticas;
+  Média = Acumulado ÷ meses com dado; conferir-telas sem erro; conferência no Chrome em 1366, 375 e escuro.
+
+## Fase 7: Abertura por dimensão no formato do print, painel de filtros e drilldown
+
+- **Status:** pending
+- **Duração estimada:** 6h
+- **O que entra:** Serviço, Coordenador, Filial e Centro de custo com as colunas Receita, Custo e Despesa, MC, MC %
+  (Orçado e Realizado em cada) e Variação de MC (realizado menos orçado), sem a coluna Resultado. Botão Filtro abre
+  painel lateral com período, serviço, coordenador, filial, centro de custo, conta contábil e descrição da conta,
+  valendo para todas as visões. Drilldown: centro ou grupo leva às contas; conta analítica abre os lançamentos do
+  razão no período (data, documento, histórico, centro, valor), com exportação.
+- **Critério de aceite:** prova: MC = Receita + Custo e Despesa; toda abertura soma o mesmo total; lançamentos do
+  drilldown somam o realizado da conta; usuário restrito não vê lançamento de outra empresa.
+
+## Fase 8: Dashboard do Orçamento
+
+- **Status:** pending
+- **Duração estimada:** 5h
+- **O que entra:** item Dashboard dentro do Orçamento (Tabela | Dashboard), no modelo do início do FinHub e com os
+  mesmos filtros: indicadores (Receita, Custo e Despesa, MC, MC %, Resultado, cada um orçado x realizado),
+  gráfico mensal orçado x realizado, gráfico de MC por mês e os maiores desvios por centro e por conta.
+- **Critério de aceite:** números do dashboard = números da tabela para o mesmo filtro; gráfico sem biblioteca externa.
+
+## Fase 9: Entrega (absorve o que restou da Fase 5)
+
+- **Status:** pending
+- **O que entra:** Fábio confere um mês em produção; ZIP em `z_Versoes/`; linha de entrega no LOG.
+
 ---
 
 ## Riscos conhecidos
@@ -150,3 +200,4 @@ Decisões fechadas na Fase 0 (Fábio respondeu "aprovado" sem alterar os padrõe
   entre MKB e Gnileb). Fases 3 e 4 ampliadas. Reaprovado pelo Fábio ("aprovado"); regra da D6 medida e confirmada na Fase 3.
 - 2026-10-20 (Fase 3): D6 fechada (elimina só a equivalência patrimonial) e D7 (Gnileb sem orçamento, razão sem centro).
 - 2026-10-20 (Fase 3): critério do consolidado reescrito pela D6 (não há venda entre as empresas; elimina só a equivalência) e cruzamento com a DRE gerencial acrescentado ao aceite.
+- 2026-10-21: ampliação pedida pelo Fábio (Fases 6, 7 e 8; a entrega da Fase 5 vira Fase 9), aprovada no mesmo dia.

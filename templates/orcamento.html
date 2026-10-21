@@ -20,9 +20,9 @@
 {% endmacro %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='orcamento.css') }}?v=20261020b">
+<link rel="stylesheet" href="{{ url_for('static', filename='orcamento.css') }}?v=20261021">
 
-<div class="orc-pagina" id="orcTela" data-url-dados="{{ url_for('orcamento.dados') }}"
+<div class="orc-pagina" id="orcTela" data-url-dados="{{ url_for('orcamento.dados') }}" data-url-arvore="{{ url_for('orcamento.arvore') }}"
      data-url-exportar="{{ url_for('orcamento.exportar') }}">
 <div class="page-header">
   <h1><i class="ph-bold ph-target"></i> Orçado x Realizado</h1>
@@ -44,12 +44,13 @@
       </div>
     </div>
   </div>
-  {{ selectbusca('mes', 'Mês', meses, mes) }}
+  {{ selectbusca('de', 'Competência de', meses, 1) }}
+  {{ selectbusca('ate', 'Até', meses, mes) }}
   <div class="g">
-    <span class="fu-lbl" id="lblModo">Visão</span>
+    <span class="fu-lbl" id="lblModo">Exibição</span>
     <div class="orc-fonte" id="orcModo" role="radiogroup" aria-labelledby="lblModo">
-      <button type="button" class="on" data-valor="mes" role="radio" aria-checked="true"><i class="ph ph-calendar-blank"></i> No mês</button>
-      <button type="button" data-valor="acumulado" role="radio" aria-checked="false"><i class="ph ph-calendar-dots"></i> Acumulado no ano</button>
+      <button type="button" data-valor="periodo" role="radio" aria-checked="false"><i class="ph ph-table"></i> Do período</button>
+      <button type="button" class="on" data-valor="evolucao" role="radio" aria-checked="true"><i class="ph ph-calendar-dots"></i> Evolução mensal</button>
     </div>
   </div>
   <button type="button" class="btn btn-primary orc-consultar" id="orcConsultar">
@@ -73,6 +74,26 @@
   {{ selectbusca('coordenador', 'Coordenador', opcoes.coordenador|default([]), '', 'Todos') }}
   {{ selectbusca('filial', 'Filial', opcoes.filial|default([]), '', 'Todas') }}
   {{ selectbusca('centro', 'Centro de custo', opcoes.centro|default([]), '', 'Todos') }}
+</div>
+
+<div class="orc-legenda">
+  <span class="orc-chip orc-chip-orc">Orçado</span>
+  <span class="orc-chip orc-chip-real">Realizado</span>
+  <span class="orc-ate" id="orcAte"></span>
+  <span class="orc-opcao">
+    <span class="orc-opcao-lbl" id="lblMil">÷ 1.000</span>
+    <span class="cv-sw" title="Mostrar os valores em milhares">
+      <input type="checkbox" id="orcMil" aria-labelledby="lblMil">
+      <label for="orcMil"></label>
+    </span>
+  </span>
+  <span class="orc-opcao">
+    <span class="orc-opcao-lbl" id="lblCent">Centavos</span>
+    <span class="cv-sw" title="Mostrar os centavos">
+      <input type="checkbox" id="orcCent" aria-labelledby="lblCent">
+      <label for="orcCent"></label>
+    </span>
+  </span>
 </div>
 
 <div id="orcAvisos" aria-live="polite"></div>
@@ -99,6 +120,34 @@
 <div class="empty-state" id="orcVazio" hidden>
   <h2>Nenhum valor no recorte</h2>
   <p>Não há orçamento nem realizado para esta empresa, período e filtros. Importe o orçamento em Cadastro ou mude o filtro.</p>
+</div>
+
+<div class="tabela-wrap" id="orcArvoreWrap" hidden>
+  <div class="tabela-faixa">
+    <h3 class="tabela-titulo" id="orcArvTitulo">Orçado x Realizado</h3>
+    <span class="tabela-contagem" id="orcArvContagem"></span>
+    <div class="ta-menu-wrapper">
+      <button type="button" class="ta-menu-btn" id="orcArvMenuBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Ferramentas da tabela">
+        <i class="ph-bold ph-list icon"></i>
+      </button>
+      <div class="ta-menu" id="orcArvMenu" role="menu">
+        <button type="button" class="ta-menu-item" data-acao="filtro" role="menuitem"><i class="ph ph-funnel"></i> Filtro por coluna</button>
+        <div class="ta-menu-divider"></div>
+        <button type="button" class="ta-menu-item" data-acao="csv" role="menuitem"><i class="ph ph-file-csv"></i> Exportar CSV</button>
+        <button type="button" class="ta-menu-item" data-acao="excel" role="menuitem"><i class="ph ph-file-xls"></i> Exportar Excel</button>
+        <div class="ta-menu-divider"></div>
+        <button type="button" class="ta-menu-item" data-acao="expandir" role="menuitem"><i class="ph ph-arrows-out-line-vertical"></i> Expandir tudo</button>
+        <button type="button" class="ta-menu-item" data-acao="recolher" role="menuitem"><i class="ph ph-arrows-in-line-vertical"></i> Recolher tudo</button>
+      </div>
+    </div>
+  </div>
+  <div class="tabela-scroll">
+    <table class="orc-arvore" id="orcArvore">
+      <thead id="orcArvCab"></thead>
+      <tbody id="orcArvCorpo"></tbody>
+    </table>
+  </div>
+  <input type="hidden" id="orcArvFiltroTexto" value="">
 </div>
 
 <div class="tabela-wrap" id="orcTabelaWrap" hidden>

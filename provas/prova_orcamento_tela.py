@@ -118,6 +118,24 @@ confere(j["total"]["orcado"] == 700 and j["total"]["realizado"] == 780, "número
 confere(dados(empresa="consolidado").get_json()["dados"]["total"]["realizado"] == 1180, "número: consolidado 1180")
 conn.close()
 
+# 4b. rota da árvore (Fase 6)
+def arvore_get(**p):
+    base = dict(empresa="mkb", ano="2026", de="1", ate="1")
+    base.update(p)
+    return cli.get("/orcamento/arvore", query_string={k: v for k, v in base.items() if v is not None})
+sessao(LEITURA)
+r = arvore_get()
+conn = get_conn()
+confere(r.status_code == 200 and r.get_json()["dados"]["total"] == oe.arvore(conn, "mkb", 2026, 1, 1)["total"], "árvore: leitura consulta e tela = motor")
+conn.close()
+confere(r.get_json()["dados"]["total"]["acumulado"] == [700, 780], "árvore: total MKB 700 x 780 (conta à mão)")
+for c in (dict(de="2", ate="1"), dict(de="0"), dict(ate="13"), dict(de="x"), dict(empresa="xyz")):
+    confere(arvore_get(**c).status_code in (400, 404), f"árvore: entrada {c} recusada")
+sessao(HUB_MKB)
+confere(arvore_get(empresa="gnileb").status_code in (403, 404) and arvore_get(empresa="consolidado").status_code == 404,
+        "árvore: cliente da MKB não lê Gnileb nem consolidado")
+sessao(ADMIN)
+
 # 5. exportar Excel
 corpo = {"nome": "orcamento_tabela_2026-10-20", "cabecalho": ["Linha da DRE", "Orçado"], "linhas": [["=1+1", 10.5], ["Receita", -3]]}
 r = cli.post("/orcamento/exportar", json=corpo)
@@ -129,7 +147,7 @@ folha = load_workbook(io.BytesIO(r.data)).active
 confere([c.value for c in folha[2]] == ["'=1+1", 10.5] and folha.max_row == 3, "exportar: linhas mandadas, fórmula neutralizada")
 confere("EXPORT_DADOS" in capturado.getvalue(), "exportar: EXPORT_DADOS no log")
 for ruim in (dict(corpo, nome="../../x"), dict(corpo, linhas=[["a"]]), dict(corpo, linhas=[["a", 1]] * 5001),
-             dict(corpo, cabecalho=list("abcdefghijklm"))):
+             dict(corpo, cabecalho=["c"] * 61)):
     confere(cli.post("/orcamento/exportar", json=ruim, headers={"X-CSRF-Token": TOKEN}).status_code == 400,
             f"exportar: pedido fora do limite = 400 ({len(ruim['linhas'])} linhas)")
 r = cli.post("/orcamento/exportar", json=dict(corpo, cabecalho=["a\x07", "b"], linhas=[["c\x01\x0b", ""]]), headers={"X-CSRF-Token": TOKEN})
@@ -147,11 +165,17 @@ confere(cli.post("/orcamento/exportar", data="isto não é json", headers={"X-CS
 tpl = (RAIZ / "templates" / "orcamento.html").read_text(encoding="utf-8")
 js = (RAIZ / "static" / "orcamento_tela.js").read_text(encoding="utf-8")
 css = (RAIZ / "static" / "orcamento.css").read_text(encoding="utf-8")
-itens = re.findall(r'data-acao="([a-z]+)"', tpl)
-confere(itens == ["filtro", "ordenar", "colunas", "csv", "excel"], "tela: menu na ordem Filtro, Ordenar, Colunas, CSV, Excel")
+menu_tabela = tpl[tpl.index('id="orcMenu"'):tpl.index('id="orcPopOrdenar"')]
+menu_arvore = tpl[tpl.index('id="orcArvMenu"'):tpl.index('id="orcArvore"')]
+confere(re.findall(r'data-acao="([a-z]+)"', menu_tabela) == ["filtro", "ordenar", "colunas", "csv", "excel"],
+        "tela: menu da tabela na ordem Filtro, Ordenar, Colunas, CSV, Excel")
+confere(re.findall(r'data-acao="([a-z]+)"', menu_arvore) == ["filtro", "csv", "excel", "expandir", "recolher"],
+        "tela: menu da árvore com Filtro, CSV, Excel, Expandir e Recolher (sem Ordenar e Colunas: grade hierárquica)")
 confere("ph-list" in tpl and "ph-dots-three" not in tpl + js and not re.search(r'id="[a-zA-Z]*[Tt]oolbar"', tpl), "tela: sanduíche dentro do card, sem toolbar solta")
-confere(tpl.count('placeholder="filtrar"') == 1 and "addEventListener('input', corpo)" in js, "tela: filtro por coluna a cada caractere")
+confere(tpl.count('placeholder="filtrar"') == 1 and "addEventListener('input', corpo)" in js and "inp.placeholder = 'filtrar'" in js,
+        "tela: filtro por coluna a cada caractere, na tabela e na árvore")
 confere(tpl.count('role="radiogroup"') == 2, "tela: os dois toggles com radiogroup")
+confere(tpl.count('class="cv-sw"') == 2 and re.search(r"\.cv-sw input\s*\{\s*display:\s*none", css), "tela: liga/desliga ÷ 1.000 e centavos no padrão cv-sw")
 confere(not re.search(r"\.tabela-wrap\s*\{[^}]*overflow\s*:\s*hidden", css), "tela: .tabela-wrap sem overflow hidden")
 confere("tabular-nums" in css and "min-height: 25px" in css, "tela: KPI com tabular-nums e lbl de 25px")
 confere("<select" not in tpl and "<style" not in tpl and 'style="' not in tpl, "tela: sem select, sem CSS na tela")

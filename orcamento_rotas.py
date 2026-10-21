@@ -225,7 +225,7 @@ import orcamento_engine as oe  # noqa: E402
 
 MESES_LONGOS = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto",
                 "Setembro", "Outubro", "Novembro", "Dezembro"]
-MAX_EXPORT_LINHAS, MAX_EXPORT_COLUNAS, MAX_EXPORT_TEXTO = 5000, 12, 200
+MAX_EXPORT_LINHAS, MAX_EXPORT_COLUNAS, MAX_EXPORT_TEXTO = 5000, 60, 200  # árvore com 12 meses: 45 colunas
 
 
 def _visoes_permitidas() -> list:
@@ -289,18 +289,13 @@ def dados():
         empresa = _visao_do_pedido((request.args.get("empresa") or "").strip())
         ano = _inteiro("ano", 2000, 2100)
         mes = _inteiro("mes", 1, 12)
-        filtros = {}
-        for chave in oe.FILTROS:
-            valor = (request.args.get(chave) or "").strip()
-            if valor:
-                if len(valor) > 120:
-                    raise ErroPedido("Filtro inválido.", 400, chave)
-                filtros[chave] = [valor]
+        de = _inteiro("de", 1, 12) if request.args.get("de") else None
+        filtros = _filtros_do_pedido()
         linha = (request.args.get("linha") or "").strip() or None
         conn = get_conn()
         try:
             resultado = oe.calcular(conn, empresa, ano, mes, (request.args.get("modo") or "mes").strip(),
-                                    (request.args.get("abrir_por") or "linha").strip(), filtros, linha)
+                                    (request.args.get("abrir_por") or "linha").strip(), filtros, linha, mes_ini=de)
         finally:
             conn.close()
     except ErroPedido as erro:
@@ -308,7 +303,42 @@ def dados():
     except ValueError as erro:
         return jsonify(erro=str(erro)), 400
     resultado["rotulo_empresa"] = dict(_visoes_permitidas())[empresa]
-    resultado["rotulo_mes"] = f"{MESES_LONGOS[mes]} de {ano}"
+    resultado["rotulo_mes"] = (f"{MESES_LONGOS[de]} a {MESES_LONGOS[mes]} de {ano}" if de and de != mes
+                               else f"{MESES_LONGOS[mes]} de {ano}")
+    return jsonify(ok=True, dados=resultado)
+
+
+def _filtros_do_pedido() -> dict:
+    filtros = {}
+    for chave in oe.FILTROS:
+        valor = (request.args.get(chave) or "").strip()
+        if valor:
+            if len(valor) > 120:
+                raise ErroPedido("Filtro inválido.", 400, chave)
+            filtros[chave] = [valor]
+    return filtros
+
+
+@bp.route("/orcamento/arvore")
+@login_required
+def arvore():
+    """DRE em árvore (Fase 6): Resultado, bloco da DRE gerencial, grupo do 5º nível e analítica, por mês."""
+    try:
+        empresa = _visao_do_pedido((request.args.get("empresa") or "").strip())
+        ano = _inteiro("ano", 2000, 2100)
+        de, ate = _inteiro("de", 1, 12), _inteiro("ate", 1, 12)
+        conn = get_conn()
+        try:
+            resultado = oe.arvore(conn, empresa, ano, de, ate, _filtros_do_pedido())
+        finally:
+            conn.close()
+    except ErroPedido as erro:
+        return _resposta_erro(erro)
+    except ValueError as erro:
+        return jsonify(erro=str(erro)), 400
+    resultado["rotulo_empresa"] = dict(_visoes_permitidas())[empresa]
+    resultado["rotulo_periodo"] = (f"{MESES_LONGOS[de]} de {ano}" if de == ate
+                                   else f"{MESES_LONGOS[de]} a {MESES_LONGOS[ate]} de {ano}")
     return jsonify(ok=True, dados=resultado)
 
 

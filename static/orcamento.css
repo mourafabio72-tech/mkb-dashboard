@@ -306,9 +306,99 @@
   .mg-kpis { gap: 8px; }
   .mg-kpi { padding: 12px 11px; gap: 9px; }
   .mg-kpi .ico { width: 36px; height: 36px; font-size: 18px; border-radius: 9px; }
-  .mg-kpi .val { font-size: 18px; white-space: normal; overflow-wrap: anywhere; }
+  .mg-kpi .val { font-size: 18px; }
   .mg-kpi .lbl { font-size: 9.5px; min-height: 23px; }
   .mg-kpi .disc { font-size: 10px; min-height: 13px; }
   .ta-popup { min-width: 0; width: calc(100vw - 48px); }
   .ta-ordem-linha { grid-template-columns: 1fr; }
 }
+
+/* ── Fase 6: legenda, liga/desliga, cards coloridos e árvore ──────────────── */
+
+/* Legenda Orçado/Realizado, data do realizado e opções de exibição */
+.orc-legenda { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 12px; }
+.orc-chip { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.orc-chip-orc { color: color-mix(in srgb, var(--warning) 22%, black); background: var(--warning); }
+.orc-chip-real { color: white; background: color-mix(in srgb, var(--accent) 85%, black); }
+.orc-ate { font-size: 13px; color: var(--text); margin-right: auto; }
+.orc-opcao { display: inline-flex; align-items: center; gap: 8px; }
+.orc-opcao-lbl { font-size: 12px; font-weight: 700; color: var(--text); white-space: nowrap; }
+
+/* Liga/desliga (Padrao_Toggle_OnOff): trio span.cv-sw + input escondido + label, 42x24 */
+.cv-sw { position: relative; width: 42px; height: 24px; flex: 0 0 auto; }
+.cv-sw input { display: none; }
+.cv-sw label { position: absolute; inset: 0; background: var(--border); border-radius: 999px; cursor: pointer; transition: .15s; }
+.cv-sw label::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%;
+  background: white; transition: .15s; box-shadow: 0 1px 3px color-mix(in srgb, black 25%, transparent);
+}
+.cv-sw input:checked + label { background: color-mix(in srgb, var(--success) 80%, black); }
+.cv-sw input:checked + label::after { transform: translateX(18px); }
+
+/* Cards pintados por inteiro (pedido de 2026-10-21); letra no contraste medido nos dois temas */
+.mg-kpi { border: none; }
+.mg-kpi::before { display: none; }
+.mg-kpi .ico { color: inherit; background: color-mix(in srgb, white 22%, transparent); }
+.mg-kpi .lbl, .mg-kpi .val, .mg-kpi .disc { color: inherit; }
+.mg-kpi .disc { opacity: .9; }
+.mg-kpi.k-orcado { color: color-mix(in srgb, var(--warning) 22%, black); background: var(--warning); }
+.mg-kpi.k-realizado { color: white; background: color-mix(in srgb, var(--accent) 85%, black); }
+.mg-kpi.k-variacao { color: white; background: color-mix(in srgb, var(--muted) 70%, black); }
+.mg-kpi.k-variacao.pos { color: white; background: color-mix(in srgb, var(--success) 52%, black); border: none; }
+.mg-kpi.k-variacao.neg { color: white; background: color-mix(in srgb, var(--danger) 62%, black); border: none; }
+.mg-kpi.k-pct { color: white; background: color-mix(in srgb, var(--primary) 55%, black); }
+.mg-kpi.pos .val, .mg-kpi.pos .lbl, .mg-kpi.neg .val, .mg-kpi.neg .lbl { color: inherit; }
+
+/* A árvore: primeira coluna fixa, pares Orçado/Realizado por mês */
+.orc-arvore { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: 13px; }
+.orc-arvore th, .orc-arvore td { border-bottom: 1px solid var(--border); background: var(--card); }
+.orc-arvore thead th {
+  position: sticky; top: 0; z-index: 2; padding: 8px 12px; text-align: right; white-space: nowrap;
+  font-size: 11.5px; font-weight: 700; letter-spacing: .04em; color: var(--text);
+}
+.orc-arvore thead th.arv-nome { text-align: left; text-transform: uppercase; color: var(--muted); }
+.orc-arvore .arv-nome {
+  position: sticky; left: 0; z-index: 1; min-width: 300px; max-width: 420px; padding: 8px 12px;
+  border-right: 1px solid var(--border);
+}
+.orc-arvore thead .arv-nome { z-index: 3; }
+.arv-mes-sub span { display: inline-block; min-width: 64px; font-size: 10.5px; text-transform: uppercase; }
+.arv-mes-sub span + span, .arv-par span + span { margin-left: 10px; }
+.orc-arvore .arv-orc { color: color-mix(in srgb, var(--warning) 30%, var(--text)); }
+.orc-arvore .arv-real { color: color-mix(in srgb, var(--accent) 45%, var(--text)); }
+.arv-cel { padding: 6px 12px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; vertical-align: top; }
+.arv-par span { display: inline-block; min-width: 64px; }
+.orc-arvore thead th.arv-mes { font-size: 12px; text-transform: lowercase; }
+.orc-arvore .arv-sub-cab th { top: 33px; }
+.arv-pct { font-weight: 700; }
+.arv-var { margin-top: 2px; display: flex; justify-content: flex-end; align-items: center; gap: 6px; font-size: 11.5px; }
+.arv-var.pos { color: color-mix(in srgb, var(--success) 58%, var(--text)); }
+.arv-var.neg { color: color-mix(in srgb, var(--danger) 65%, var(--text)); }
+.arv-var.zero { color: var(--muted); }
+.orc-arvore .arv-extra { background: color-mix(in srgb, var(--accent) 6%, var(--card)); }
+.orc-arvore thead th.arv-extra { background: color-mix(in srgb, var(--accent) 10%, var(--card)); }
+.orc-arvore td.arv-nome { display: flex; align-items: center; gap: 6px; }
+.arv-rotulo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.arv-n0 td { font-weight: 800; background: color-mix(in srgb, var(--accent) 16%, var(--card)); }
+.arv-n1 td { font-weight: 700; background: color-mix(in srgb, var(--accent) 8%, var(--card)); }
+.arv-n2 td.arv-nome { padding-left: 30px; }
+.arv-n3 td.arv-nome { padding-left: 62px; }
+.arv-abre {
+  flex: 0 0 auto; width: 26px; height: 26px; display: grid; place-items: center; cursor: pointer;
+  color: var(--text); background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+}
+.arv-abre:hover, .arv-abre:focus-visible { border-color: var(--accent); outline: none; }
+.arv-folha { flex: 0 0 auto; width: 26px; }
+.orc-arvore .th-filtro th { position: static; padding: 6px 10px; }
+.orc-arvore .th-filtro input {
+  box-sizing: border-box; width: 100%; height: 30px; padding: 0 8px; font: inherit; font-size: 12.5px;
+  color: var(--text); background: var(--card); border: 1px solid var(--border); border-radius: 8px; text-transform: none;
+}
+@media (max-width: 720px) {
+  .orc-arvore .arv-nome { min-width: 190px; max-width: 220px; }
+  .arv-n2 td.arv-nome { padding-left: 16px; }
+  .arv-n3 td.arv-nome { padding-left: 30px; }
+  .orc-ate { flex-basis: 100%; }
+}
+/* número nunca quebra no meio: abaixo de 480px, um card por linha */
+@media (max-width: 480px) { .mg-kpis { grid-template-columns: 1fr; } }
