@@ -155,7 +155,7 @@ Só marcar `[x]` com evidência apontável (arquivo:linha ou saída de prova).
 
 ## Fase 8: Dashboard do Orçamento
 - [x] Tabela | Dashboard dentro do Orçamento, com os mesmos filtros e o mesmo período (painel Filtro)
-  EVIDENCIA: templates/orcamento.html seletor #orcVisao (tipo 2, radiogroup), data-url-painel; orcamento_tela.js aplicarVisao (esconde Exibição, Abrir por, ÷ 1.000, centavos e etiquetas) e consultar() usa /orcamento/painel com os mesmos parâmetros; preferência no navegador, drilldown volta para Tabela. DESVIO EM ABERTO (Padrao_Toggle_Tipos, 'toggle não é tab'): ficou seletor tipo 2; perguntado ao Fábio se prefere abas
+  EVIDENCIA: templates/orcamento.html seletor #orcVisao (tipo 2, radiogroup), data-url-painel; orcamento_tela.js aplicarVisao (esconde Exibição, Abrir por, ÷ 1.000, centavos e etiquetas) e consultar() usa /orcamento/painel com os mesmos parâmetros; preferência no navegador, drilldown volta para Tabela. DESVIO DECLARADO (Padrao_Toggle_Tipos, 'toggle não é tab'): seletor tipo 2 mantido por decisão do Fábio em 2026-10-21 ('pode manter'), igual ao Do período | Evolução mensal
 - [x] indicadores Receita, Custo e despesa, MC, MC % e Resultado, cada um com realizado, orçado e variação (sinal, seta e palavra, não só cor), no modelo do início do FinHub (min-kpi)
   EVIDENCIA: orcamento_engine.py painel (indicadores de por_dimensao e da árvore); desenharPainel em min-kpi-row/min-kpi do início do FinHub, MC com min-kpi-hl; variação com seta, sinal e 'melhor/pior'; 'sem dado' sem razão. Contraste medido pelo verificador: 5,84 a 13,84
 - [x] Resultado por mês e MC por mês, orçado x realizado; mês sem razão aparece "sem dado"

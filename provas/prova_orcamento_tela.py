@@ -217,8 +217,8 @@ menu_tabela = tpl[tpl.index('id="orcMenu"'):tpl.index('id="orcPopOrdenar"')]
 menu_arvore = tpl[tpl.index('id="orcArvMenu"'):tpl.index('id="orcArvore"')]
 confere(re.findall(r'data-acao="([a-z]+)"', menu_tabela) == ["filtro", "ordenar", "colunas", "csv", "excel"],
         "tela: menu da tabela na ordem Filtro, Ordenar, Colunas, CSV, Excel")
-confere(re.findall(r'data-acao="([a-z]+)"', menu_arvore) == ["filtro", "csv", "excel", "expandir", "recolher"],
-        "tela: menu da árvore com Filtro, CSV, Excel, Expandir e Recolher (sem Ordenar e Colunas: grade hierárquica)")
+confere(re.findall(r'data-acao="([a-z]+)"', menu_arvore) == ["filtro", "colunas", "csv", "excel", "expandir", "recolher"],
+        "tela: menu da árvore com Filtro, Colunas (meses), CSV, Excel, Expandir e Recolher (sem Ordenar: grade hierárquica)")
 confere("ph-list" in tpl and "ph-dots-three" not in tpl + js and not re.search(r'id="[a-zA-Z]*[Tt]oolbar"', tpl), "tela: sanduíche dentro do card, sem toolbar solta")
 confere(js.count("inp.placeholder = 'filtrar'") == 2 and "addEventListener('input', corpo)" in js,
         "tela: filtro por coluna a cada caractere, na tabela e na árvore")

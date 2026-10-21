@@ -694,7 +694,37 @@
     desenharArvore();
   }
 
+  // meses, Média e Acumulado que a pessoa ocultou pelo menu Colunas; guardado no navegador
+  var PREF_ARV = 'orcamento_arv_ocultas', ocultasArv = (function () { try { return JSON.parse(localStorage.getItem(PREF_ARV) || '[]'); } catch (e) { return []; } })();
   function colunas() {
+    var todas = todasColunas(), vis = todas.filter(function (c) { return ocultasArv.indexOf(c.rot) === -1; });
+    return vis.length ? vis : todas.slice(-1);  // nunca some tudo: sobra o Acumulado
+  }
+  function abrirColunasArv() {
+    var c = $('orcArvColunasCorpo');
+    c.replaceChildren();
+    todasColunas().forEach(function (col) {
+      var rot = el('label', 'ta-coluna'), caixa = el('input');
+      caixa.type = 'checkbox';
+      caixa.checked = ocultasArv.indexOf(col.rot) === -1;
+      caixa.addEventListener('change', function () {
+        ocultasArv = ocultasArv.filter(function (k) { return k !== col.rot; });
+        if (!caixa.checked) ocultasArv.push(col.rot);
+        try { localStorage.setItem(PREF_ARV, JSON.stringify(ocultasArv)); } catch (e) { /* sem armazenamento */ }
+        desenharArvore();
+      });
+      rot.appendChild(caixa);
+      rot.appendChild(document.createTextNode(' ' + col.rot));
+      c.appendChild(rot);
+    });
+    $('orcArvPopColunas').classList.add('aberto');
+  }
+  $('orcArvTodas').addEventListener('click', function () {
+    ocultasArv = [];
+    try { localStorage.removeItem(PREF_ARV); } catch (e) { /* sem armazenamento */ }
+    if (arv) { desenharArvore(); abrirColunasArv(); }
+  });
+  function todasColunas() {
     var cols = [];
     if (estado.modo === 'evolucao') {
       arv.competencias.forEach(function (c, i) { cols.push({ rot: NOMES_MES[+c.slice(5, 7)] + '/' + c.slice(0, 4), pega: function (l) { return l.meses[i]; } }); });
@@ -843,6 +873,7 @@
       if (arvFiltroAberto) $('orcArvCab').querySelector('.th-filtro input').focus();
     } else if (acao === 'expandir') { arv.linhas.forEach(function (l) { abertos[l.id] = true; }); desenharArvore(); }
     else if (acao === 'recolher') { abertos = {}; arv.linhas.forEach(function (l) { if (l.nivel === 0) abertos[l.id] = true; }); desenharArvore(); }
+    else if (acao === 'colunas') abrirColunasArv();
     else if (acao === 'csv' || acao === 'excel') exportarArvore(acao);
   });
 
