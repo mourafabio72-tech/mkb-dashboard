@@ -20,7 +20,7 @@
 {% endmacro %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='orcamento.css') }}?v=20261021f">
+<link rel="stylesheet" href="{{ url_for('static', filename='orcamento.css') }}?v=20261021g">
 
 <div class="orc-pagina" id="orcTela" data-url-dimensao="{{ url_for('orcamento.dimensao') }}" data-url-arvore="{{ url_for('orcamento.arvore') }}" data-url-painel="{{ url_for('orcamento.painel') }}"
      data-url-lancamentos="{{ url_for('orcamento.lancamentos') }}" data-url-exportar="{{ url_for('orcamento.exportar') }}">
@@ -169,10 +169,10 @@
         <button type="button" class="ta-menu-item" data-acao="recolher" role="menuitem"><i class="ph ph-arrows-in-line-vertical"></i> Recolher tudo</button>
       </div>
       <div class="ta-popup" id="orcArvPopColunas">
-        <div class="ta-popup-cab"><i class="ph ph-columns"></i> Mostrar ou ocultar</div>
+        <div class="ta-popup-cab"><i class="ph ph-columns"></i> Expandir ou recolher</div>
         <div class="ta-popup-corpo" id="orcArvColunasCorpo"></div>
         <div class="ta-popup-rodape">
-          <button type="button" id="orcArvTodas">Mostrar todas</button>
+          <button type="button" id="orcArvTodas">Expandir todas</button>
           <button type="button" class="ta-fechar">Fechar</button>
         </div>
       </div>
@@ -295,5 +295,5 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='selectbusca.js') }}?v=20261021"></script>
-<script src="{{ url_for('static', filename='orcamento_tela.js') }}?v=20261021f"></script>
+<script src="{{ url_for('static', filename='orcamento_tela.js') }}?v=20261021g"></script>
 {% endblock %}

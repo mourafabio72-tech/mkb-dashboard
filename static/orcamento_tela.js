@@ -720,8 +720,9 @@
     $('orcArvPopColunas').classList.add('aberto');
   }
   function gravarOcultasArv() { try { localStorage.setItem(PREF_ARV, JSON.stringify(ocultasArv)); } catch (e) { /* sem armazenamento */ } }
-  function ocultarColunaArv(rot) {
+  function alternarColunaArv(rot) {
     if (ocultasArv.indexOf(rot) === -1) ocultasArv.push(rot);
+    else ocultasArv = ocultasArv.filter(function (k) { return k !== rot; });
     gravarOcultasArv();
     desenharArvore();
   }
@@ -731,8 +732,8 @@
     box.replaceChildren();
     box.hidden = !n;
     if (!n) return;
-    box.appendChild(el('span', '', n + (n === 1 ? ' coluna oculta' : ' colunas ocultas')));
-    var b = el('button', 'orc-link', 'Mostrar todas');
+    box.appendChild(el('span', '', n + (n === 1 ? ' coluna recolhida' : ' colunas recolhidas')));
+    var b = el('button', 'orc-link', 'Expandir todas');
     b.type = 'button';
     b.addEventListener('click', function () { $('orcArvTodas').click(); });
     box.appendChild(b);
@@ -800,21 +801,31 @@
 
   function desenharArvore() {
     if (!arv) return;
-    var cols = colunas(), cab = $('orcArvCab'), corpoArv = $('orcArvCorpo');
+    // todas as colunas entram; a recolhida vira uma faixa estreita com o + para expandir (como as linhas)
+    var cols = todasColunas(), abertasN = colunas().length, cab = $('orcArvCab'), corpoArv = $('orcArvCorpo');
+    cols.forEach(function (c) { c.fechada = ocultasArv.indexOf(c.rot) !== -1 && abertasN < cols.length; });
     $('orcArvTitulo').textContent = arv.rotulo_empresa + ' · ' + arv.rotulo_periodo + (fmtPref.mil ? ' · em R$ mil' : ' · R$');
     var tr1 = el('tr'), tr2 = el('tr', 'arv-sub-cab');
     var th0 = el('th', 'arv-nome', 'Grupo ou conta');
     th0.rowSpan = 2;
     tr1.appendChild(th0);
     cols.forEach(function (c) {
-      var th = el('th', 'arv-mes' + (c.extra ? ' arv-extra' : '')), oc = el('button', 'arv-ocultar');
+      var th = el('th', 'arv-mes' + (c.extra ? ' arv-extra' : '') + (c.fechada ? ' arv-fechada' : '')), bt = el('button', 'arv-col');
+      bt.type = 'button';
+      bt.setAttribute('aria-expanded', c.fechada ? 'false' : 'true');
+      bt.setAttribute('aria-label', (c.fechada ? 'Expandir ' : 'Recolher ') + c.rot);
+      bt.title = (c.fechada ? 'Expandir ' : 'Recolher ') + c.rot;
+      bt.appendChild(el('i', 'ph ' + (c.fechada ? 'ph-plus' : 'ph-minus')));
+      bt.addEventListener('click', function () { alternarColunaArv(c.rot); });
+      if (c.fechada) {  // faixa estreita: só o + e o nome curto, ocupando as duas linhas do cabeçalho
+        th.rowSpan = 2;
+        th.appendChild(bt);
+        th.appendChild(el('span', 'arv-fechada-rot', c.rot.split('/')[0]));
+        tr1.appendChild(th);
+        return;
+      }
       th.appendChild(el('span', '', c.rot));
-      oc.type = 'button';
-      oc.title = 'Ocultar ' + c.rot;
-      oc.setAttribute('aria-label', 'Ocultar a coluna ' + c.rot);
-      oc.appendChild(el('i', 'ph ph-eye-slash'));
-      oc.addEventListener('click', function () { ocultarColunaArv(c.rot); });
-      if (cols.length > 1) th.appendChild(oc);  // a última visível não se oculta
+      if (abertasN > 1) th.appendChild(bt);  // a última aberta não recolhe
       tr1.appendChild(th);
       var sub = el('th', 'arv-mes-sub' + (c.extra ? ' arv-extra' : ''));
       sub.appendChild(el('span', 'arv-orc', 'Orçado'));
@@ -863,7 +874,9 @@
         } else td.appendChild(el('span', 'arv-rotulo', (l.codigo ? l.codigo + ' · ' : '') + l.rotulo));
         tdNome.title = (l.codigo ? l.codigo + ' · ' : '') + l.rotulo;
         tr.appendChild(tdNome);
-        cols.forEach(function (c) { tr.appendChild(celula(c.pega(l), c.extra, c.cmp ? c.cmp(l) : undefined)); });
+        cols.forEach(function (c) {
+          tr.appendChild(c.fechada ? el('td', 'arv-cel arv-fechada') : celula(c.pega(l), c.extra, c.cmp ? c.cmp(l) : undefined));
+        });
         corpoArv.appendChild(tr);
       });
     }

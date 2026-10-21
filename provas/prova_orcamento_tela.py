@@ -244,8 +244,8 @@ confere(not re.search(r"chart\.js|<canvas|<script src=\"https?:", tpl + js, re.I
         "dashboard: gráfico em SVG desenhado no app, sem biblioteca nem CDN (D10)")
 confere(".orc-g-tip { pointer-events: none; }" in css and "setAttribute('tabindex', '0')" in js and "'aria-label'" in js,
         "dashboard: tooltip não rouba o clique; barra com foco de teclado e rótulo")
-confere("'arv-ocultar'" in js and "ocultarColunaArv(c.rot)" in js and 'id="orcArvOcultas"' in tpl and "return vis.length ? vis : todas.slice(-1)" in js,
-        "árvore: ocultar cada mês no próprio cabeçalho, aviso com Mostrar todas, nunca some tudo")
+confere("'arv-col'" in js and "alternarColunaArv(c.rot)" in js and "'ph-plus'" in js and 'id="orcArvOcultas"' in tpl and "return vis.length ? vis : todas.slice(-1)" in js,
+        "árvore: + e − em cada mês, a recolhida vira faixa estreita, aviso com Expandir todas, nunca recolhe tudo")
 confere("body.drawer-aberto { overflow: hidden; }" in css and "classList.add('drawer-aberto')" in js, "painel: página atrás não rola")
 confere(tpl.count('role="radiogroup"') == 3, "tela: os três toggles com radiogroup")
 confere(tpl.count('class="cv-sw"') == 2 and re.search(r"\.cv-sw input\s*\{\s*display:\s*none", css), "tela: liga/desliga ÷ 1.000 e centavos no padrão cv-sw")
