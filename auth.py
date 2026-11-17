@@ -29,7 +29,7 @@ from urllib.parse import quote
 from flask import session, redirect, url_for, request, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from config import DASHBOARD_USERS_RAW, HUB_URL, MODULO_HUB, EMPRESAS
+from config import DASHBOARD_USERS_RAW, HUB_URL, MODULO_HUB, APPS_HUB, EMPRESAS
 
 _MAX_ATTEMPTS = 5
 _BLOCK_SECONDS = 300
@@ -142,6 +142,15 @@ def empresas_permitidas():
             if str(e.get("sigla", chave)).upper() in siglas}
 
 
+def tem_acesso_hub(u: dict) -> bool:
+    """Sessão do Hub pode entrar: tem o card deste app (`apps`) ou, como antes,
+    o módulo dele (`modulos`). O módulo fica como segunda porta para não tirar
+    ninguém que já entra; o card resolve quem foi barrado porque o card mudou
+    de grupo no menu do Hub."""
+    apps = {str(s) for s in (u.get("apps") or [])}
+    return bool(apps & APPS_HUB) or MODULO_HUB in (u.get("modulos") or [])
+
+
 # ─── DECORATORS ──────────────────────────────────────────────────────────────
 
 def login_required(f):
@@ -154,7 +163,7 @@ def login_required(f):
             if HUB_URL:
                 return redirect(f"{HUB_URL}/login?next={quote(request.url, safe='')}")
             return redirect(url_for("login", next=request.path))
-        if u.get("origem") == "hub" and MODULO_HUB not in (u.get("modulos") or []):
+        if u.get("origem") == "hub" and not tem_acesso_hub(u):
             return ("Seu usuário não tem acesso ao módulo deste aplicativo. "
                     "Solicite a liberação a um administrador no hub zoaria.com.br.", 403)
         return f(*args, **kwargs)

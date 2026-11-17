@@ -119,6 +119,16 @@ ZOARIA_COOKIE_DOMAIN = os.environ.get("ZOARIA_COOKIE_DOMAIN", "").strip() or Non
 ZOARIA_COOKIE_NAME   = os.environ.get("ZOARIA_COOKIE_NAME", "zoaria_session")
 HUB_URL    = os.environ.get("HUB_URL", "").strip().rstrip("/")
 MODULO_HUB = "controladoria"   # módulo deste app no catálogo do hub
+# Slug do card deste app no Hub. A entrada vale por TER O CARD, e não pelo grupo
+# do menu em que ele está: em 2026-11-17 o card foi para o módulo "Cliente" e
+# todo usuário não-admin ficou de fora, mesmo com o card marcado. O slug nasceu
+# do nome antigo e não muda ao editar o card; "finhub" cobre banco novo.
+# APPS_HUB (separado por vírgula) troca a lista sem deploy de código.
+APPS_HUB = frozenset(
+    s.strip() for s in
+    (os.environ.get("APPS_HUB") or "dashboard-dre-mkb-gnileb,finhub").split(",")
+    if s.strip()
+)
 
 # ─── IA ──────────────────────────────────────────────────────────────────────
 # Chaves, provedor ativo e modelo moram em ia_config.py (env vence o arquivo no
